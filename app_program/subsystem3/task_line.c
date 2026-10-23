@@ -1,0 +1,185 @@
+/*
+ *	task_line.c
+ *	Line Following task (Week 6: High, periodic 20 ms) and its cyclic
+ *	handler.  Implements the Line following / Error-recover part of the
+ *	Buddy 3 statechart (6.3); the barcode part runs in task_barcode.c.
+ *
+ *	Per period:
+ *	  INIT mode      calibrate the IR polarity once per INIT epoch (car
+ *	                 still, on the line) -> SYS_EV_IR_CAL_OK / _FAIL
+ *	  NORMAL mode    line position -> steering word to Buddy 2; line
+ *	                 loss search; junction detection
+ *	  other modes    no steering (Tribunal 1: "Buddy 3 reads the mode to
+ *	                 stop steering outside Normal Navigation"), but line
+ *	                 found/lost is still reported for Buddy 5's recovery
+ */
+
+#include "subsystem3.h"
+#include "drv_ir.h"
+
+EXPORT TASK_STAT	s3_stat_line;
+EXPORT volatile UW	s3_line_word;
+EXPORT volatile UW	s3_line_time;
+EXPORT volatile UW	s3_black_level = 1U;
+EXPORT APP_SEQ		s3_line_seq;
+
+LOCAL LINE_FOLLOW	lf;
+
+EXPORT void line_cyclic_handler(void *exinf)
+{
+	(void)exinf;
+	(void)tk_wup_tsk(tid_line);
+}
+
+EXPORT void s3_get_line_status(S3_LINE_STATUS *s)
+{
+	UW	w = 0, t = 0;
+	UINT	tries;
+
+	for (tries = 0; tries < APP_SEQ_READ_TRIES; tries++) {
+		UW	q = app_seq_read_begin(&s3_line_seq);
+
+		w = s3_line_word;
+		t = s3_line_time;
+		if (!app_seq_read_retry(&s3_line_seq, q)) {
+			break;
+		}
+	}
+	s3_line_unpack(w, s);
+	s->time_ms = t;
+}
+
+/* Barcode capture in progress (published by the barcode task) */
+LOCAL BOOL barcode_capturing(void)
+{
+	S3_BC_STATUS	b;
+
+	s3_bc_unpack(app_load(&s3_bc_word), &b);
+	return (b.state == BCS_CAPTURING) ? TRUE : FALSE;
+}
+
+LOCAL void calibrate_step(UB raw, UW epoch, UW *cal_epoch, UB *buf, UINT *n)
+{
+	INT	r;
+
+	if (*cal_epoch == epoch) {
+		return;				/* already done for this INIT */
+	}
+	buf[(*n)++] = raw;
+	if (*n < S3_CAL_SAMPLES) {
+		return;
+	}
+	r = lf_calibrate(&lf, buf, *n);
+	*n = 0;
+	*cal_epoch = epoch;
+	if (r == LF_CAL_OK) {
+		app_store(&s3_black_level, lf.black_level[IR_R]);
+		sys_fault_clear(SYS_FLT_IR_CAL);
+		sys_post_event(SYS_EV_IR_CAL_OK);
+		tm_printf((UB*)"line: IR calibrated, black level = %d\n",
+			  (INT)lf.black_level[IR_C]);
+	} else {
+		/* Week 6 system statechart: calibration failure -> Safe Stop */
+		sys_fault_set(SYS_FLT_IR_CAL);
+		sys_post_event(SYS_EV_IR_CAL_FAIL);
+		tm_printf((UB*)"line: IR calibration FAILED (%d) - place the car "
+			  "with the centre sensor on the line\n", r);
+	}
+}
+
+EXPORT void line_task(INT stacd, void *exinf)
+{
+	S3_LINE_STATUS	st;
+	LF_OUT		out;
+	UB		cal_buf[S3_CAL_SAMPLES];
+	UINT		cal_n = 0;
+	UW		cal_epoch = 0xFFU;
+	BOOL		was_nav = FALSE;
+	UB		seq = 0, junctions = 0, lost_count = 0;
+	W		odo = 0;
+
+	(void)stacd;
+	(void)exinf;
+	lf_init(&lf);
+
+	for (;;) {
+		UW	start, vsw, mode;
+		UB	raw, black;
+		BOOL	nav;
+		INT	steer;
+
+		(void)tk_slp_tsk(TMO_FEVR);
+		(void)tk_can_wup(TSK_SELF);	/* never "catch up" on late ticks */
+		start = task_stat_begin(&s3_stat_line);
+
+		raw = ir_read_raw();
+		vsw = sys_vsw();
+		mode = vsw_mode(vsw);
+		motion_get_odometry(&odo, NULL);
+
+		if (mode == VM_INIT) {
+			calibrate_step(raw, vsw_epoch(vsw), &cal_epoch, cal_buf, &cal_n);
+		} else {
+			cal_n = 0;
+		}
+
+		nav = (mode == VM_NORMAL) ? TRUE : FALSE;
+		if (nav && !was_nav) {
+			lf_reset_tracking(&lf);	/* fresh start of Normal Navigation */
+		}
+		was_nav = nav;
+
+		black = lf_black_bits(&lf, raw);
+		lf_step(&lf, black, odo, S3_PERIOD_MS, nav, &out);
+		steer = out.steer;
+
+		if (nav && out.steering) {
+			if (S3_PAUSE_STEER_ON_BARCODE && barcode_capturing()
+			    && lf.state == LS_ON_LINE
+			    && (black & IR_BIT(IR_C)) != 0U) {
+				steer = 0;		/* hold straight over the barcode */
+			}
+			motion_set_steer(steer, out.speed_frac);
+		} else {
+			motion_clear_steer();
+		}
+
+		if ((out.events & LF_EV_LOST) != 0U) {
+			lost_count++;
+			sys_fault_set(SYS_FLT_LINE_LOST);
+			sys_post_event(SYS_EV_LINE_LOST);
+			(void)tk_set_flg(flg_line_evt, LEV_LOST);
+		}
+		if ((out.events & LF_EV_FOUND) != 0U) {
+			sys_fault_clear(SYS_FLT_LINE_LOST);
+			sys_post_event(SYS_EV_LINE_FOUND);
+			(void)tk_set_flg(flg_line_evt, LEV_FOUND);
+		}
+		if ((out.events & LF_EV_JUNCTION) != 0U) {
+			junctions++;
+			(void)tk_set_flg(flg_line_evt, LEV_JUNCTION);
+		}
+		if ((out.events & LF_EV_RECOVERY_FAIL) != 0U) {
+			/* "retries exhausted -> Stop / safe state" */
+			sys_fault_set(SYS_FLT_LINE_RECOVERY);
+			tm_printf((UB*)"line: line not found after %d searches\n",
+				  LF_SEARCH_RETRIES);
+		}
+
+		st.ir_black = black;
+		st.pos = lf.pos;
+		st.state = lf.calibrated ? lf.state : LS_UNKNOWN;
+		st.seq = seq++;
+		st.steer = (B)((nav && out.steering) ? steer : 0);
+		st.calibrated = lf.calibrated ? 1U : 0U;
+		st.junctions = junctions;
+		st.lost_count = lost_count;
+		st.speed_frac = out.speed_frac;
+		app_seq_write_begin(&s3_line_seq);
+		s3_line_word = s3_line_pack(&st);
+		s3_line_time = app_now_ms();
+		app_seq_write_end(&s3_line_seq);
+
+		task_stat_end(&s3_stat_line, start, (UW)S3_PERIOD_MS * 1000U / 2U);
+	}
+}
