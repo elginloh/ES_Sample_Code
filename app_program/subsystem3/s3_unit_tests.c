@@ -314,7 +314,8 @@ LOCAL INT test_line(void)
 	UINT		k;
 	UW		t;
 	W		odo = 0;
-	BOOL		lost = FALSE, found = FALSE, fail = FALSE, junction = FALSE, backed;
+	BOOL		lost = FALSE, found = FALSE, fail = FALSE, junction = FALSE;
+	BOOL		reversed = FALSE, saw_left = FALSE, saw_right = FALSE;
 	UINT		junction_events = 0;
 
 	TEST_INIT();
@@ -346,46 +347,44 @@ LOCAL INT test_line(void)
 		cal[k] = 0x2U;
 	}
 	(void)lf_calibrate(&lf, cal, 10);
-	lf_step(&lf, IR_BIT(IR_C), 0, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_C), 0, LF_HEADING_NONE, 20, TRUE, &o);
 	TEST_CHECK("S3-U22", o.steering && o.steer == 0 && o.speed_frac == 15 && lf.pos == LP_CENTER,
 		   "centred: straight at full cruise fraction");
-	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), 2, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), 2, LF_HEADING_NONE, 20, TRUE, &o);
 	TEST_CHECK("S3-U23", o.steer < 0 && lf.pos == LP_LEFT_NEAR, "line drifting left: steer left");
-	lf_step(&lf, IR_BIT(IR_L), 4, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_L), 4, LF_HEADING_NONE, 20, TRUE, &o);
 	TEST_CHECK("S3-U24", o.steer < -LF_KP && lf.pos == LP_LEFT_FAR && o.speed_frac < 15,
 		   "line under left sensor only: steer harder, slower");
 
 	/* lose the line, search, find it again */
 	for (t = 0; t < 400U; t += 20U) {
 		odo += 4;
-		lf_step(&lf, 0, odo, 20, TRUE, &o);
+		lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
 		lost = lost || ((o.events & LF_EV_LOST) != 0U);
+		reversed = reversed || o.reverse;
 	}
-	backed = o.reverse && o.steer == 0;	/* search starts by backing up */
-	for (t = 0; t < 2000U && o.reverse; t += 20U) {
-		odo += 4;
-		lf_step(&lf, 0, odo, 20, TRUE, &o);
-	}
-	TEST_CHECK("S3-U25", lost && backed && lf.state == LS_SEARCHING && o.speed_frac == 0
+	TEST_CHECK("S3-U25", lost && !reversed && lf.state == LS_SEARCHING && o.speed_frac == 0
 		   && o.steer < 0,
-		   "line lost: back up, then pivot towards the side it was last seen");
-	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+		   "line lost: no reversing; pivot at once towards the side it was last seen");
+	lf_step(&lf, IR_BIT(IR_C), odo, LF_HEADING_NONE, 20, TRUE, &o);
 	found = (o.events & LF_EV_FOUND) != 0U;
 	TEST_CHECK("S3-U26", found && lf.state == LS_ON_LINE, "line reacquired -> FOUND event");
 
-	/* never found: bounded retries then RECOVERY_FAIL */
-	for (t = 0; t < 20000U && !fail; t += 20U) {
-		odo += 1;
-		lf_step(&lf, 0, odo, 20, TRUE, &o);
-		fail = (o.events & LF_EV_RECOVERY_FAIL) != 0U;
+	/* never found: keeps sweeping both ways, never gives up */
+	for (t = 0; t < 8U * LF_SEARCH_T1_MS; t += 20U) {
+		lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
+		fail = fail || (o.events & LF_EV_RECOVERY_FAIL) != 0U;
+		reversed = reversed || o.reverse;
+		saw_left = saw_left || (lf.state == LS_SEARCHING && o.steer < 0);
+		saw_right = saw_right || (lf.state == LS_SEARCHING && o.steer > 0);
 	}
-	TEST_CHECK("S3-U27", fail && lf.state == LS_LOST && t < 3U * 3U * LF_SEARCH_T1_MS * LF_SEARCH_RETRIES + 2000U,
-		   "search exhausted after bounded retries -> RECOVERY_FAIL");
+	TEST_CHECK("S3-U27", !fail && !reversed && lf.state == LS_SEARCHING && saw_left && saw_right,
+		   "line never found: keeps sweeping left and right; no RECOVERY_FAIL, no reversing");
 
 	lf_reset_tracking(&lf);
 	for (k = 0; k < 10U; k++) {
 		odo += 2;
-		lf_step(&lf, IR_BIT(IR_L) | IR_BIT(IR_C) | IR_BIT(IR_R), odo, 20, TRUE, &o);
+		lf_step(&lf, IR_BIT(IR_L) | IR_BIT(IR_C) | IR_BIT(IR_R), odo, LF_HEADING_NONE, 20, TRUE, &o);
 		if ((o.events & LF_EV_JUNCTION) != 0U) {
 			junction = TRUE;
 			junction_events++;
@@ -395,10 +394,150 @@ LOCAL INT test_line(void)
 		   "all three sensors black for >= 8 mm: one JUNCTION event");
 
 	lf_reset_tracking(&lf);
-	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo, LF_HEADING_NONE, 20, TRUE, &o);
 	TEST_CHECK("S3-U29", lf.pos == LP_CENTER && o.steer == 0,
 		   "barcode bar under the right sensor does not disturb steering");
 	TEST_SUMMARY("s3 line");
+	return test_fail_;
+}
+
+/* Pivot model for the search tests: the IMU heading follows the steering
+   by 'rate' degrees per 20 ms period (+ heading = left, Buddy 4) */
+LOCAL INT turn(INT heading, INT steer, INT rate)
+{
+	if (heading == LF_HEADING_NONE) {
+		return heading;
+	}
+	if (steer < 0) {
+		heading += rate;
+	} else if (steer > 0) {
+		heading -= rate;
+	}
+	return (heading + 360) % 360;
+}
+
+/* Calibrated tracker on the line, last seen on 'side' (-1 left, +1 right),
+   then no line until the search starts.  The heading follows the turns. */
+LOCAL void lose_line(LINE_FOLLOW *lf, INT side, INT *heading, INT rate, LF_OUT *o)
+{
+	UB	cal[10];
+	UINT	k;
+
+	lf_init(lf);
+	for (k = 0; k < 10U; k++) {
+		cal[k] = 0x2U;
+	}
+	(void)lf_calibrate(lf, cal, 10);
+	lf_step(lf, IR_BIT(IR_C), 0, *heading, 20, TRUE, o);
+	if (side < 0) {
+		lf_step(lf, IR_BIT(IR_L), 0, *heading, 20, TRUE, o);
+	}
+	for (k = 0; k < 100U && lf->state != LS_SEARCHING; k++) {
+		lf_step(lf, 0, 0, *heading, 20, TRUE, o);
+		*heading = turn(*heading, o->steer, rate);
+	}
+}
+
+/* Time from the start of the search to the first change of sweep
+   direction, with the given heading behaviour */
+LOCAL UW first_sweep_ms(INT heading, INT rate)
+{
+	LINE_FOLLOW	lf;
+	LF_OUT		o;
+	INT		dir;
+	UW		t;
+
+	lose_line(&lf, -1, &heading, rate, &o);
+	dir = (o.steer < 0) ? -1 : 1;
+	for (t = 20; t < 4U * LF_SEARCH_T1_MS; t += 20U) {
+		lf_step(&lf, 0, 0, heading, 20, TRUE, &o);
+		if (((o.steer < 0) ? -1 : 1) != dir) {
+			return t + 20U;
+		}
+		heading = turn(heading, o.steer, rate);
+	}
+	return 0;
+}
+
+LOCAL INT test_line_search(void)
+{
+	LINE_FOLLOW	lf;
+	LF_OUT		o;
+	INT		h, dir, at[3] = {0, 0, 0};
+	UINT		n = 0, k;
+	UW		t, t_none, t_stuck;
+	BOOL		left_first, reversed = FALSE, wrapped = FALSE;
+	BOOL		found, ok1, ok2;
+
+	TEST_INIT();
+
+	/* IMU heading, 2 deg per period: turn round at 90 deg each side of
+	   the heading where the line was lost.  The origin lies near 44 deg,
+	   so the right sweep crosses 0/359. */
+	h = 20;
+	lose_line(&lf, -1, &h, 2, &o);
+	left_first = o.steer < 0;
+	dir = left_first ? -1 : 1;
+	for (t = 20; t < 4U * LF_SEARCH_T1_MS && n < 3U; t += 20U) {
+		lf_step(&lf, 0, 0, h, 20, TRUE, &o);
+		reversed = reversed || o.reverse;
+		if (((o.steer < 0) ? -1 : 1) != dir) {
+			at[n++] = lf.search_deg;	/* where the sweep turned round */
+			dir = -dir;
+		}
+		h = turn(h, o.steer, 2);
+		wrapped = wrapped || h > 300;
+	}
+	TEST_CHECK("S3-U42", left_first && n == 3U && !reversed && wrapped
+		   && at[0] <= -90 && at[0] >= -92 && at[1] >= 90 && at[1] <= 92
+		   && at[2] <= -90 && at[2] >= -92,
+		   "IMU heading: sweeps turn round at 90 deg each side of the loss, last-seen side first");
+
+	/* No heading: timed sweeps.  A heading that never moves (motors
+	   bending the field): the sweep ends half as long again. */
+	t_none = first_sweep_ms(LF_HEADING_NONE, 0);
+	t_stuck = first_sweep_ms(100, 0);
+	TEST_CHECK("S3-U43", t_none >= LF_SEARCH_T1_MS && t_none <= LF_SEARCH_T1_MS + 40U,
+		   "no IMU heading: first sweep is timed (LF_SEARCH_T1_MS, ~90 deg)");
+	TEST_CHECK("S3-U44", t_stuck >= LF_SEARCH_T1_MS + LF_SEARCH_T1_MS / 2U
+		   && t_stuck <= LF_SEARCH_T1_MS + LF_SEARCH_T1_MS / 2U + 40U,
+		   "IMU heading that does not follow the turn: sweep ends at 1.5 x the timed length");
+
+	/* Found under the LEFT sensor while sweeping left: keep turning left
+	   while moving on, then centred and straight */
+	h = LF_HEADING_NONE;
+	lose_line(&lf, -1, &h, 0, &o);
+	for (k = 0; k < 10U; k++) {
+		lf_step(&lf, 0, 0, h, 20, TRUE, &o);
+	}
+	lf_step(&lf, IR_BIT(IR_L), 0, h, 20, TRUE, &o);
+	found = (o.events & LF_EV_FOUND) != 0U;
+	ok1 = o.steer < 0 && o.speed_frac > 0;
+	lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
+	ok2 = o.steer < 0 && o.speed_frac > 0;
+	for (k = 0; k < 30U; k++) {
+		lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
+	}
+	TEST_CHECK("S3-U45", found && ok1 && ok2 && o.steer == 0 && o.speed_frac == 15
+		   && lf.pos == LP_CENTER,
+		   "found while sweeping left: keeps turning left while moving on, then centred");
+
+	/* ... and the other way: found under the CENTRE while sweeping right */
+	lose_line(&lf, 1, &h, 0, &o);
+	ok1 = o.steer > 0;				/* sweeping right */
+	for (k = 0; k < 10U; k++) {
+		lf_step(&lf, 0, 0, h, 20, TRUE, &o);
+	}
+	lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
+	found = (o.events & LF_EV_FOUND) != 0U;
+	ok2 = o.steer > 0 && o.speed_frac > 0;
+	for (k = 0; k < 30U; k++) {
+		lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
+	}
+	TEST_CHECK("S3-U46", ok1 && found && ok2 && o.steer == 0 && o.speed_frac == 15
+		   && lf.pos == LP_CENTER,
+		   "found while sweeping right: keeps turning right while moving on, then centred");
+	TEST_SUMMARY("s3 line search");
 	return test_fail_;
 }
 
@@ -446,7 +585,7 @@ LOCAL INT test_status_words(void)
 EXPORT INT s3_run_unit_tests(void)
 {
 	return test_code39() + test_capture() + test_nav_map() + test_line()
-	     + test_status_words();
+	     + test_line_search() + test_status_words();
 }
 
 #endif /* APP_TEST || HOST_TEST */

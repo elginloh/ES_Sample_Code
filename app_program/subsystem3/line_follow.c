@@ -27,6 +27,8 @@ EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 	lf->backing = FALSE;
 	lf->backup_start_mm = 0;
 	lf->search_ms = 0;
+	lf->search_origin = LF_HEADING_NONE;
+	lf->search_deg = 0;
 	lf->search_phase = 0;
 	lf->retries = 0;
 	lf->in_junction = FALSE;
@@ -186,14 +188,29 @@ LOCAL INT search_dir(const LINE_FOLLOW *lf)
 	return (lf->search_phase == 0U) ? first : -first;
 }
 
-LOCAL void search(LINE_FOLLOW *lf, W odo_mm, UW dt_ms, LF_OUT *out)
+/* Sweep angle from the search origin, + = right (the steering sign).
+   The IMU heading grows turning left, so the difference is negated. */
+LOCAL INT angle_right(INT origin, INT heading)
+{
+	return 180 - (heading - origin + 540) % 360;
+}
+
+LOCAL void search(LINE_FOLLOW *lf, W odo_mm, INT heading, UW dt_ms, LF_OUT *out)
 {
 	INT	dir = search_dir(lf);
+	UW	limit;
+	BOOL	done;
 
 	if (lf->backing) {
 		/* Phase 0: back up straight so the sensors come back over
-		   a line they overshot, then sweep. */
-		if (odo_mm - lf->backup_start_mm < LF_BACKUP_MM) {
+		   a line they overshot, then sweep.  The odometer counts
+		   down while reversing: compare the distance, not its sign. */
+		W	moved = odo_mm - lf->backup_start_mm;
+
+		if (moved < 0) {
+			moved = -moved;
+		}
+		if (moved < LF_BACKUP_MM) {
 			out->steer = 0;
 			out->speed_frac = 15;		/* capped to creep */
 			out->reverse = TRUE;
@@ -201,13 +218,23 @@ LOCAL void search(LINE_FOLLOW *lf, W odo_mm, UW dt_ms, LF_OUT *out)
 		}
 		lf->backing = FALSE;
 	}
-	/* First sweep: centre -> +60 deg.  Every later sweep runs edge to
-	   edge (120 deg), so repeats keep covering both sides. */
-	UW	limit = (lf->search_phase == 0U && lf->retries == 0U)
-			? LF_SEARCH_T1_MS : 2U * LF_SEARCH_T1_MS;
+	/* First sweep: centre -> LF_SEARCH_DEG.  Every later sweep runs edge
+	   to edge, so repeats keep covering both sides. */
+	limit = (lf->search_phase == 0U && lf->retries == 0U)
+		? LF_SEARCH_T1_MS : 2U * LF_SEARCH_T1_MS;
 
 	lf->search_ms += dt_ms;
-	if (lf->search_ms >= limit) {
+	if (lf->search_origin != LF_HEADING_NONE && heading != LF_HEADING_NONE) {
+		/* Measured: turn until LF_SEARCH_DEG from where the line was
+		   lost.  Half as long again as the timed sweep ends one whose
+		   heading does not follow the turn (motors bending the field). */
+		lf->search_deg = angle_right(lf->search_origin, heading);
+		done = (dir * lf->search_deg >= LF_SEARCH_DEG
+			|| lf->search_ms >= limit + limit / 2U) ? TRUE : FALSE;
+	} else {
+		done = (lf->search_ms >= limit) ? TRUE : FALSE;
+	}
+	if (done) {
 		lf->search_ms = 0;
 		if (lf->search_phase == 0U) {
 			lf->search_phase = 1;		/* sweep back past the start */
@@ -222,13 +249,14 @@ LOCAL void search(LINE_FOLLOW *lf, W odo_mm, UW dt_ms, LF_OUT *out)
 							   0 means the first sweep */
 			}
 		}
+		dir = search_dir(lf);			/* turn the new way now */
 	}
 	out->steer = dir * LF_SEARCH_PIVOT;
 	out->speed_frac = 0;				/* pivot on the spot */
 }
 
-EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
-		    BOOL navigating, LF_OUT *out)
+EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, INT heading_deg,
+		    UW dt_ms, BOOL navigating, LF_OUT *out)
 {
 	BOOL	on_line;
 	INT	sweep;
@@ -273,14 +301,18 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 		if (odo_mm - lf->lost_start_mm >= LF_LOST_CONFIRM_MM
 		    || lf->lost_ms >= LF_LOST_CONFIRM_MS) {
 			lf->state = navigating ? LS_SEARCHING : LS_LOST;
-			lf->backing = navigating;
+			lf->backing = (navigating && LF_BACKUP_MM > 0) ? TRUE : FALSE;
 			lf->backup_start_mm = odo_mm;
+			lf->search_origin = heading_deg;	/* sweeps measured from here */
+			lf->search_deg = 0;
 			out->events |= LF_EV_LOST;
 		}
 	} else if (lf->state == LS_LOST && navigating && lf->retries == 0U) {
 		lf->state = LS_SEARCHING;	/* lost outside Normal Navigation */
-		lf->backing = TRUE;
+		lf->backing = (LF_BACKUP_MM > 0) ? TRUE : FALSE;
 		lf->backup_start_mm = odo_mm;
+		lf->search_origin = heading_deg;
+		lf->search_deg = 0;
 	}
 
 	if (navigating) {
@@ -298,7 +330,7 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 			out->steer = kp * lf->err + LF_KD * (lf->err - lf->prev_err);
 			out->speed_frac = speed_for(lf->err);
 		} else if (lf->state == LS_SEARCHING) {
-			search(lf, odo_mm, dt_ms, out);
+			search(lf, odo_mm, heading_deg, dt_ms, out);
 		} else {
 			out->steer = 0;			/* LOST: hold still */
 			out->speed_frac = 0;

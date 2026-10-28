@@ -16,6 +16,7 @@
 
 #include "subsystem3.h"
 #include "drv_ir.h"
+#include "../subsystem4/subsystem4.h"
 
 EXPORT TASK_STAT	s3_stat_line;
 EXPORT volatile UW	s3_line_word;
@@ -29,6 +30,10 @@ LOCAL LINE_FOLLOW	lf;
    Works in every mode, so the sensors can be checked by hand with the
    car still.  Set to 0 for the final build. */
 #define S3_LINE_LOG	1
+
+/* An IMU heading older than this is not used for the search sweeps (the
+   IMU task publishes every 10 ms) */
+#define S3_IMU_STALE_MS	100
 
 EXPORT void line_cyclic_handler(void *exinf)
 {
@@ -52,6 +57,25 @@ EXPORT void s3_get_line_status(S3_LINE_STATUS *s)
 	}
 	s3_line_unpack(w, s);
 	s->time_ms = t;
+}
+
+/* IMU heading for the line-search sweeps (Buddy 4, IF-I1): degrees,
+   + = left, or LF_HEADING_NONE while the IMU is not monitoring, the
+   heading is invalid (magnetometer overflow) or the snapshot is stale */
+LOCAL INT imu_heading(void)
+{
+#if LF_SEARCH_USE_IMU
+	S4_IMU_STATUS	imu;
+
+	s4_get_imu_status(&imu);
+	if (imu.status != IMU_ST_OK || imu.heading_deg == S4_HEADING_INVALID
+	    || (UW)(app_now_ms() - imu.time_ms) > S3_IMU_STALE_MS) {
+		return LF_HEADING_NONE;
+	}
+	return (INT)imu.heading_deg;
+#else
+	return LF_HEADING_NONE;
+#endif
 }
 
 /* Barcode capture in progress (published by the barcode task) */
@@ -99,6 +123,8 @@ EXPORT void line_task(INT stacd, void *exinf)
 	BOOL		was_nav = FALSE;
 	UB		seq = 0, junctions = 0, lost_count = 0;
 	UB		prev_black = 0xFFU;	/* S3_LINE_LOG */
+	UB		prev_state = 0xFFU;	/* S3_LINE_LOG */
+	UB		prev_phase = 0xFFU;	/* S3_LINE_LOG */
 	W		odo = 0;
 
 	(void)stacd;
@@ -133,7 +159,7 @@ EXPORT void line_task(INT stacd, void *exinf)
 		was_nav = nav;
 
 		black = lf_black_bits(&lf, raw);
-		lf_step(&lf, black, odo, S3_PERIOD_MS, nav, &out);
+		lf_step(&lf, black, odo, imu_heading(), S3_PERIOD_MS, nav, &out);
 		steer = out.steer;
 #if S3_LINE_LOG
 		if (black != prev_black) {
@@ -144,6 +170,24 @@ EXPORT void line_task(INT stacd, void *exinf)
 				  (INT)lf.err, (INT)lf.state, (INT)out.steer);
 			prev_black = black;
 		}
+		/* Each search sweep and the find, with the angle reached from
+		   where the line was lost (+ = right): checks the 90 deg turns */
+		if (lf.state == LS_SEARCHING
+		    && (lf.state != prev_state || lf.search_phase != prev_phase)) {
+			if (lf.search_origin == LF_HEADING_NONE) {
+				tm_printf((UB*)"line: sweep %s (timed, no IMU heading)\n",
+					  out.reverse ? "back" : (out.steer < 0) ? "left" : "right");
+			} else {
+				tm_printf((UB*)"line: sweep %s (IMU), at %d deg\n",
+					  out.reverse ? "back" : (out.steer < 0) ? "left" : "right",
+					  (INT)lf.search_deg);
+			}
+		}
+		if ((out.events & LF_EV_FOUND) != 0U && prev_state == LS_SEARCHING) {
+			tm_printf((UB*)"line: found at %d deg\n", (INT)lf.search_deg);
+		}
+		prev_state = lf.state;
+		prev_phase = lf.search_phase;
 #endif
 
 		if (nav && out.steering) {
