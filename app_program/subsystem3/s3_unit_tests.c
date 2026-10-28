@@ -471,10 +471,10 @@ LOCAL INT test_line_search(void)
 
 	TEST_INIT();
 
-	/* IMU heading, 2 deg per period: turn round at 90 deg each side of
-	   the heading where the line was lost.  The origin lies near 44 deg,
-	   so the right sweep crosses 0/359. */
-	h = 20;
+	/* IMU heading, 2 deg per period: turn round at LF_SEARCH_DEG each
+	   side of the heading where the line was lost.  The origin lies near
+	   24 deg, so the right sweep crosses 0/359 (heading above 180). */
+	h = 0;
 	lose_line(&lf, -1, &h, 2, &o);
 	left_first = o.steer < 0;
 	dir = left_first ? -1 : 1;
@@ -486,19 +486,20 @@ LOCAL INT test_line_search(void)
 			dir = -dir;
 		}
 		h = turn(h, o.steer, 2);
-		wrapped = wrapped || h > 300;
+		wrapped = wrapped || h > 180;
 	}
 	TEST_CHECK("S3-U42", left_first && n == 3U && !reversed && wrapped
-		   && at[0] <= -90 && at[0] >= -92 && at[1] >= 90 && at[1] <= 92
-		   && at[2] <= -90 && at[2] >= -92,
-		   "IMU heading: sweeps turn round at 90 deg each side of the loss, last-seen side first");
+		   && at[0] <= -LF_SEARCH_DEG && at[0] >= -(LF_SEARCH_DEG + 2)
+		   && at[1] >= LF_SEARCH_DEG && at[1] <= LF_SEARCH_DEG + 2
+		   && at[2] <= -LF_SEARCH_DEG && at[2] >= -(LF_SEARCH_DEG + 2),
+		   "IMU heading: sweeps turn round at LF_SEARCH_DEG each side of the loss, last-seen side first");
 
 	/* No heading: timed sweeps.  A heading that never moves (motors
 	   bending the field): the sweep ends half as long again. */
 	t_none = first_sweep_ms(LF_HEADING_NONE, 0);
 	t_stuck = first_sweep_ms(100, 0);
 	TEST_CHECK("S3-U43", t_none >= LF_SEARCH_T1_MS && t_none <= LF_SEARCH_T1_MS + 40U,
-		   "no IMU heading: first sweep is timed (LF_SEARCH_T1_MS, ~90 deg)");
+		   "no IMU heading: first sweep is timed (LF_SEARCH_T1_MS)");
 	TEST_CHECK("S3-U44", t_stuck >= LF_SEARCH_T1_MS + LF_SEARCH_T1_MS / 2U
 		   && t_stuck <= LF_SEARCH_T1_MS + LF_SEARCH_T1_MS / 2U + 40U,
 		   "IMU heading that does not follow the turn: sweep ends at 1.5 x the timed length");

@@ -142,8 +142,8 @@ no longer exists and were never run.
 | S3-U33 | line status word republished every period with a fresh timestamp (IF-L1) | auto (target only) | `subsystem3/subsystem3_test.c` | `[TEST] S3-U33 PASS` |
 | S3-U34 | IR calibration decided within 1 s of INIT (calibrated, or IR_CAL fault): never stalls | auto (target only) | `subsystem3/subsystem3_test.c` | `[TEST] S3-U34 PASS` |
 | S3-U35 | barcode reader idle outside NORMAL, no edge overflow; GPIO callbacks frozen once running | auto (target only) | `subsystem3/subsystem3_test.c` | `[TEST] S3-U35 PASS` |
-| S3-U42 | IMU heading: sweeps turn round at 90 deg each side of the loss, last-seen side first | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U42 PASS` |
-| S3-U43 | no IMU heading: first sweep is timed (LF_SEARCH_T1_MS, ~90 deg) | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U43 PASS` |
+| S3-U42 | IMU heading: sweeps turn round at LF_SEARCH_DEG each side of the loss, last-seen side first | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U42 PASS` |
+| S3-U43 | no IMU heading: first sweep is timed (LF_SEARCH_T1_MS) | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U43 PASS` |
 | S3-U44 | IMU heading that does not follow the turn: sweep ends at 1.5 x the timed length | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U44 PASS` |
 | S3-U45 | found while sweeping left: keeps turning left while moving on, then centred | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U45 PASS` |
 | S3-U46 | found while sweeping right: keeps turning right while moving on, then centred | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U46 PASS` |
@@ -273,7 +273,7 @@ no longer exists and were never run.
 | S3-U37 | Line following | FR1, NFR4 | Straight, curves, 3 speeds, varied lighting | stays on the line |
 | S3-U38 | Barcode reading at speed | FR2, T1-33 | Drive over a known barcode 15 times each at low, medium, high speed | 15/15 correct at each speed, no duplicates |
 | S3-U39 | Barcode vs curve | A4 | Curves and junctions without barcodes | no barcode reported |
-| S3-U40 | Line loss and search | FR1 (6.3) | Lift the car off the line while driving; watch the `line: sweep` / `line: found` console lines | no reversing; pivots ~90° towards the side last seen, then ~90° the other way, repeating until found; found line ends centred under the centre sensor |
+| S3-U40 | Line loss and search | FR1 (6.3) | Lift the car off the line while driving; watch the `line: sweep` / `line: found` console lines | no reversing; pivots ~45° (`LF_SEARCH_DEG`) towards the side last seen, then ~45° the other way, repeating until found; found line ends centred under the centre sensor |
 | S3-U41 | Edge load at top speed | R3, T1-20 | Log `ir_edge_count()` and `gpio_irq_count()` while crossing barcodes | no BARCODE_OVERFLOW |
 | S4-U33 | IMU identity and axes | A5 | Read the console at boot; tilt nose-up; turn left | chip found; +1 g up; pitch +; yaw rate + |
 | S4-U34 | IMU timing | R2, NFR13 | Test image S4-U30 with all tasks running | 100 runs/s |

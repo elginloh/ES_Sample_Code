@@ -171,7 +171,7 @@ EXPORT void line_task(INT stacd, void *exinf)
 			prev_black = black;
 		}
 		/* Each search sweep and the find, with the angle reached from
-		   where the line was lost (+ = right): checks the 90 deg turns */
+		   where the line was lost (+ = right): checks LF_SEARCH_DEG */
 		if (lf.state == LS_SEARCHING
 		    && (lf.state != prev_state || lf.search_phase != prev_phase)) {
 			if (lf.search_origin == LF_HEADING_NONE) {

@@ -79,23 +79,24 @@
 #define LF_SEARCH_PIVOT		63	/* steer while pivot-searching (was 40;
 					   STEER_MAX, so the pivot still reaches
 					   creep speed at a 20 mm/s cruise) */
-#define LF_SEARCH_DEG		90	/* sweep this far each side of the
-					   heading where the line was lost */
+#define LF_SEARCH_DEG		45	/* sweep this far each side of the
+					   heading where the line was lost
+					   (was 90: swung too far) */
 #define LF_SEARCH_USE_IMU	1	/* 1 = measure the sweep with the IMU
 					   heading (Buddy 4, s4_get_imu_status);
 					   0 = time only (LF_SEARCH_T1_MS).  The
 					   LSM303DLHC heading is magnetic: set 0
 					   if the motors bend it (sweeps far off
-					   90 deg in the "line: sweep" log) */
+					   LF_SEARCH_DEG in the "line: sweep" log) */
 #define LF_HEADING_NONE		(-1)	/* lf_step(): no usable heading */
-#define LF_SEARCH_T1_MS		4600	/* first sweep, towards last side, when
-					   timed: ~90 deg.  The pivot runs at
-					   creep speed (22 mm/s per wheel, TRACK
-					   130 mm -> 19 deg/s); later sweeps take
-					   2 x T1 for the full 180 deg.  With a
-					   heading, 1.5 x the timed length is the
-					   safety limit of a sweep (was 3100 for
-					   60 deg) */
+#define LF_SEARCH_T1_MS		2300	/* first sweep, towards last side, when
+					   timed: ~45 deg (LF_SEARCH_DEG).  The
+					   pivot runs at creep speed (22 mm/s per
+					   wheel, TRACK 130 mm -> 19 deg/s); later
+					   sweeps take 2 x T1 for the full 90 deg.
+					   With a heading, 1.5 x the timed length
+					   is the safety limit of a sweep (was
+					   4600 for 90 deg, 3100 for 60 deg) */
 #define LF_REALIGN_MS		500	/* after a sweep finds the line: keep */
 #define LF_REALIGN_STEER	14	/* arcing the sweep way this hard ... */
 #define LF_REALIGN_SPEED	8	/* ... at 8/15 of cruise, to line up  */
