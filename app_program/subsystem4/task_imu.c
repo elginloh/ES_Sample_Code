@@ -16,6 +16,14 @@
 #include "drv_i2c0.h"
 #include "drv_imu.h"
 
+/* 1 = print the magnetometer every 0.5 s with the running hard-iron
+   estimate (max + min) / 2 per chip axis.  Turn the car slowly through
+   360 deg, then copy the last estimate into IMU_MAG_OFF_X/Y/Z
+   (imu_proc.h).  Use a TEST=1 image so the motors stay off. */
+#ifndef S4_MAG_LOG
+#define S4_MAG_LOG		0
+#endif
+
 EXPORT TASK_STAT	s4_stat_imu;
 EXPORT APP_SEQ		s4_imu_seq;
 EXPORT UW		s4_imu_words[2];
@@ -62,16 +70,17 @@ LOCAL void publish(BOOL valid)
 	S4_IMU_STATUS	s;
 	UW		w[2];
 	BOOL		ok = valid && (state == IMU_ST_OK);
+	BOOL		yaw_ok = ok && proc.yaw_valid;
 
 	s.pitch_deg = ok ? s4_deg8(proc.pitch_cdeg) : (B)S4_ANGLE_INVALID;
 	s.roll_deg = ok ? s4_deg8(proc.roll_cdeg) : (B)S4_ANGLE_INVALID;
-	s.yaw_rate_dps = ok ? s4_rate9(proc.yaw_rate_mdps) : (H)S4_RATE_INVALID;
+	s.yaw_rate_dps = yaw_ok ? s4_rate9(proc.yaw_rate_mdps) : (H)S4_RATE_INVALID;
 	s.motion_class = proc.motion_class;
 	s.status = state;
 	s.tilt = (ok && proc.tilt) ? 1U : 0U;
 	s.collision = collision_latched ? 1U : 0U;
 	s.valid = ok ? 1U : 0U;
-	s.heading_deg = ok ? (UH)(proc.yaw_cdeg / 100) : (UH)S4_HEADING_INVALID;
+	s.heading_deg = yaw_ok ? (UH)(proc.yaw_cdeg / 100) : (UH)S4_HEADING_INVALID;
 	s.shock_half_g = s4_shock5(proc.peak_shock_mg);
 	s.seq = sample_seq++;
 	s.chip = chip;
@@ -95,11 +104,38 @@ LOCAL BOOL read_sample(IMU_IN *in)
 	for (i = 0; i < 3U; i++) {
 		in->acc_mg[i] = s.acc_mg[i];
 		in->gyr_mdps[i] = s.gyr_mdps[i];
+		in->mag_mgauss[i] = s.mag_mgauss[i];
 	}
+	in->has_gyro = s.has_gyro;
+	in->mag_valid = s.mag_valid;
 	in->saturated = s.saturated;
 	in->raw_hash = s.raw_hash;
 	return TRUE;
 }
+
+#if S4_MAG_LOG
+LOCAL void mag_log(const IMU_IN *in)
+{
+	static W	lo[3] = { 0x7FFFFFFF, 0x7FFFFFFF, 0x7FFFFFFF };
+	static W	hi[3] = { -0x7FFFFFFF, -0x7FFFFFFF, -0x7FFFFFFF };
+	static UINT	n;
+	UINT		i;
+
+	if (!in->mag_valid) {
+		return;
+	}
+	for (i = 0; i < 3U; i++) {
+		if (in->mag_mgauss[i] < lo[i]) lo[i] = in->mag_mgauss[i];
+		if (in->mag_mgauss[i] > hi[i]) hi[i] = in->mag_mgauss[i];
+	}
+	if (++n % 50U == 0U) {
+		tm_printf((UB*)"imu: mag %d %d %d mgauss, offset estimate %d %d %d\n",
+			  (INT)in->mag_mgauss[0], (INT)in->mag_mgauss[1], (INT)in->mag_mgauss[2],
+			  (INT)((hi[0] + lo[0]) / 2), (INT)((hi[1] + lo[1]) / 2),
+			  (INT)((hi[2] + lo[2]) / 2));
+	}
+}
+#endif
 
 /* Feed the Hump & Terrain task: pitch + distance step (0.1 mm units) */
 LOCAL void send_hump_sample(BOOL valid)
@@ -136,8 +172,10 @@ LOCAL BOOL bring_up(void)
 		tm_printf((UB*)"imu: configuration failed\n");
 		return FALSE;
 	}
-	tm_printf((UB*)"imu: %s family at 0x%02x (id 0x%02x)\n",
-		  (chip == IMU_CHIP_MPU) ? "InvenSense" : "ST LSM6",
+	tm_printf((UB*)"imu: %s at 0x%02x (id 0x%02x)\n",
+		  (chip == IMU_CHIP_MPU) ? "InvenSense family"
+		  : (chip == IMU_CHIP_LSM6) ? "ST LSM6 family"
+		  : "ST LSM303DLHC (accel + mag, no gyro)",
 		  (INT)addr, (INT)who);
 	return TRUE;
 }
@@ -207,9 +245,14 @@ EXPORT void imu_task(INT stacd, void *exinf)
 					recover_tries = 0;
 					sys_fault_clear(SYS_FLT_IMU | SYS_FLT_IMU_CAL);
 					sys_post_event(SYS_EV_IMU_CAL_OK);
-					tm_printf((UB*)"imu: calibrated, gyro bias %d %d %d mdps\n",
-						  (INT)cal.gyro_bias[0], (INT)cal.gyro_bias[1],
-						  (INT)cal.gyro_bias[2]);
+					if (chip == IMU_CHIP_LSM303) {
+						tm_printf((UB*)"imu: calibrated (no gyro), level offset %d %d mg\n",
+							  (INT)cal.acc_offset[0], (INT)cal.acc_offset[1]);
+					} else {
+						tm_printf((UB*)"imu: calibrated, gyro bias %d %d %d mdps\n",
+							  (INT)cal.gyro_bias[0], (INT)cal.gyro_bias[1],
+							  (INT)cal.gyro_bias[2]);
+					}
 				} else if (r == IMU_CAL_NOT_STILL && ++cal_tries < S4_CAL_TRIES) {
 					/* moved during calibration: try again */
 				} else {
@@ -237,6 +280,9 @@ EXPORT void imu_task(INT stacd, void *exinf)
 				valid = FALSE;
 			} else {
 				valid = imu_proc_step(&proc, &in, S4_PERIOD_MS);
+#if S4_MAG_LOG
+				mag_log(&in);
+#endif
 			}
 			if (!valid) {
 				if (imu_proc_failed(&proc)) {

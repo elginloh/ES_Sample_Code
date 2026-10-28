@@ -17,6 +17,18 @@
  *
  *	Thresholds marked [CAL] are starting points; Tribunal 1 Version B:
  *	"set thresholds from real tests" (needs validation on the car).
+ *
+ *	Chips without a gyro (LSM303DLHC, the module supplied by the course):
+ *	  pitch/roll  accelerometer only: a median of 3 removes single-sample
+ *	              spikes, then a low-pass filter.  While |a| is not close
+ *	              to 1 g (bump, hard braking) the angles are held.
+ *	              Steady acceleration still reads as tilt: 0.05 g of
+ *	              speed-up is about 3 deg of nose-up pitch.
+ *	  heading     magnetometer, tilt-compensated with pitch/roll, relative
+ *	              to the heading at calibration (0 = calibration direction).
+ *	  yaw rate    change of that heading over IMU_MAG_RATE_WIN samples.
+ *	              Invalid (published as such) while the magnetometer
+ *	              overflows; the rest of the sample is still used.
  */
 
 #ifndef IMU_PROC_H
@@ -50,6 +62,15 @@
 #define IMU_SIGN_UP		1
 #endif
 
+/* Magnetometer hard-iron offsets [CAL], chip axes, mgauss: the field of
+   the car's own motors and battery.  Measure by turning the car slowly
+   through 360 deg and taking (max + min) / 2 of each axis. */
+#ifndef IMU_MAG_OFF_X
+#define IMU_MAG_OFF_X		0
+#define IMU_MAG_OFF_Y		0
+#define IMU_MAG_OFF_Z		0
+#endif
+
 /* Filtering / detection thresholds [CAL] */
 #define IMU_ALPHA_PCT		98	/* complementary filter gyro weight  */
 #define IMU_ACC_TRUST_MG	300	/* |a|-1g beyond: gyro only          */
@@ -64,6 +85,11 @@
 #define IMU_COLLISION_HOLD_MS	500	/* refractory period after an impact */
 #define IMU_STUCK_SAMPLES	20	/* identical raw data = sensor stuck */
 #define IMU_INVALID_RUN		10	/* 100 ms of bad data = IMU fault    */
+
+/* No-gyro chips [CAL] */
+#define IMU_ACC_LPF_PCT		20	/* accel attitude low-pass, ~45 ms   */
+#define IMU_MAG_RATE_WIN	20	/* yaw rate over 20 samples (200 ms) */
+#define IMU_STILL_MAG_MDPS	8000	/* magnetometer yaw rate is noisier  */
 
 /* Calibration acceptance [CAL] (Tribunal 1: "calibrate while still") */
 #define IMU_CAL_SAMPLES		100	/* 1 s at 10 ms                      */
@@ -80,6 +106,9 @@
 typedef struct {
 	W	acc_mg[3];	/* chip axes */
 	W	gyr_mdps[3];
+	W	mag_mgauss[3];
+	BOOL	has_gyro;	/* FALSE: attitude from accel, heading from mag */
+	BOOL	mag_valid;
 	BOOL	saturated;
 	UH	raw_hash;
 } IMU_IN;
@@ -106,8 +135,18 @@ typedef struct {
 	W	g[3];		/* calibrated body rate, mdps */
 	W	pitch_cdeg;
 	W	roll_cdeg;
-	W	yaw_cdeg;	/* integrated heading 0..35999 */
+	W	yaw_cdeg;	/* heading 0..35999, 0 = direction at start */
 	W	yaw_rate_mdps;
+	BOOL	yaw_valid;	/* FALSE while a no-gyro chip has no heading */
+	W	pitch_hist[2];	/* no gyro: last two accel angles (median) */
+	W	roll_hist[2];
+	W	pitch_med_cdeg;	/* no gyro: median only, 1 sample behind; */
+	W	roll_med_cdeg;	/* levels the magnetometer in step with it */
+	W	mag_ref_cdeg;	/* no gyro: magnetic heading at start */
+	BOOL	mag_primed;
+	W	yaw_hist[IMU_MAG_RATE_WIN];
+	UB	yaw_idx;
+	UB	yaw_n;
 	W	lin_fwd_mg;	/* gravity-compensated */
 	W	lin_right_mg;
 	UB	motion_class;
@@ -126,6 +165,7 @@ typedef struct {
 
 /* Body-frame mapping of one sample */
 IMPORT void imu_to_body(const IMU_IN *s, W a[3], W g[3]);
+IMPORT void imu_mag_to_body(const IMU_IN *s, W m[3]);	/* hard-iron removed */
 
 IMPORT void imu_cal_reset(IMU_CAL_ACC *c);
 IMPORT void imu_cal_add(IMU_CAL_ACC *c, const IMU_IN *s);

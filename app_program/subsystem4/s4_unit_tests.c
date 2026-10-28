@@ -32,8 +32,38 @@ EXPORT void s4_make_in(IMU_IN *s, W ax, W ay, W az, W gx, W gy, W gz)
 	s->gyr_mdps[0] = gx;
 	s->gyr_mdps[1] = gy;
 	s->gyr_mdps[2] = gz;
+	s->mag_mgauss[0] = 0;
+	s->mag_mgauss[1] = 0;
+	s->mag_mgauss[2] = 0;
+	s->has_gyro = TRUE;
+	s->mag_valid = FALSE;
 	s->saturated = FALSE;
 	s->raw_hash = ++sample_no;		/* a live sensor always changes */
+}
+
+/* LSM303DLHC-style sample: accelerometer + magnetometer, no gyro */
+LOCAL void make_in_nogyro(IMU_IN *s, W ax, W ay, W az, W mx, W my, W mz)
+{
+	s4_make_in(s, ax, ay, az, 0, 0, 0);
+	s->mag_mgauss[0] = mx;
+	s->mag_mgauss[1] = my;
+	s->mag_mgauss[2] = mz;
+	s->has_gyro = FALSE;
+	s->mag_valid = TRUE;
+}
+
+/* Car on level ground facing yaw_cdeg (CCW from the start direction),
+   pitched nose-up by pitch_cdeg; earth field H horizontal, V vertical */
+#define FIELD_H		400
+#define FIELD_V		(-300)
+LOCAL void make_pose(IMU_IN *s, W pitch_cdeg, W yaw_cdeg)
+{
+	W	sp = imath_sin_q15(pitch_cdeg), cp = imath_sin_q15(pitch_cdeg + 9000);
+	W	hf = FIELD_H * imath_sin_q15(yaw_cdeg + 9000) / 32768;
+	W	hr = FIELD_H * imath_sin_q15(yaw_cdeg) / 32768;
+
+	make_in_nogyro(s, 0, 1000 * sp / 32768, 1000 * cp / 32768,
+		       hr, (hf * cp + FIELD_V * sp) / 32768, (FIELD_V * cp - hf * sp) / 32768);
 }
 
 /* Pitch along a raised-cosine hump of height h_mm and length l_mm at
@@ -240,6 +270,136 @@ LOCAL INT test_monitoring(void)
 	return test_fail_;
 }
 
+/* LSM303DLHC path: accelerometer attitude, magnetometer heading */
+LOCAL INT test_nogyro(void)
+{
+	IMU_PROC	p;
+	IMU_CAL		cal;
+	IMU_IN		s;
+	HUMP		h;
+	HUMP_EVT	ev, last;
+	UINT		k;
+	W		max_dev = 0, yaw;
+	BOOL		tilt_early, coll1, coll2, ok;
+
+	TEST_INIT();
+	level_cal(&cal);
+
+	imu_proc_init(&p, &cal);
+	for (k = 0; k < 100U; k++) {
+		make_in_nogyro(&s, 0, 174, 985, 0, 400, -300);
+		(void)imu_proc_step(&p, &s, 10);
+	}
+	TEST_CHECK("S4-U33", iabs(p.pitch_cdeg - 1000) <= 50 && iabs(p.roll_cdeg) <= 50,
+		   "no gyro: static 10 deg pitch from the accelerometer within 0.5 deg");
+
+	imu_proc_init(&p, &cal);
+	for (k = 0; k < 50U; k++) {
+		make_in_nogyro(&s, 0, (k == 25U) ? 600 : 0, 1000, 0, 400, -300);
+		(void)imu_proc_step(&p, &s, 10);
+		if (iabs(p.pitch_cdeg) > max_dev) {
+			max_dev = iabs(p.pitch_cdeg);
+		}
+	}
+	TEST_CHECK("S4-U34", max_dev <= 100, "no gyro: single bump spike rejected, pitch error < 1 deg");
+
+	imu_proc_init(&p, &cal);
+	for (k = 0; k < 15U; k++) {
+		make_in_nogyro(&s, -342, 0, 940, 0, 400, -300);	/* 20 deg roll */
+		(void)imu_proc_step(&p, &s, 10);
+	}
+	tilt_early = p.tilt;
+	for (k = 0; k < 25U; k++) {
+		make_in_nogyro(&s, -342, 0, 940, 0, 400, -300);
+		(void)imu_proc_step(&p, &s, 10);
+	}
+	TEST_CHECK("S4-U35", !tilt_early && p.tilt && iabs(p.roll_cdeg - 2000) < 100,
+		   "no gyro: tilt only after the filter settles and 200 ms beyond 15 deg");
+
+	imu_proc_init(&p, &cal);
+	make_in_nogyro(&s, 0, 0, 1000, 0, 400, -300);
+	(void)imu_proc_step(&p, &s, 10);
+	make_in_nogyro(&s, 0, -2500, 1000, 0, 400, -300);
+	(void)imu_proc_step(&p, &s, 10);
+	coll1 = p.collision;
+	make_in_nogyro(&s, 0, -2500, 1000, 0, 400, -300);
+	(void)imu_proc_step(&p, &s, 10);
+	coll2 = p.collision;
+	TEST_CHECK("S4-U36", coll1 && !coll2 && p.peak_shock_mg >= 2400,
+		   "no gyro: 2.5 g impact detected once, peak recorded");
+
+	/* 90 deg left turn at 30 dps: 0.3 deg per 10 ms sample */
+	imu_proc_init(&p, &cal);
+	for (k = 0; k <= 300U; k++) {
+		make_pose(&s, 0, (W)k * 30);
+		(void)imu_proc_step(&p, &s, 10);
+	}
+	TEST_CHECK("S4-U37", p.yaw_valid && iabs(p.yaw_rate_mdps - 30000) <= 3000
+		   && p.motion_class == MCLS_TURN_LEFT && iabs(p.yaw_cdeg - 9000) <= 200,
+		   "no gyro: left turn from the magnetometer, rate within 3 dps, heading within 2 deg");
+	for (k = 1; k <= 100U; k++) {
+		make_pose(&s, 0, 9000 - (W)k * 30);
+		(void)imu_proc_step(&p, &s, 10);
+	}
+	TEST_CHECK("S4-U38", iabs(p.yaw_rate_mdps + 30000) <= 3000
+		   && p.motion_class == MCLS_TURN_RIGHT,
+		   "no gyro: right turn gives a negative yaw rate");
+
+	/* heading must not move when the car pitches onto a hump: 10 deg in
+	   100 ms (100 deg/s, steeper than the 40 mm hump at 200 mm/s) */
+	imu_proc_init(&p, &cal);
+	ok = TRUE;
+	for (k = 0; k < 130U; k++) {
+		W	pc = (k < 30U) ? 0 : (k < 40U) ? ((W)k - 30) * 100 : 1000;
+
+		make_pose(&s, pc, 3000);
+		(void)imu_proc_step(&p, &s, 10);
+		yaw = (p.yaw_cdeg > 18000) ? p.yaw_cdeg - 36000 : p.yaw_cdeg;
+		ok = ok && iabs(yaw) <= 200 && p.motion_class != MCLS_TURN_LEFT
+		     && p.motion_class != MCLS_TURN_RIGHT;
+	}
+	TEST_CHECK("S4-U39", ok, "no gyro: heading tilt-compensated, climbing 10 deg moves it < 2 deg, no false turn");
+
+	imu_proc_init(&p, &cal);
+	make_pose(&s, 0, 0);
+	(void)imu_proc_step(&p, &s, 10);
+	make_pose(&s, 0, 0);
+	s.mag_valid = FALSE;				/* magnetometer overflow */
+	ok = imu_proc_step(&p, &s, 10) && !p.yaw_valid && p.invalid_run == 0;
+	make_pose(&s, 0, 0);
+	(void)imu_proc_step(&p, &s, 10);
+	TEST_CHECK("S4-U40", ok && p.yaw_valid,
+		   "no gyro: magnetometer overflow invalidates heading only, not the IMU");
+
+	imu_proc_init(&p, &cal);
+	for (k = 0; k < 40U; k++) {
+		make_pose(&s, 0, 0);
+		(void)imu_proc_step(&p, &s, 10);
+	}
+	TEST_CHECK("S4-U41", p.motion_class == MCLS_STATIONARY, "no gyro: still for 300 ms: STATIONARY");
+
+	/* end to end: 40 mm hump through the accelerometer filter (S4-U19) */
+	imu_proc_init(&p, &cal);
+	hump_init(&h);
+	last.completed = FALSE;
+	ok = TRUE;
+	for (yaw = -100; yaw < 400; yaw += 2) {
+		W	pc = (yaw < 0 || yaw > 300) ? 0 : s4_hump_pitch_cdeg(40, 300, yaw);
+
+		make_pose(&s, pc, 4500);
+		(void)imu_proc_step(&p, &s, 10);
+		hump_step(&h, p.pitch_cdeg, 2000, TRUE, &ev);
+		if (ev.completed) {
+			last = ev;
+		}
+		ok = ok && p.motion_class != MCLS_TURN_LEFT && p.motion_class != MCLS_TURN_RIGHT;
+	}
+	TEST_CHECK("S4-U42", last.completed && iabs(last.height_um - 40000) <= 4000 && h.count == 1 && ok,
+		   "no gyro: 40 mm hump through the accelerometer filter within +-4 mm, no false turn");
+	TEST_SUMMARY("s4 no gyro");
+	return test_fail_;
+}
+
 LOCAL INT test_hump(void)
 {
 	HUMP		h;
@@ -365,8 +525,8 @@ LOCAL INT test_packing(void)
 
 EXPORT INT s4_run_unit_tests(void)
 {
-	return test_math() + test_calibration() + test_monitoring() + test_hump()
-	     + test_packing();
+	return test_math() + test_calibration() + test_monitoring() + test_nogyro()
+	     + test_hump() + test_packing();
 }
 
 #endif /* APP_TEST || HOST_TEST */

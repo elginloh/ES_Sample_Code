@@ -311,9 +311,9 @@ LOCAL void control_cycle(void)
 		if (vf.mode == VM_INIT) {
 			wdog_tripped = 0U;	/* fault bit cleared by RESUME */
 		}
-		tm_printf((UB*)"motion: mode %s -> %s (epoch %d)\n",
+		tm_printf((UB*)"motion: mode %s -> %s (epoch %d, faults 0x%07x)\n",
 			  sys_mode_name(vout.old_mode), sys_mode_name(vf.mode),
-			  (INT)vf.epoch);
+			  (INT)vf.epoch, (INT)sys_fault_get());
 	}
 
 	/* 3. outputs: nothing moves outside the driving modes */

@@ -26,8 +26,8 @@
 				 / ENC_PULSES_PER_REV)
 
 /* ---- Speeds (mm/s) [CAL] ------------------------------------------- */
-#define CRUISE_DEFAULT_MMS	200	/* [CAL] normal line-following speed */
-#define TURN_SPEED_MMS		120	/* [CAL] wheel speed while pivoting  */
+#define CRUISE_DEFAULT_MMS	120	/* [CAL] normal line-following speed (was 200) */
+#define TURN_SPEED_MMS		80	/* [CAL] wheel speed while pivoting (was 120) */
 #define MIN_CTRL_SPEED_MMS	40	/* [CAL] A2: minimum controllable speed */
 #define CREEP_PCT		15	/* NFR12 / Tribunal 1: creep = max(15 % cruise, min) */
 #define ACCEL_MMS2		800	/* [CAL] ramp limit                  */
