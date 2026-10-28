@@ -154,6 +154,8 @@ static inline UW mres_reason(UW r)	{ return (r >> MRES_REJ_SHIFT) & MRES_REJ_MAS
  *    bits 5..11  steer     (7)  -63..+63, + = turn right; -64 invalid
  *    bits 12..15 speed     (4)  fraction of cruise, 0..15 (/15);
  *                               0 = pivot on the spot
+ *    bit  16     reverse        drive backwards at that speed (line
+ *                               search back-up); 0 in older writers
  * --------------------------------------------------------------------- */
 #define STEER_VALID		(1UL << 0)
 #define STEER_SEQ_SHIFT		1U
@@ -162,6 +164,7 @@ static inline UW mres_reason(UW r)	{ return (r >> MRES_REJ_SHIFT) & MRES_REJ_MAS
 #define STEER_VAL_MASK		0x7FUL
 #define STEER_SPD_SHIFT		12U
 #define STEER_SPD_MASK		0xFUL
+#define STEER_REV		(1UL << 16)
 #define STEER_MAX		63
 #define STEER_SPD_FULL		15U
 

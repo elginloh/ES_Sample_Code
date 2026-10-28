@@ -412,7 +412,11 @@ LOCAL void run_turn(MOTION_CTRL *mc, W *des_l, W *des_r, MC_OUT *out)
 LOCAL void run_steering(MOTION_CTRL *mc, UW steer, W *des_l, W *des_r)
 {
 	W	base = mc->cruise_mms * (W)steer_speed(steer) / (W)STEER_SPD_FULL;
-	W	diff = (W)steer_value(steer) * STEER_UNIT_MMS;
+	W	diff = (W)steer_value(steer) * mc->cruise_mms / STEER_UNIT_DIV;
+
+	if ((steer & STEER_REV) != 0UL) {
+		base = -base;			/* line search back-up */
+	}
 
 	*des_l = base + diff;			/* + steer = turn right */
 	*des_r = base - diff;
@@ -455,6 +459,13 @@ LOCAL W wheel_control(PID *pid, W target, W meas)
 	}
 	ff = (target == 0) ? 0
 	   : isign(target) * (FF_OFFSET_PM + FF_GAIN_Q8 * iabs(target) / 256);
+#if !ENC_QUADRATURE
+	/* No direction sense: never drive against the target direction.  A
+	   wheel that is too fast coasts instead of braking with reverse
+	   duty, so the edges are always counted the way it really turns. */
+	pid->out_min = (target > 0) ? 0 : -DUTY_MAX_PM;
+	pid->out_max = (target < 0) ? 0 : DUTY_MAX_PM;
+#endif
 	return pid_update(pid, target, meas, ff);
 }
 
@@ -610,6 +621,9 @@ EXPORT void mc_step(MOTION_CTRL *mc, const MC_IN *in, UW dt_ms, MC_OUT *out)
 				-DUTY_MAX_PM, DUTY_MAX_PM);
 	out->duty_r_pm = clampw(wheel_control(&mc->pid_r, mc->tgt_r_mms, meas_r),
 				-DUTY_MAX_PM, DUTY_MAX_PM);
+	/* Direction for single-channel counting.  The duty never opposes
+	   the target (wheel_control), so both agree; 0 keeps the last one
+	   while the wheel coasts. */
 	out->dir_l = (INT)isign(mc->tgt_l_mms);
 	out->dir_r = (INT)isign(mc->tgt_r_mms);
 

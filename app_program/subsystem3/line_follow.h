@@ -62,17 +62,39 @@
 #define LF_CAL_UNSTABLE		(-2)	/* readings flickered while still   */
 
 /* Tuning [CAL] */
-#define LF_KP			12	/* steer units per error step      */
-#define LF_KD			8
-#define LF_LOST_CONFIRM_MM	25	/* lost after this much travel ... */
-#define LF_LOST_CONFIRM_MS	300	/* ... or this long without line   */
+#define LF_KP			18	/* steer units per error step (was 12:
+					   too gentle for the ~20 cm curves) */
+#define LF_KP_PIVOT		12	/* |err| 3 spot pivot keeps the old
+					   strength (stronger spun past the line) */
+#define LF_KD			6	/* (was 8: smaller kick at turn start) */
+#define LF_LOST_CONFIRM_MM	40	/* lost after this much travel ... (was 25) */
+#define LF_LOST_CONFIRM_MS	250	/* ... or this long without line (was 300, 400) */
+#define LF_GAP_HOLD_MS		150	/* centre lost, nothing on L or R:
+					   keep straight this long before
+					   assuming the line went right */
 #define LF_JUNCTION_MM		8	/* all-black run to call a junction */
 #define LF_SEARCH_PIVOT		63	/* steer while pivot-searching (was 40;
-					   STEER_MAX, as STEER_UNIT_MMS is now 1) */
-#define LF_SEARCH_T1_MS		2400	/* first sweep, towards last side (was
-					   900).  The search runs at creep speed
-					   (15 mm/s): 2.4 s keeps the ~32 deg
-					   sweep it had at the old 40 mm/s creep */
+					   STEER_MAX, so the pivot still reaches
+					   creep speed at a 20 mm/s cruise) */
+#define LF_SEARCH_T1_MS		3100	/* first sweep, towards last side: ~60
+					   deg.  The pivot runs at creep speed
+					   (22 mm/s per wheel, TRACK 130 mm ->
+					   19 deg/s); later sweeps take 2 x T1 for
+					   the full 120 deg.  Lower it if wheel
+					   slip is low and it turns past 60 */
+#define LF_REALIGN_MS		500	/* after a sweep finds the line: keep */
+#define LF_REALIGN_STEER	14	/* arcing the sweep way this hard ... */
+#define LF_REALIGN_SPEED	8	/* ... at 8/15 of cruise, to line up  */
+#define LF_TURN_MIN_STEER	10	/* |steer| that counts as "turning"   */
+#define LF_TURN_MEMORY_MS	400	/* remember the last turn this long:
+					   steering right when the centre lost
+					   the line -> look LEFT first, and
+					   vice versa */
+#define LF_BACKUP_MM		100	/* line lost: first reverse straight back
+					   up to this far (sensors sit well ahead
+					   of the wheels; on a tight curve they
+					   overshoot and the line ends up under
+					   the car, out of reach of a pivot) */
 #define LF_SEARCH_RETRIES	2	/* sweep pairs before giving up     */
 
 typedef struct {
@@ -86,6 +108,13 @@ typedef struct {
 	UW	lost_ms;	/* time without the line */
 	W	lost_start_mm;
 	BOOL	lost_pending;
+	UW	gap_ms;		/* straight hold after losing the centre */
+	UW	realign_ms;	/* turn-in time left after a sweep found it */
+	INT	realign_dir;	/* -1 left, +1 right */
+	INT	turn_dir;	/* recent steering on the line, -1/0/+1 */
+	BOOL	backing;	/* search phase 0: reversing */
+	W	backup_start_mm;
+	UW	turn_ms;	/* time since that steering */
 	UW	search_ms;	/* time in the current sweep */
 	UB	search_phase;	/* 0 = towards last side, 1 = other side */
 	UB	retries;
@@ -98,6 +127,7 @@ typedef struct {
 	UB	speed_frac;	/* 0..15 of cruise */
 	UB	events;		/* LF_EV_* */
 	BOOL	steering;	/* TRUE: publish steer */
+	BOOL	reverse;	/* TRUE: drive straight back (speed_frac) */
 } LF_OUT;
 
 IMPORT void lf_init(LINE_FOLLOW *lf);

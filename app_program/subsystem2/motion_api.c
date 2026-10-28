@@ -139,6 +139,12 @@ EXPORT void motion_set_steer(INT steer, UW speed_frac)
 	app_store(&s2_steer_word, steer_pack(steer_seq_ctr, steer, speed_frac));
 }
 
+EXPORT void motion_set_steer_reverse(UW speed_frac)
+{
+	steer_seq_ctr = (UB)((steer_seq_ctr + 1U) & STEER_SEQ_MASK);
+	app_store(&s2_steer_word, steer_pack(steer_seq_ctr, 0, speed_frac) | STEER_REV);
+}
+
 EXPORT void motion_clear_steer(void)
 {
 	app_store(&s2_steer_word, 0U);

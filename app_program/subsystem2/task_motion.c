@@ -185,6 +185,48 @@ LOCAL void supervisory_recovery(UW cmd)
 	mout.result_mask |= (1UL << MSRC_SUPER);
 }
 
+/* Restart button: Robo Pico GP20 (active low).  In Safe Stop it reboots
+   the Pico through the RP2040 watchdog: the same clean start as a power
+   cycle or a reflash, with no state carried over.  Needed because the
+   robot's power switch does not power the Pico down while the USB cable
+   is plugged in, and this build has no MQTT RESUME.  (A supervisory
+   RESUME without a reboot was tried first; after it the car did not
+   drive properly, while a fresh boot did.)  Ignored outside Safe Stop,
+   so it can never cut in while the car is driving. */
+#define S2_RESUME_BTN_PIN	20
+#define S2_RESUME_BTN_MS	60	/* debounce */
+#define WDG_CTRL		0x40058000UL	/* RP2040 WATCHDOG CTRL */
+#define WDG_CTRL_TRIGGER	(1UL << 31)
+
+LOCAL UW	btn_ms;
+LOCAL BOOL	btn_done;
+
+LOCAL void resume_button(void)
+{
+	BOOL	pressed = (((in_w(GPIO_IN) >> S2_RESUME_BTN_PIN) & 1UL) == 0UL);
+
+	if (!pressed) {
+		btn_ms = 0;
+		btn_done = FALSE;
+		return;
+	}
+	if (btn_done) {
+		return;			/* one action per press */
+	}
+	btn_ms += MOTION_PERIOD_MS;
+	if (btn_ms < S2_RESUME_BTN_MS) {
+		return;
+	}
+	btn_done = TRUE;
+	if (vf.mode != VM_SAFE_STOP) {
+		return;
+	}
+	motor_off();
+	tm_printf((UB*)"button: restarting (faults 0x%07x)\n", (INT)sys_fault_get());
+	(void)tk_dly_tsk(50);		/* let the console line out */
+	out_w(WDG_CTRL, WDG_CTRL_TRIGGER);	/* full chip reset */
+}
+
 LOCAL void handle_command(UW cmd)
 {
 	UW	type = mcmd_type(cmd);
@@ -297,6 +339,7 @@ LOCAL void control_cycle(void)
 
 	cycle_ms += MOTION_PERIOD_MS;
 	measure();
+	resume_button();
 
 	/* 1. control with the current mode */
 	in.dist_l_um = dist_l_um;
@@ -380,6 +423,7 @@ EXPORT void motion_task(INT stacd, void *exinf)
 	if (motor_init() < E_OK) {
 		sys_fault_set(SYS_FLT_TASK_COMM);
 	}
+	gpio_input_config(S2_RESUME_BTN_PIN, GPIO_PULL_UP);
 	mc_init(&mc);
 	vfsm_init(&vf);
 	mc_out_clear(&mout);

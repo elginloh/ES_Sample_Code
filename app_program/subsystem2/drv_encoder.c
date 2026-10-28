@@ -23,8 +23,13 @@ LOCAL volatile UW	enc_reverse[2];		/* single writer: Motion Control */
 LOCAL void encoder_edge(UINT pin, UINT events, UW now_us)
 {
 	UINT	w = (pin == ENC_L_A_PIN) ? ENC_LEFT : ENC_RIGHT;
-	ENC_REC	*r = &enc_rec[w];
+	ENC_REC	*r;
 	W	step;
+
+#if ENC_SWAP_LR
+	w ^= 1U;			/* GP0/GP1 plug is on the right wheel */
+#endif
+	r = &enc_rec[w];
 
 #if !ENC_COUNT_BOTH_EDGES
 	if ((events & GPIO_IRQ_EDGE_RISE) == 0U) {
@@ -41,7 +46,7 @@ LOCAL void encoder_edge(UINT pin, UINT events, UW now_us)
 	}
 #if ENC_QUADRATURE
 	{
-		UW	b_pin = (w == ENC_LEFT) ? ENC_L_B_PIN : ENC_R_B_PIN;
+		UW	b_pin = (pin == ENC_L_A_PIN) ? ENC_L_B_PIN : ENC_R_B_PIN;
 		W	b = (W)((in_w(GPIO_IN) >> b_pin) & 1UL);
 
 		step = (b != 0) ? -1 : 1;

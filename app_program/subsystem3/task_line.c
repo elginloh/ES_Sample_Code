@@ -25,6 +25,11 @@ EXPORT APP_SEQ		s3_line_seq;
 
 LOCAL LINE_FOLLOW	lf;
 
+/* Debug: print the IR sensors whenever they change (1 = on, 0 = off).
+   Works in every mode, so the sensors can be checked by hand with the
+   car still.  Set to 0 for the final build. */
+#define S3_LINE_LOG	1
+
 EXPORT void line_cyclic_handler(void *exinf)
 {
 	(void)exinf;
@@ -93,6 +98,7 @@ EXPORT void line_task(INT stacd, void *exinf)
 	UW		cal_epoch = 0xFFU;
 	BOOL		was_nav = FALSE;
 	UB		seq = 0, junctions = 0, lost_count = 0;
+	UB		prev_black = 0xFFU;	/* S3_LINE_LOG */
 	W		odo = 0;
 
 	(void)stacd;
@@ -129,6 +135,16 @@ EXPORT void line_task(INT stacd, void *exinf)
 		black = lf_black_bits(&lf, raw);
 		lf_step(&lf, black, odo, S3_PERIOD_MS, nav, &out);
 		steer = out.steer;
+#if S3_LINE_LOG
+		if (black != prev_black) {
+			tm_printf((UB*)"ir: L%d C%d R%d | err %d state %d steer %d\n",
+				  (INT)((black >> IR_L) & 1U),
+				  (INT)((black >> IR_C) & 1U),
+				  (INT)((black >> IR_R) & 1U),
+				  (INT)lf.err, (INT)lf.state, (INT)out.steer);
+			prev_black = black;
+		}
+#endif
 
 		if (nav && out.steering) {
 			if (S3_PAUSE_STEER_ON_BARCODE && barcode_capturing()
@@ -136,7 +152,11 @@ EXPORT void line_task(INT stacd, void *exinf)
 			    && (black & IR_BIT(IR_C)) != 0U) {
 				steer = 0;		/* hold straight over the barcode */
 			}
-			motion_set_steer(steer, out.speed_frac);
+			if (out.reverse) {
+				motion_set_steer_reverse(out.speed_frac);
+			} else {
+				motion_set_steer(steer, out.speed_frac);
+			}
 		} else {
 			motion_clear_steer();
 		}

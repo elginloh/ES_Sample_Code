@@ -51,9 +51,14 @@
 #define S5_HOLD_MS		300	/* "hold position briefly"          */
 #define S5_STOP_WAIT_MS		1500
 #define S5_SCAN_TIMEOUT_MS	4000
-#define S5_AVOID_SPEED_LVL	6	/* 6 * 25 = 150 mm/s                */
+#define S5_AVOID_SPEED_LVL	2	/* 2 * 25 = 50 mm/s (was 6 = 150, then
+					   4 = 100: turns spun the car ~90 deg/s.
+					   The ~1.8 m plan must still finish inside
+					   S5_RECOVERY_TIMEOUT_MS) */
 #define S5_STEP_EXTRA_MS	3000
-#define S5_RECOVERY_TIMEOUT_MS	25000	/* whole avoidance + reacquisition  */
+#define S5_RECOVERY_TIMEOUT_MS	60000	/* whole avoidance + reacquisition
+					   (was 25000; the ~1.8 m plan at 50 mm/s,
+					   search at 25 mm/s, needs up to ~55 s) */
 #define S5_SEARCH_RETRIES	1
 #define S5_SEARCH_RETRY_DEG	20
 #define S5_REPLANS		1	/* after an emergency stop          */

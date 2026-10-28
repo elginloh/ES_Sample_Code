@@ -30,16 +30,27 @@
 				 / ENC_PULSES_PER_REV)
 
 /* ---- Speeds (mm/s) [CAL] ------------------------------------------- */
-#define CRUISE_DEFAULT_MMS	20	/* [CAL] normal line-following speed (was 200).
+#define CRUISE_DEFAULT_MMS	135	/* [CAL] normal line-following speed (was 200, 20, 30, 45, 90).
 					   Floor: a barcode MOVE/TURN must finish
 					   inside S3_NAV_WAIT_MS (15 s) */
-#define TURN_SPEED_MMS		20	/* [CAL] wheel speed while pivoting (was 120) */
-#define MIN_CTRL_SPEED_MMS	15	/* [CAL] A2: minimum controllable speed (was 40) */
+#define TURN_SPEED_MMS		135	/* [CAL] wheel speed while pivoting (was 120, 20, 30, 45, 90) */
+#define MIN_CTRL_SPEED_MMS	22	/* [CAL] A2: minimum controllable speed (was 40,
+					   then 15).  Also the creep floor: line
+					   search pivot speed */
 #define CREEP_PCT		15	/* NFR12 / Tribunal 1: creep = max(15 % cruise, min) */
 #define ACCEL_MMS2		800	/* [CAL] ramp limit                  */
 #define DECEL_GAIN		2	/* approach: allowed mm/s per mm left */
-#define STEER_UNIT_MMS		1	/* wheel speed difference per steer unit
-					   (was 4; lowered for the 20 mm/s cruise) */
+#define STEER_UNIT_DIV		75	/* (was 50; 75 = steering 1.5x slower,
+					   asked for after the 135 mm/s cruise)
+					   one steer unit = cruise / DIV mm/s of
+					   wheel speed difference: 4 mm/s at the
+					   designed 200 mm/s cruise (the old fixed
+					   STEER_UNIT_MMS 4).  Scaling with cruise
+					   keeps the path curvature per steer unit,
+					   so the line-follow gains suit any speed.
+					   A fixed 1 mm/s at 20 mm/s cruise was
+					   2.5x too strong: the car over-steered
+					   off the line and kept searching */
 #define HEADING_GAIN		3	/* mm/s correction per mm L/R mismatch */
 
 /* ---- Speed PID + feed-forward [CAL] (duty in permille, -1000..1000) - */
@@ -75,16 +86,20 @@
 #define MOTOR_R_INVERT		0	/* [CAL] set 1 if the right wheel runs backwards */
 
 /* ---- Encoders (left A/B = GP0/GP1, right A/B = GP7/GP28) ------------ */
-#define ENC_QUADRATURE		1	/* Tribunal 1 A3.  1 = direction from
-					   channel B at each A edge.  0 = take it
-					   from the commanded direction, which
-					   ran away on the car: braking (duty
-					   opposite to target) reversed the wheel
-					   while it still counted as forward.
-					   The magnetic motor encoders (1256
-					   edges/turn) have A and B; confirm signs
-					   on the bench (S2_SPEED_LOG): turning a
-					   wheel forward by hand must read meas > 0 */
+#define ENC_QUADRATURE		0	/* Tribunal 1 A3.  1 = direction from
+					   channel B at each A edge; the B signs in
+					   drv_encoder.c are [CAL] and unverified
+					   (a wrong sign spun the car: one wheel
+					   ran away to full duty).  0 = direction
+					   from the sign of the applied duty
+					   (motion_ctrl.c), no calibration needed.
+					   Before setting 1: turning a wheel
+					   forward by hand must read meas > 0 */
+#define ENC_SWAP_LR		1	/* 1 = the GP0/GP1 encoder plug is on the
+					   RIGHT wheel and GP7/GP28 on the left.
+					   Found on the car: the "R" motor drove a
+					   wheel only the "L" encoder saw, so the
+					   car rocked on one wheel */
 #define ENC_COUNT_BOTH_EDGES	0	/* 1 = count rise+fall of A (x2);
 					   keep ENC_PULSES_PER_REV in step.  Not
 					   needed at 628 edges per turn, and both

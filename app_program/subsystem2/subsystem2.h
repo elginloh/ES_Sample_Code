@@ -90,6 +90,7 @@ IMPORT UW   motion_last_result(UW src);
 IMPORT void motion_stop(UW src);
 /* Line steering, -63..63 (+ = right), speed fraction 0..15 of cruise */
 IMPORT void motion_set_steer(INT steer, UW speed_frac);
+IMPORT void motion_set_steer_reverse(UW speed_frac);	/* straight back */
 IMPORT void motion_clear_steer(void);
 /* Obstacle caution speed cap, mm/s; 0 removes it */
 IMPORT void motion_set_speed_cap(UW cap_mms);

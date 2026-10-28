@@ -314,7 +314,7 @@ LOCAL INT test_line(void)
 	UINT		k;
 	UW		t;
 	W		odo = 0;
-	BOOL		lost = FALSE, found = FALSE, fail = FALSE, junction = FALSE;
+	BOOL		lost = FALSE, found = FALSE, fail = FALSE, junction = FALSE, backed;
 	UINT		junction_events = 0;
 
 	TEST_INIT();
@@ -361,8 +361,14 @@ LOCAL INT test_line(void)
 		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		lost = lost || ((o.events & LF_EV_LOST) != 0U);
 	}
-	TEST_CHECK("S3-U25", lost && lf.state == LS_SEARCHING && o.speed_frac == 0 && o.steer < 0,
-		   "line lost: search pivots towards the side it was last seen");
+	backed = o.reverse && o.steer == 0;	/* search starts by backing up */
+	for (t = 0; t < 2000U && o.reverse; t += 20U) {
+		odo += 4;
+		lf_step(&lf, 0, odo, 20, TRUE, &o);
+	}
+	TEST_CHECK("S3-U25", lost && backed && lf.state == LS_SEARCHING && o.speed_frac == 0
+		   && o.steer < 0,
+		   "line lost: back up, then pivot towards the side it was last seen");
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	found = (o.events & LF_EV_FOUND) != 0U;
 	TEST_CHECK("S3-U26", found && lf.state == LS_ON_LINE, "line reacquired -> FOUND event");
