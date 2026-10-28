@@ -38,6 +38,7 @@ LOCAL UB		chip;
 LOCAL BOOL		collision_latched;
 LOCAL UB		sample_seq;
 LOCAL UB		hump_seq;
+LOCAL W			ds_rem_um;	/* distance not yet sent to the hump task */
 
 EXPORT void imu_cyclic_handler(void *exinf)
 {
@@ -146,9 +147,19 @@ LOCAL void send_hump_sample(BOOL valid)
 	UW		w;
 
 	motion_get_odometry(NULL, &spd);
-	ds = (spd > 0) ? spd * S4_PERIOD_MS / 100 : 0;	/* mm/s * 10 ms in 0.1 mm */
+	/* mm/s * 10 ms = um; send whole 0.1 mm steps and carry the rest, so
+	   slow driving (0.3 mm per sample at 30 mm/s) loses no distance */
+	ds_rem_um += (spd > 0) ? spd * S4_PERIOD_MS : 0;
+	ds = ds_rem_um / 100;
+	if (ds > 255) {
+		ds = 255;
+	}
+	ds_rem_um -= ds * 100;
+	if (ds_rem_um >= 100) {
+		ds_rem_um = 0;			/* clamped: do not bank the excess */
+	}
 	hs.pitch_ddeg = (H)(proc.pitch_cdeg / 10);
-	hs.ds_100um = (UB)((ds > 255) ? 255 : ds);
+	hs.ds_100um = (UB)ds;
 	hs.valid = valid ? 1U : 0U;
 	hs.seq = hump_seq;
 	hump_seq = (UB)((hump_seq + 1U) & 0xFU);

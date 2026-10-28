@@ -2,7 +2,7 @@
 
 Code: `drv_i2c0.c`, `drv_imu.c` (hardware); `imu_proc.c`, `hump.c`,
 `s4_status.c` (pure logic); `task_imu.c`, `task_hump.c` (tasks). Tests:
-`s4_unit_tests.c` S4-U01..U29 and S4-U33..U42 (no-gyro path), on-target
+`s4_unit_tests.c` S4-U01..U29 and S4-U33..U43 (no-gyro path), on-target
 S4-U30..U32, integration INT-16.
 
 ## 1. The IMU chip: LSM303DLHC (GY-511), no gyroscope

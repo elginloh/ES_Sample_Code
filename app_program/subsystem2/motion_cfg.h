@@ -18,7 +18,11 @@
 
 /* ---- Geometry [CAL] ----------------------------------------------- */
 #define WHEEL_DIAMETER_MM	65	/* [CAL] measure the wheel           */
-#define ENC_PULSES_PER_REV	20	/* [CAL] counted edges per revolution */
+#define ENC_PULSES_PER_REV	628	/* [CAL] counted edges per revolution.
+					   Measured: one turn of the left wheel =
+					   1256 edges on both edges of A, so 628 on
+					   rising edges only (motor-shaft encoder
+					   behind the gearbox, ~0.33 mm per edge) */
 #define TRACK_WIDTH_MM		130	/* [CAL] wheel centre to wheel centre */
 
 /* Wheel travel per counted encoder edge, micrometres (pi*D/N) */
@@ -26,13 +30,16 @@
 				 / ENC_PULSES_PER_REV)
 
 /* ---- Speeds (mm/s) [CAL] ------------------------------------------- */
-#define CRUISE_DEFAULT_MMS	120	/* [CAL] normal line-following speed (was 200) */
-#define TURN_SPEED_MMS		80	/* [CAL] wheel speed while pivoting (was 120) */
-#define MIN_CTRL_SPEED_MMS	40	/* [CAL] A2: minimum controllable speed */
+#define CRUISE_DEFAULT_MMS	20	/* [CAL] normal line-following speed (was 200).
+					   Floor: a barcode MOVE/TURN must finish
+					   inside S3_NAV_WAIT_MS (15 s) */
+#define TURN_SPEED_MMS		20	/* [CAL] wheel speed while pivoting (was 120) */
+#define MIN_CTRL_SPEED_MMS	15	/* [CAL] A2: minimum controllable speed (was 40) */
 #define CREEP_PCT		15	/* NFR12 / Tribunal 1: creep = max(15 % cruise, min) */
 #define ACCEL_MMS2		800	/* [CAL] ramp limit                  */
 #define DECEL_GAIN		2	/* approach: allowed mm/s per mm left */
-#define STEER_UNIT_MMS		4	/* wheel speed difference per steer unit */
+#define STEER_UNIT_MMS		1	/* wheel speed difference per steer unit
+					   (was 4; lowered for the 20 mm/s cruise) */
 #define HEADING_GAIN		3	/* mm/s correction per mm L/R mismatch */
 
 /* ---- Speed PID + feed-forward [CAL] (duty in permille, -1000..1000) - */
@@ -68,11 +75,20 @@
 #define MOTOR_R_INVERT		0	/* [CAL] set 1 if the right wheel runs backwards */
 
 /* ---- Encoders (left A/B = GP0/GP1, right A/B = GP7/GP28) ------------ */
-#define ENC_QUADRATURE		0	/* Tribunal 1 A3: A/B quadrature is NOT
-					   confirmed.  0 = count channel A and
-					   take direction from the commanded
-					   motor direction (works for both). */
-#define ENC_COUNT_BOTH_EDGES	0	/* 1 = count rise+fall of A (x2)     */
+#define ENC_QUADRATURE		1	/* Tribunal 1 A3.  1 = direction from
+					   channel B at each A edge.  0 = take it
+					   from the commanded direction, which
+					   ran away on the car: braking (duty
+					   opposite to target) reversed the wheel
+					   while it still counted as forward.
+					   The magnetic motor encoders (1256
+					   edges/turn) have A and B; confirm signs
+					   on the bench (S2_SPEED_LOG): turning a
+					   wheel forward by hand must read meas > 0 */
+#define ENC_COUNT_BOTH_EDGES	0	/* 1 = count rise+fall of A (x2);
+					   keep ENC_PULSES_PER_REV in step.  Not
+					   needed at 628 edges per turn, and both
+					   edges would crowd ENC_MIN_EDGE_US at speed */
 #define ENC_MIN_EDGE_US		300	/* glitch filter: reject faster edges */
 #define ENC_SPEED_TIMEOUT_MS	300	/* no edge for this long = stopped   */
 

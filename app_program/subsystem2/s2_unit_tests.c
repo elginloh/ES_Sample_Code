@@ -214,11 +214,13 @@ LOCAL INT test_execution(void)
 	TEST_CHECK("S2-U08", iabs(arc - 102101) <= 1 && mc_turn_arc_um(-90) == arc,
 		   "turn arc for 90 deg = pi*track/4 (102.1 mm at 130 mm track)");
 
-	/* MOVE 500 mm in Obstacle Handling (AVOID source) */
+	/* MOVE 500 mm in Obstacle Handling (AVOID source), at an explicit
+	   200 mm/s (level 8) so the check does not depend on the cruise
+	   default: 500 mm at the 20 mm/s cruise alone would take 25 s */
 	mc_init(&mc);
 	plant_init(&pl);
 	mc_out_clear(&out);
-	cmd = mcmd_pack(MCMD_MOVE, MSRC_AVOID, 1, 2, 0, 500);
+	cmd = mcmd_pack(MCMD_MOVE, MSRC_AVOID, 1, 2, 8, 500);
 	TEST_CHECK("S2-U09a", mc_submit(&mc, cmd, VM_OBSTACLE, 2, &out) == MREJ_NONE,
 		   "MOVE accepted in Obstacle Handling");
 	t = run_until_result(&mc, &pl, VM_OBSTACLE, MSRC_AVOID, 20000, &res);
@@ -339,7 +341,9 @@ LOCAL INT test_faults(void)
 	pl.stuck_l = TRUE;
 	pl.stuck_r = TRUE;
 	mc_out_clear(&out);
-	(void)mc_submit(&mc, mcmd_pack(MCMD_MOVE, MSRC_AVOID, 1, 0, 0, 500), VM_OBSTACLE, 0, &out);
+	/* explicit 200 mm/s (level 8): at a slow cruise the duty needs
+	   longer to pass STALL_DUTY_MIN_PM before the 400 ms window starts */
+	(void)mc_submit(&mc, mcmd_pack(MCMD_MOVE, MSRC_AVOID, 1, 0, 8, 500), VM_OBSTACLE, 0, &out);
 	t = run_until_result(&mc, &pl, VM_OBSTACLE, MSRC_AVOID, 5000, &res);
 	TEST_CHECK("S2-U19", t <= STALL_TIME_MS + 200 && mres_status(res) == MRES_FAULT
 		   && mc.state == MS_FAULT && (mc.fault_bits & SYS_FLT_MOTOR_STALL) != 0,

@@ -396,6 +396,23 @@ LOCAL INT test_nogyro(void)
 	}
 	TEST_CHECK("S4-U42", last.completed && iabs(last.height_um - 40000) <= 4000 && h.count == 1 && ok,
 		   "no gyro: 40 mm hump through the accelerometer filter within +-4 mm, no false turn");
+
+	/* same hump at the 30 mm/s cruise: 0.3 mm per 10 ms sample */
+	imu_proc_init(&p, &cal);
+	hump_init(&h);
+	last.completed = FALSE;
+	for (yaw = -1000; yaw < 4000; yaw += 3) {		/* 0.1 mm units */
+		W	pc = (yaw < 0 || yaw > 3000) ? 0 : s4_hump_pitch_cdeg(40, 300, yaw / 10);
+
+		make_pose(&s, pc, 0);
+		(void)imu_proc_step(&p, &s, 10);
+		hump_step(&h, p.pitch_cdeg, 300, TRUE, &ev);
+		if (ev.completed) {
+			last = ev;
+		}
+	}
+	TEST_CHECK("S4-U43", last.completed && iabs(last.height_um - 40000) <= 4000 && h.count == 1,
+		   "no gyro: 40 mm hump at 30 mm/s (0.3 mm per sample) within +-4 mm");
 	TEST_SUMMARY("s4 no gyro");
 	return test_fail_;
 }

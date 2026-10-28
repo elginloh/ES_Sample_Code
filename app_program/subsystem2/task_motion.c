@@ -22,6 +22,14 @@
 #include "drv_motor.h"
 #include "drv_encoder.h"
 
+/* 1 = print each wheel's target/measured speed, motor duty and encoder
+   edge count every 500 ms, plus shared GPIO interrupts per second.
+   Bench check: with the car stopped, turn a wheel by hand and its edge
+   count must rise.  Set back to 0 once the encoders are confirmed. */
+#ifndef S2_SPEED_LOG
+#define S2_SPEED_LOG		1
+#endif
+
 EXPORT TASK_STAT	s2_stat_motion;
 
 LOCAL MOTION_CTRL	mc;
@@ -256,6 +264,27 @@ LOCAL void publish(void)
 	app_store(&s2_creep_mms, (UW)mc_creep_speed(&mc));
 }
 
+#if S2_SPEED_LOG
+LOCAL void speed_log(void)
+{
+	static UW	n, irq0;
+	ENC_SNAP	l, r;
+	UW		irq;
+
+	if (++n % 25U != 0U
+	    || !encoder_snapshot(ENC_LEFT, &l) || !encoder_snapshot(ENC_RIGHT, &r)) {
+		return;
+	}
+	irq = gpio_irq_count();
+	tm_printf((UB*)"speed: L tgt %d meas %d duty %d edges %d | "
+		  "R tgt %d meas %d duty %d edges %d | irq/s %d\n",
+		  (INT)mc.tgt_l_mms, (INT)spd_l, (INT)mout.duty_l_pm, (INT)l.edges,
+		  (INT)mc.tgt_r_mms, (INT)spd_r, (INT)mout.duty_r_pm, (INT)r.edges,
+		  (INT)((irq - irq0) * 2U));
+	irq0 = irq;
+}
+#endif
+
 LOCAL void control_cycle(void)
 {
 	MC_IN		in;
@@ -328,6 +357,9 @@ LOCAL void control_cycle(void)
 
 	post_results();
 	publish();
+#if S2_SPEED_LOG
+	speed_log();
+#endif
 	task_stat_end(&s2_stat_motion, start, (UW)MOTION_PERIOD_MS * 1000U / 2U);
 }
 

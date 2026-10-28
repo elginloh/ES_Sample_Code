@@ -67,8 +67,12 @@
 #define LF_LOST_CONFIRM_MM	25	/* lost after this much travel ... */
 #define LF_LOST_CONFIRM_MS	300	/* ... or this long without line   */
 #define LF_JUNCTION_MM		8	/* all-black run to call a junction */
-#define LF_SEARCH_PIVOT		40	/* steer while pivot-searching      */
-#define LF_SEARCH_T1_MS		900	/* first sweep, towards last side   */
+#define LF_SEARCH_PIVOT		63	/* steer while pivot-searching (was 40;
+					   STEER_MAX, as STEER_UNIT_MMS is now 1) */
+#define LF_SEARCH_T1_MS		2400	/* first sweep, towards last side (was
+					   900).  The search runs at creep speed
+					   (15 mm/s): 2.4 s keeps the ~32 deg
+					   sweep it had at the old 40 mm/s creep */
 #define LF_SEARCH_RETRIES	2	/* sweep pairs before giving up     */
 
 typedef struct {
