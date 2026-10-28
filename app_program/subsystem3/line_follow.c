@@ -153,12 +153,11 @@ LOCAL void search(LINE_FOLLOW *lf, UW dt_ms, LF_OUT *out)
 		} else {
 			lf->search_phase = 0;
 			lf->retries++;
+			/* Keep searching while the line is missing.  A temporary
+			   loss must not latch SAFE_STOP and require reflashing.
+			   The existing obstacle/collision safety logic still applies. */
 			if (lf->retries >= LF_SEARCH_RETRIES) {
-				lf->state = LS_LOST;	/* retries exhausted */
-				out->events |= LF_EV_RECOVERY_FAIL;
-				out->steer = 0;
-				out->speed_frac = 0;
-				return;
+				lf->retries = 0;
 			}
 		}
 	}

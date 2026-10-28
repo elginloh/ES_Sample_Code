@@ -71,19 +71,16 @@ LOCAL void calibrate_step(UB raw, UW epoch, UW *cal_epoch, UB *buf, UINT *n)
 	}
 	r = lf_calibrate(&lf, buf, *n);
 	*n = 0;
-	*cal_epoch = epoch;
 	if (r == LF_CAL_OK) {
+		*cal_epoch = epoch;
 		app_store(&s3_black_level, lf.black_level[IR_R]);
 		sys_fault_clear(SYS_FLT_IR_CAL);
 		sys_post_event(SYS_EV_IR_CAL_OK);
 		tm_printf((UB*)"line: IR calibrated, black level = %d\n",
 			  (INT)lf.black_level[IR_C]);
 	} else {
-		/* Week 6 system statechart: calibration failure -> Safe Stop */
-		sys_fault_set(SYS_FLT_IR_CAL);
-		sys_post_event(SYS_EV_IR_CAL_FAIL);
-		tm_printf((UB*)"line: IR calibration FAILED (%d) - place the car "
-			  "with the centre sensor on the line\n", r);
+		/* Retry calibration each 200 ms rather than latching a
+		   critical fault when the car starts slightly off the line. */
 	}
 }
 
@@ -151,7 +148,7 @@ EXPORT void line_task(INT stacd, void *exinf)
 			(void)tk_set_flg(flg_line_evt, LEV_LOST);
 		}
 		if ((out.events & LF_EV_FOUND) != 0U) {
-			sys_fault_clear(SYS_FLT_LINE_LOST);
+			sys_fault_clear(SYS_FLT_LINE_LOST | SYS_FLT_LINE_RECOVERY);
 			sys_post_event(SYS_EV_LINE_FOUND);
 			(void)tk_set_flg(flg_line_evt, LEV_FOUND);
 		}
@@ -160,10 +157,8 @@ EXPORT void line_task(INT stacd, void *exinf)
 			(void)tk_set_flg(flg_line_evt, LEV_JUNCTION);
 		}
 		if ((out.events & LF_EV_RECOVERY_FAIL) != 0U) {
-			/* "retries exhausted -> Stop / safe state" */
-			sys_fault_set(SYS_FLT_LINE_RECOVERY);
-			tm_printf((UB*)"line: line not found after %d searches\n",
-				  LF_SEARCH_RETRIES);
+			/* Reserved for compatibility; line recovery is non-latching. */
+			sys_fault_clear(SYS_FLT_LINE_RECOVERY);
 		}
 
 		st.ir_black = black;

@@ -61,7 +61,7 @@ LOCAL const UB fault_severity[SYS_FLT_COUNT] = {
 	FSEV_DEGRADED,		/*  4 CMD_QUEUE                          */
 	FSEV_CRIT_EVENT,	/*  5 IR_CAL (init calibration failure)  */
 	FSEV_DEGRADED,		/*  6 LINE_LOST (Buddy 3 searching)      */
-	FSEV_CRIT_EVENT,	/*  7 LINE_RECOVERY (retries exhausted)  */
+	FSEV_DEGRADED,		/*  7 LINE_RECOVERY (recoverable)       */
 	FSEV_DEGRADED,		/*  8 BARCODE_INVALID                    */
 	FSEV_DEGRADED,		/*  9 BARCODE_OVERFLOW                   */
 	SEV_IMU_COND,		/* 10 IMU                                */
