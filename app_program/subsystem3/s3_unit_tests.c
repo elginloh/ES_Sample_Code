@@ -316,6 +316,7 @@ LOCAL INT test_line(void)
 	W		odo = 0;
 	BOOL		lost = FALSE, found = FALSE, fail = FALSE, junction = FALSE;
 	BOOL		reversed = FALSE, saw_left = FALSE, saw_right = FALSE;
+	BOOL		bar_ok = TRUE;
 	UINT		junction_events = 0;
 
 	TEST_INIT();
@@ -393,9 +394,13 @@ LOCAL INT test_line(void)
 	TEST_CHECK("S3-U28", junction && junction_events == 1 && lf.pos == LP_JUNCTION,
 		   "all three sensors black for >= 8 mm: one JUNCTION event");
 
+	/* a 9 mm (wide) bar passes under the right sensor */
 	lf_reset_tracking(&lf);
-	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo, LF_HEADING_NONE, 20, TRUE, &o);
-	TEST_CHECK("S3-U29", lf.pos == LP_CENTER && o.steer == 0,
+	for (k = 0; k <= 9U; k += 3U) {
+		lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo + (W)k, LF_HEADING_NONE, 20, TRUE, &o);
+		bar_ok = bar_ok && lf.pos == LP_CENTER && o.steer == 0 && o.speed_frac == 15;
+	}
+	TEST_CHECK("S3-U29", bar_ok,
 		   "barcode bar under the right sensor does not disturb steering");
 	TEST_SUMMARY("s3 line");
 	return test_fail_;
@@ -542,6 +547,91 @@ LOCAL INT test_line_search(void)
 	return test_fail_;
 }
 
+/* The right sensor keeps the line centred like the left one, mirrored */
+LOCAL INT test_line_right(void)
+{
+	LINE_FOLLOW	lf;
+	LF_OUT		o;
+	UB		cal[10];
+	UINT		k;
+	W		odo = 0, at = -1;
+	INT		h = LF_HEADING_NONE;
+	BOOL		straight = TRUE, lost = FALSE, found = FALSE;
+	BOOL		ok1, ok2, ok3;
+
+	TEST_INIT();
+	lf_init(&lf);
+	for (k = 0; k < 10U; k++) {
+		cal[k] = 0x2U;
+	}
+	(void)lf_calibrate(&lf, cal, 10);
+	lf_step(&lf, IR_BIT(IR_C), odo, h, 20, TRUE, &o);
+
+	/* Centre and right black: straight while it could still be a
+	   barcode bar, then steer right */
+	for (k = 0; k < 20U && at < 0; k++) {
+		lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo, h, 20, TRUE, &o);
+		if (lf.pos == LP_RIGHT_NEAR) {
+			at = odo;
+		} else {
+			straight = straight && o.steer == 0 && o.speed_frac == 15;
+		}
+		odo += 2;
+	}
+	TEST_CHECK("S3-U47", straight && at >= LF_RIGHT_LINE_MM && at <= LF_RIGHT_LINE_MM + 2
+		   && o.steer > 0 && o.speed_frac < 15,
+		   "line drifting right (centre + right black for LF_RIGHT_LINE_MM): steer right");
+
+	/* Under the right sensor only for 600 ms, beyond LF_LOST_CONFIRM_MS */
+	for (k = 0; k < 30U; k++) {
+		lf_step(&lf, IR_BIT(IR_R), odo, h, 20, TRUE, &o);
+		lost = lost || (o.events & LF_EV_LOST) != 0U;
+		odo += 1;
+	}
+	TEST_CHECK("S3-U48", !lost && lf.state == LS_ON_LINE && lf.pos == LP_RIGHT
+		   && o.steer > LF_KP && o.speed_frac < 11,
+		   "line under the right sensor only: steer harder right, slower; still on the line");
+
+	/* Beyond the right sensor, then back under it while turning */
+	lf_step(&lf, 0, odo, h, 20, TRUE, &o);
+	ok1 = lf.pos == LP_LOST_RIGHT && o.steer > 0 && o.speed_frac == 0;
+	lf_step(&lf, IR_BIT(IR_R), odo, h, 20, TRUE, &o);
+	ok2 = lf.pos == LP_RIGHT && o.steer > 0 && o.speed_frac > 0;
+	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo, h, 20, TRUE, &o);
+	ok3 = lf.pos == LP_RIGHT_NEAR && o.steer > 0;	/* same black run: no wait */
+	for (k = 0; k < 3U; k++) {
+		lf_step(&lf, IR_BIT(IR_C), odo, h, 20, TRUE, &o);
+	}
+	TEST_CHECK("S3-U49", ok1 && ok2 && ok3 && lf.state == LS_ON_LINE && lf.pos == LP_CENTER
+		   && o.steer == 0 && o.speed_frac == 15,
+		   "beyond the right sensor: pivot right; back under it: turn right while moving, then centred");
+
+	/* Searching: the right sensor alone (perhaps a barcode bar) does
+	   not end the search, the centre does */
+	lose_line(&lf, 1, &h, 0, &o);
+	ok1 = lf.state == LS_SEARCHING && o.steer > 0;
+	for (k = 0; k < 5U; k++) {
+		lf_step(&lf, IR_BIT(IR_R), 0, h, 20, TRUE, &o);
+		found = found || (o.events & LF_EV_FOUND) != 0U;
+	}
+	ok2 = !found && lf.state == LS_SEARCHING;
+	lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
+	TEST_CHECK("S3-U50", ok1 && ok2 && (o.events & LF_EV_FOUND) != 0U && lf.state == LS_ON_LINE,
+		   "searching: the right sensor alone does not end the search, the centre does");
+
+	/* The line went off to the left: black under the right sensor is
+	   then a barcode bar, not a reason to turn right */
+	lf_reset_tracking(&lf);
+	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), 0, h, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_L), 0, h, 20, TRUE, &o);
+	lf_step(&lf, 0, 0, h, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_R), 0, h, 20, TRUE, &o);
+	TEST_CHECK("S3-U51", lf.pos == LP_LOST_LEFT && o.steer < 0,
+		   "line gone left: black under the right sensor (a barcode bar) does not turn right");
+	TEST_SUMMARY("s3 line right");
+	return test_fail_;
+}
+
 LOCAL INT test_status_words(void)
 {
 	S3_LINE_STATUS	a, b;
@@ -586,7 +676,7 @@ LOCAL INT test_status_words(void)
 EXPORT INT s3_run_unit_tests(void)
 {
 	return test_code39() + test_capture() + test_nav_map() + test_line()
-	     + test_line_search() + test_status_words();
+	     + test_line_search() + test_line_right() + test_status_words();
 }
 
 #endif /* APP_TEST || HOST_TEST */

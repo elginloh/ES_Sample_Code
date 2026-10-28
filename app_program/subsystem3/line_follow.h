@@ -3,20 +3,25 @@
  *	IR line following (Buddy 3).  Pure logic, host-testable.
  *
  *	Hardware (Week 6 pin table, Project Briefing p.6): three DIGITAL IR
- *	sensors (D0 outputs; A0 unused): LEFT GP2 and CENTRE GP6 track the
- *	18 mm line, RIGHT GP27 reads the barcodes 20 mm to the right of the
- *	line.  IR_RIGHT is not used for steering (Tribunal 1 shared-resource
- *	row "decide IR_RIGHT's role"): it only contributes to junction
- *	detection, because a crossing line covers all three sensors while a
- *	barcode bar covers only the right one.
+ *	sensors (D0 outputs; A0 unused): LEFT GP2, CENTRE GP6 and RIGHT GP27
+ *	keep the 18 mm line centred; RIGHT also reads the barcodes 20 mm to
+ *	the right of the line.  IR_RIGHT steers like IR_LEFT, mirrored
+ *	(Tribunal 1 shared-resource row "decide IR_RIGHT's role": was
+ *	barcodes and junctions only, which let the line drift right).  With
+ *	the centre also black it counts only once it has stayed black for
+ *	LF_RIGHT_LINE_MM, longer than any barcode bar.  A crossing line
+ *	covers all three sensors: junction.
  *
- *	Line position from LEFT/CENTRE (black = 1):
- *	    C=1 L=0  centred                error  0
- *	    C=1 L=1  line drifting left     error -1
- *	    C=0 L=1  line under left only   error -2
- *	    C=0 L=0  line lost; side inferred from history (+2 right of centre,
- *	             -3 beyond the left sensor, +3 beyond the right)
- *	    L=C=R=1  junction (crossing line)
+ *	Line position (black = 1):
+ *	    C=1 L=0 R=0  centred                 error  0
+ *	    C=1 L=1      line drifting left      error -1
+ *	    C=0 L=1      line under left only    error -2
+ *	    C=1 R=1      line drifting right     error +1 (after LF_RIGHT_LINE_MM)
+ *	    C=0 R=1      line under right only   error +2 (unless the line went
+ *	                 left: then a barcode bar)
+ *	    none         line lost; side inferred from history (+2 right of
+ *	                 centre, -3 beyond the left sensor, +3 beyond the right)
+ *	    L=C=R=1      junction (crossing line)
  *	Steering = PD on the error, + = turn right (motion_msg.h convention).
  *
  *	Week 6 statechart 6.3 "Error / recover": when the line is lost the
@@ -42,10 +47,12 @@
 #define LP_CENTER	0U
 #define LP_LEFT_NEAR	1U
 #define LP_LEFT_FAR	2U
-#define LP_RIGHT	3U	/* inferred: line moved right of centre */
+#define LP_RIGHT	3U	/* under the right sensor only, or inferred
+				   right of centre */
 #define LP_LOST_LEFT	4U
 #define LP_LOST_RIGHT	5U
 #define LP_JUNCTION	6U
+#define LP_RIGHT_NEAR	7U	/* centre and right: line drifting right */
 
 /* Line state (2 bits) */
 #define LS_ON_LINE	0U
@@ -75,6 +82,12 @@
 #define LF_GAP_HOLD_MS		150	/* centre lost, nothing on L or R:
 					   keep straight this long before
 					   assuming the line went right */
+#define LF_RIGHT_LINE_MM	12	/* centre and right black: the line is
+					   drifting right once the right sensor
+					   has stayed black this far.  Barcode
+					   bars are 3 or 9 mm, so they never
+					   steer; 0 = at once (if the right
+					   sensor never sees the barcodes) */
 #define LF_JUNCTION_MM		8	/* all-black run to call a junction */
 #define LF_SEARCH_PIVOT		63	/* steer while pivot-searching (was 40;
 					   STEER_MAX, so the pivot still reaches
@@ -126,6 +139,9 @@ typedef struct {
 	W	lost_start_mm;
 	BOOL	lost_pending;
 	UW	gap_ms;		/* straight hold after losing the centre */
+	BOOL	r_black;	/* right sensor black ... */
+	W	r_start_mm;	/* ... since this odometer reading */
+	BOOL	r_line;		/* that black is the line, not a bar */
 	UW	realign_ms;	/* turn-in time left after a sweep found it */
 	INT	realign_dir;	/* -1 left, +1 right */
 	INT	turn_dir;	/* recent steering on the line, -1/0/+1 */

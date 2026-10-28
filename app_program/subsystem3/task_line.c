@@ -123,6 +123,7 @@ EXPORT void line_task(INT stacd, void *exinf)
 	BOOL		was_nav = FALSE;
 	UB		seq = 0, junctions = 0, lost_count = 0;
 	UB		prev_black = 0xFFU;	/* S3_LINE_LOG */
+	UB		prev_pos = 0xFFU;	/* S3_LINE_LOG */
 	UB		prev_state = 0xFFU;	/* S3_LINE_LOG */
 	UB		prev_phase = 0xFFU;	/* S3_LINE_LOG */
 	W		odo = 0;
@@ -162,13 +163,16 @@ EXPORT void line_task(INT stacd, void *exinf)
 		lf_step(&lf, black, odo, imu_heading(), S3_PERIOD_MS, nav, &out);
 		steer = out.steer;
 #if S3_LINE_LOG
-		if (black != prev_black) {
+		/* Also when only the position changes: centre + right turns
+		   into "drifting right" after LF_RIGHT_LINE_MM */
+		if (black != prev_black || lf.pos != prev_pos) {
 			tm_printf((UB*)"ir: L%d C%d R%d | err %d state %d steer %d\n",
 				  (INT)((black >> IR_L) & 1U),
 				  (INT)((black >> IR_C) & 1U),
 				  (INT)((black >> IR_R) & 1U),
 				  (INT)lf.err, (INT)lf.state, (INT)out.steer);
 			prev_black = black;
+			prev_pos = lf.pos;
 		}
 		/* Each search sweep and the find, with the angle reached from
 		   where the line was lost (+ = right): checks LF_SEARCH_DEG */
@@ -191,8 +195,10 @@ EXPORT void line_task(INT stacd, void *exinf)
 #endif
 
 		if (nav && out.steering) {
+			/* Not once the right sensor is on the line itself,
+			   which starts a capture as well (LF_RIGHT_LINE_MM) */
 			if (S3_PAUSE_STEER_ON_BARCODE && barcode_capturing()
-			    && lf.state == LS_ON_LINE
+			    && lf.state == LS_ON_LINE && lf.pos != LP_RIGHT_NEAR
 			    && (black & IR_BIT(IR_C)) != 0U) {
 				steer = 0;		/* hold straight over the barcode */
 			}

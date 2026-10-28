@@ -67,7 +67,7 @@ encoder record is read under a sequence count.
 | Field | Valid range | Resolution | Values | Req. bits | Actual | Original / unpacked |
 |---|---|---|---|---|---|---|
 | IR sensor states (L, C, R) | black/white each | — | 8 | 3 | line word 0–2 (bit per sensor) | 3 × `UB` |
-| Line position | CENTER, LEFT_NEAR, LEFT_FAR, RIGHT, LOST_LEFT, LOST_RIGHT, JUNCTION | — | 7 | 3 | line word 3–5 | `UB` |
+| Line position | CENTER, LEFT_NEAR, LEFT_FAR, RIGHT, LOST_LEFT, LOST_RIGHT, JUNCTION, RIGHT_NEAR | — | 8 | 3 | line word 3–5 | `UB` |
 | Line state | ON_LINE, SEARCHING, LOST, UNKNOWN | — | 4 | 2 | line word 6–7 | `UB` |
 | Sequence (freshness) | 0..15, wraps | 1 | 16 | 4 | line word 8–11 | `UB` |
 | Steering output | −63..63 | 1 | 127 | 7 | line word 12–18 | `B` |

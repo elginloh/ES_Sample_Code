@@ -106,7 +106,7 @@ with valid data.
 | 11 | heading2 | 92 | 8 | no | 2° (encoder heading) | 0..179 (0..358°) | — | B2 |
 | 12 | cruise10 | 100 | 6 | no | 10 mm/s | 0..63 (0..630 mm/s) | — | B2 |
 | 13 | ir_black | 106 | 3 | no | bit0 L, bit1 C, bit2 R; 1 = black | 0..7 | — | B3 |
-| 14 | line_pos | 109 | 3 | no | CENTER, LEFT_NEAR, LEFT_FAR, RIGHT, LOST_LEFT, LOST_RIGHT, JUNCTION | 0..6 | 7 unused | B3 |
+| 14 | line_pos | 109 | 3 | no | CENTER, LEFT_NEAR, LEFT_FAR, RIGHT, LOST_LEFT, LOST_RIGHT, JUNCTION, RIGHT_NEAR | 0..7 | — | B3 |
 | 15 | line_state | 112 | 2 | no | ON_LINE, SEARCHING, LOST, UNKNOWN | 0..3 | 3 = not calibrated | B3 |
 | 16 | steer | 114 | 7 | yes | steer units (+ = right) | −63..63 | — | B3 |
 | 17 | bc_state | 121 | 2 | no | IDLE, CAPTURING, DECODING, EXECUTING | 0..3 | — | B3 |

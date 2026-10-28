@@ -20,6 +20,9 @@ EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 	lf->lost_start_mm = 0;
 	lf->lost_pending = FALSE;
 	lf->gap_ms = 0;
+	lf->r_black = FALSE;
+	lf->r_start_mm = 0;
+	lf->r_line = FALSE;
 	lf->realign_ms = 0;
 	lf->realign_dir = 0;
 	lf->turn_dir = 0;
@@ -100,6 +103,15 @@ LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms, LF_OUT *out)
 	BOOL	c = (black & IR_BIT(IR_C)) != 0U;
 	BOOL	r = (black & IR_BIT(IR_R)) != 0U;
 
+	/* Travel with the right sensor black: a barcode bar beside the
+	   line has passed within 9 mm, the line itself stays */
+	if (!r) {
+		lf->r_black = FALSE;
+		lf->r_line = FALSE;
+	} else if (!lf->r_black) {
+		lf->r_black = TRUE;
+		lf->r_start_mm = odo_mm;
+	}
 	if (l && c && r) {
 		/* crossing line under all three sensors */
 		if (!lf->in_junction) {
@@ -118,7 +130,7 @@ LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms, LF_OUT *out)
 	if (c || l) {
 		lf->gap_ms = 0;			/* line seen: end any gap */
 	}
-	if (!c && !l && lf->realign_ms > 0U) {
+	if (!c && !l && !r && lf->realign_ms > 0U) {
 		/* Just re-found by a search sweep and lost again: the line
 		   lies on the sweep side, not "probably right". */
 		lf->pos = (lf->realign_dir < 0) ? LP_LOST_LEFT : LP_LOST_RIGHT;
@@ -126,8 +138,14 @@ LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms, LF_OUT *out)
 		lf->last_side = lf->realign_dir;
 		return;
 	}
-	if (c && !l) {
-		lf->pos = LP_CENTER;
+	if (c && r && !l
+	    && (lf->r_line || odo_mm - lf->r_start_mm >= LF_RIGHT_LINE_MM)) {
+		lf->r_line = TRUE;
+		lf->pos = LP_RIGHT_NEAR;	/* mirror of LEFT_NEAR */
+		lf->err = 1;
+		lf->last_side = 1;
+	} else if (c && !l) {
+		lf->pos = LP_CENTER;		/* (or a barcode bar under R) */
 		lf->err = 0;
 		lf->last_side = 0;
 	} else if (c && l) {
@@ -139,19 +157,26 @@ LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms, LF_OUT *out)
 		lf->err = -2;
 		lf->last_side = -1;
 	} else if (lf->prev_err < 0 || lf->last_side < 0) {
-		lf->pos = LP_LOST_LEFT;		/* went beyond the left sensor */
+		/* Went beyond the left sensor.  Black under the right one is
+		   then a barcode bar: the line cannot pass the centre unseen. */
+		lf->pos = LP_LOST_LEFT;
 		lf->err = -3;
-	} else if (lf->prev_err == 0 && lf->last_side == 0 && !r
+	} else if (r) {
+		/* Under the right sensor only: mirror of LEFT_FAR.  Also
+		   ends a centre gap at once (a right-hand corner). */
+		lf->r_line = TRUE;
+		lf->pos = LP_RIGHT;
+		lf->err = 2;
+		lf->last_side = 1;
+	} else if (lf->prev_err == 0 && lf->last_side == 0
 		   && lf->gap_ms < LF_GAP_HOLD_MS) {
 		/* Centre just went white with no side information: a gap,
 		   a worn patch or a noisy reading.  Hold straight briefly
-		   instead of turning right at once.  Black under the right
-		   sensor means the line really went right (a right-hand
-		   corner): no hold. */
+		   instead of turning right at once. */
 		lf->gap_ms += dt_ms;
 		lf->pos = LP_CENTER;
 		lf->err = 0;
-	} else if (lf->prev_err == 0 && lf->last_side == 0 && !r
+	} else if (lf->prev_err == 0 && lf->last_side == 0
 		   && lf->turn_dir > 0) {
 		/* Was steering right when the centre lost it: the car
 		   turned past the line, which is now on the LEFT. */
@@ -272,7 +297,10 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, INT heading_deg,
 
 	sweep = search_dir(lf);			/* before classify moves last_side */
 	classify(lf, black, odo_mm, dt_ms, out);
-	on_line = (black & (IR_BIT(IR_L) | IR_BIT(IR_C))) != 0U;
+	/* The line under the right sensor alone keeps the car tracking, but
+	   never ends a search: a barcode bar beside the line could */
+	on_line = (black & (IR_BIT(IR_L) | IR_BIT(IR_C))) != 0U
+		  || (lf->r_line && lf->state == LS_ON_LINE);
 
 	if (on_line) {
 		if (lf->state == LS_SEARCHING) {

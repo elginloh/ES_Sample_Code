@@ -37,7 +37,8 @@
 
 /* Statechart 6.3 "Barcode / junction detected: pause line following":
    1 = hold straight while a barcode is being captured, but only while
-   the centre sensor still sees the line (otherwise steer normally). */
+   the centre sensor still sees the line and the right one is not on
+   the line itself (otherwise steer normally). */
 #ifndef S3_PAUSE_STEER_ON_BARCODE
 #define S3_PAUSE_STEER_ON_BARCODE	1
 #endif

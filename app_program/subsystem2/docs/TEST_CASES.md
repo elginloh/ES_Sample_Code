@@ -147,6 +147,11 @@ no longer exists and were never run.
 | S3-U44 | IMU heading that does not follow the turn: sweep ends at 1.5 x the timed length | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U44 PASS` |
 | S3-U45 | found while sweeping left: keeps turning left while moving on, then centred | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U45 PASS` |
 | S3-U46 | found while sweeping right: keeps turning right while moving on, then centred | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U46 PASS` |
+| S3-U47 | line drifting right (centre + right black for LF_RIGHT_LINE_MM): steer right | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U47 PASS` |
+| S3-U48 | line under the right sensor only: steer harder right, slower; still on the line | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U48 PASS` |
+| S3-U49 | beyond the right sensor: pivot right; back under it: turn right while moving, then centred | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U49 PASS` |
+| S3-U50 | searching: the right sensor alone does not end the search, the centre does | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U50 PASS` |
+| S3-U51 | line gone left: black under the right sensor (a barcode bar) does not turn right | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U51 PASS` |
 
 ## 4. Subsystem 4 (`testing/subsystem4/TEST_LOG.md`)
 
