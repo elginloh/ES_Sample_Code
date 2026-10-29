@@ -315,7 +315,6 @@ LOCAL INT test_line(void)
 	UW		t;
 	W		odo = 0;
 	BOOL		lost = FALSE, found = FALSE, fail = FALSE, junction = FALSE;
-	BOOL		reversed = FALSE, saw_left = FALSE, saw_right = FALSE;
 	BOOL		bar_ok = TRUE, held = TRUE;
 	UINT		junction_events = 0;
 
@@ -348,59 +347,65 @@ LOCAL INT test_line(void)
 		cal[k] = 0x2U;
 	}
 	(void)lf_calibrate(&lf, cal, 10);
-	lf_step(&lf, IR_BIT(IR_C), 0, LF_HEADING_NONE, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_C), 0, 20, TRUE, &o);
 	TEST_CHECK("S3-U22", o.steering && o.steer == 0 && o.speed_frac == 15 && lf.pos == LP_CENTER,
 		   "centred: straight at full cruise fraction");
-	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), 2, LF_HEADING_NONE, 20, TRUE, &o);
-	TEST_CHECK("S3-U23", o.steer < 0 && lf.pos == LP_LEFT_NEAR, "line drifting left: steer left");
-	lf_step(&lf, IR_BIT(IR_L), 4, LF_HEADING_NONE, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), 2, 20, TRUE, &o);
+	TEST_CHECK("S3-U23", o.steer < 0 && lf.pos == LP_LEFT_NEAR, "line drifting to IR_L: steer towards it");
+	lf_step(&lf, IR_BIT(IR_L), 4, 20, TRUE, &o);
 	TEST_CHECK("S3-U24", o.steer == -LF_SIDE_PIVOT_STEER && o.speed_frac == 0
 		   && lf.pos == LP_LEFT_FAR,
-		   "line under left sensor only: stop and pivot left");
+		   "line under IR_L only: stop and pivot towards it");
 
-	/* the side pivot holds while all three read white: not lost */
+	/* the side pivot holds while all three read white: not lost, and
+	   no lost-line turn the other way */
 	for (t = 0; t < 400U; t += 20U) {
 		odo += 4;
-		lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
+		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		lost = lost || ((o.events & LF_EV_LOST) != 0U);
 		held = held && o.steer == -LF_SIDE_PIVOT_STEER && o.speed_frac == 0;
 	}
-	lf_step(&lf, IR_BIT(IR_C), odo, LF_HEADING_NONE, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	TEST_CHECK("S3-U52", held && !lost && lf.state == LS_ON_LINE && lf.pivot_dir == 0
 		   && o.steer == 0 && o.speed_frac == LF_SETTLE_SPEED,
 		   "side pivot held through all-white until the centre has the line; then half speed, no kick back");
 
-	/* lose the line, last seen on the left: search, find it again */
+	/* centre and IR_L white: turn towards IR_R at once, LOST after the
+	   confirm time, still turning the same way */
 	lf_reset_tracking(&lf);
-	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), odo, LF_HEADING_NONE, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	lf_step(&lf, 0, odo, 20, TRUE, &o);
+	held = o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0
+	       && lf.pos == LP_LOST_RIGHT;
+	lost = FALSE;
 	for (t = 0; t < 400U; t += 20U) {
 		odo += 4;
-		lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
+		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		lost = lost || ((o.events & LF_EV_LOST) != 0U);
-		reversed = reversed || o.reverse;
+		held = held && o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0;
 	}
-	TEST_CHECK("S3-U25", lost && !reversed && lf.state == LS_SEARCHING && o.speed_frac == 0
-		   && o.steer < 0,
-		   "line lost: no reversing; pivot at once towards the side it was last seen");
-	lf_step(&lf, IR_BIT(IR_C), odo, LF_HEADING_NONE, 20, TRUE, &o);
+	TEST_CHECK("S3-U25", held && lost && lf.state == LS_SEARCHING,
+		   "centre and IR_L white: pivot towards IR_R (car's left) at once; LOST, same turn");
+	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	found = (o.events & LF_EV_FOUND) != 0U;
-	TEST_CHECK("S3-U26", found && lf.state == LS_ON_LINE, "line reacquired -> FOUND event");
+	TEST_CHECK("S3-U26", found && lf.state == LS_ON_LINE && o.steer == 0
+		   && o.speed_frac == LF_SETTLE_SPEED,
+		   "line reacquired -> FOUND event; settle at half speed, no kick back");
 
-	/* never found: keeps sweeping both ways, never gives up */
-	for (t = 0; t < 8U * LF_SEARCH_T1_MS; t += 20U) {
-		lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
+	/* never found: keeps turning the same way, never gives up */
+	held = TRUE;
+	for (t = 0; t < 20000U; t += 20U) {
+		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		fail = fail || (o.events & LF_EV_RECOVERY_FAIL) != 0U;
-		reversed = reversed || o.reverse;
-		saw_left = saw_left || (lf.state == LS_SEARCHING && o.steer < 0);
-		saw_right = saw_right || (lf.state == LS_SEARCHING && o.steer > 0);
+		held = held && o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0;
 	}
-	TEST_CHECK("S3-U27", !fail && !reversed && lf.state == LS_SEARCHING && saw_left && saw_right,
-		   "line never found: keeps sweeping left and right; no RECOVERY_FAIL, no reversing");
+	TEST_CHECK("S3-U27", !fail && held && lf.state == LS_SEARCHING,
+		   "line never found: keeps turning towards IR_R; no RECOVERY_FAIL");
 
 	lf_reset_tracking(&lf);
 	for (k = 0; k < 10U; k++) {
 		odo += 2;
-		lf_step(&lf, IR_BIT(IR_L) | IR_BIT(IR_C) | IR_BIT(IR_R), odo, LF_HEADING_NONE, 20, TRUE, &o);
+		lf_step(&lf, IR_BIT(IR_L) | IR_BIT(IR_C) | IR_BIT(IR_R), odo, 20, TRUE, &o);
 		if ((o.events & LF_EV_JUNCTION) != 0U) {
 			junction = TRUE;
 			junction_events++;
@@ -409,276 +414,38 @@ LOCAL INT test_line(void)
 	TEST_CHECK("S3-U28", junction && junction_events == 1 && lf.pos == LP_JUNCTION,
 		   "all three sensors black for >= 8 mm: one JUNCTION event");
 
-	/* a 9 mm (wide) bar passes under the right sensor */
+	/* IR_R black beside the centre, however long: never steers */
 	lf_reset_tracking(&lf);
-	for (k = 0; k <= 9U; k += 3U) {
-		lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo + (W)k, LF_HEADING_NONE, 20, TRUE, &o);
+	for (k = 0; k <= 100U; k += 2U) {
+		lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo + (W)k, 20, TRUE, &o);
 		bar_ok = bar_ok && lf.pos == LP_CENTER && o.steer == 0 && o.speed_frac == 15;
 	}
 	TEST_CHECK("S3-U29", bar_ok,
-		   "barcode bar under the right sensor does not disturb steering");
+		   "black under the barcode sensor (IR_R) beside the line does not disturb steering");
 
-	/* centre lost while going straight, no side sensor saw it: no guess
-	   right, keep straight until the line-lost search */
+	/* IR_R alone is not the line: the lost-line turn runs and the
+	   search does not end */
 	lf_reset_tracking(&lf);
 	held = TRUE;
 	lost = FALSE;
-	lf_step(&lf, IR_BIT(IR_C), odo, LF_HEADING_NONE, 20, TRUE, &o);
-	for (k = 0; k < 50U && !lost; k++) {
-		odo += 2;
-		lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
-		lost = (o.events & LF_EV_LOST) != 0U;
-		held = held && (lost || (o.steer == 0 && o.speed_frac > 0));
-	}
-	TEST_CHECK("S3-U53", held && lost,
-		   "centre lost going straight, no side information: straight on (no turn right) until the search");
-
-	/* right pivot under way, the left sensor sees the line: the centre
-	   missed it, turn back left */
-	lf_reset_tracking(&lf);
-	lf_step(&lf, IR_BIT(IR_C), odo, LF_HEADING_NONE, 20, TRUE, &o);
-	lf_step(&lf, IR_BIT(IR_R), odo, LF_HEADING_NONE, 20, TRUE, &o);
-	held = lf.pivot_dir == 1 && o.steer == LF_SIDE_PIVOT_STEER;
-	lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
-	lf_step(&lf, IR_BIT(IR_L), odo, LF_HEADING_NONE, 20, TRUE, &o);
-	TEST_CHECK("S3-U54", held && lf.pivot_dir == -1 && o.steer == -LF_SIDE_PIVOT_STEER
-		   && o.speed_frac == 0,
-		   "right pivot, then the left sensor has the line: pivot left");
-	TEST_SUMMARY("s3 line");
-	return test_fail_;
-}
-
-/* Pivot model for the search tests: the IMU heading follows the steering
-   by 'rate' degrees per 20 ms period (+ heading = left, Buddy 4) */
-LOCAL INT turn(INT heading, INT steer, INT rate)
-{
-	if (heading == LF_HEADING_NONE) {
-		return heading;
-	}
-	if (steer < 0) {
-		heading += rate;
-	} else if (steer > 0) {
-		heading -= rate;
-	}
-	return (heading + 360) % 360;
-}
-
-/* Calibrated tracker on the line, last seen on 'side' (-1 left, +1 right),
-   then no line until the search starts.  The heading follows the turns. */
-LOCAL void lose_line(LINE_FOLLOW *lf, INT side, INT *heading, INT rate, LF_OUT *o)
-{
-	UB	cal[10];
-	UINT	k;
-
-	lf_init(lf);
-	for (k = 0; k < 10U; k++) {
-		cal[k] = 0x2U;
-	}
-	(void)lf_calibrate(lf, cal, 10);
-	lf_step(lf, IR_BIT(IR_C), 0, *heading, 20, TRUE, o);
-	if (side < 0) {
-		/* centre + left: the left sensor alone would start a side
-		   pivot instead of a search */
-		lf_step(lf, IR_BIT(IR_C) | IR_BIT(IR_L), 0, *heading, 20, TRUE, o);
-	}
-	for (k = 0; k < 100U && lf->state != LS_SEARCHING; k++) {
-		lf_step(lf, 0, 0, *heading, 20, TRUE, o);
-		*heading = turn(*heading, o->steer, rate);
-	}
-}
-
-/* Time from the start of the search to the first change of sweep
-   direction, with the given heading behaviour */
-LOCAL UW first_sweep_ms(INT heading, INT rate)
-{
-	LINE_FOLLOW	lf;
-	LF_OUT		o;
-	INT		dir;
-	UW		t;
-
-	lose_line(&lf, -1, &heading, rate, &o);
-	dir = (o.steer < 0) ? -1 : 1;
-	for (t = 20; t < 4U * LF_SEARCH_T1_MS; t += 20U) {
-		lf_step(&lf, 0, 0, heading, 20, TRUE, &o);
-		if (((o.steer < 0) ? -1 : 1) != dir) {
-			return t + 20U;
-		}
-		heading = turn(heading, o.steer, rate);
-	}
-	return 0;
-}
-
-LOCAL INT test_line_search(void)
-{
-	LINE_FOLLOW	lf;
-	LF_OUT		o;
-	INT		h, dir, at[3] = {0, 0, 0};
-	UINT		n = 0, k;
-	UW		t, t_none, t_stuck;
-	BOOL		left_first, reversed = FALSE, wrapped = FALSE;
-	BOOL		found, ok1, ok2;
-
-	TEST_INIT();
-
-	/* IMU heading, 2 deg per period: turn round at LF_SEARCH_DEG each
-	   side of the heading where the line was lost.  The origin lies near
-	   24 deg, so the right sweep crosses 0/359 (heading above 180). */
-	h = 0;
-	lose_line(&lf, -1, &h, 2, &o);
-	left_first = o.steer < 0;
-	dir = left_first ? -1 : 1;
-	for (t = 20; t < 4U * LF_SEARCH_T1_MS && n < 3U; t += 20U) {
-		lf_step(&lf, 0, 0, h, 20, TRUE, &o);
-		reversed = reversed || o.reverse;
-		if (((o.steer < 0) ? -1 : 1) != dir) {
-			at[n++] = lf.search_deg;	/* where the sweep turned round */
-			dir = -dir;
-		}
-		h = turn(h, o.steer, 2);
-		wrapped = wrapped || h > 180;
-	}
-	TEST_CHECK("S3-U42", left_first && n == 3U && !reversed && wrapped
-		   && at[0] <= -LF_SEARCH_DEG && at[0] >= -(LF_SEARCH_DEG + 2)
-		   && at[1] >= LF_SEARCH_DEG && at[1] <= LF_SEARCH_DEG + 2
-		   && at[2] <= -LF_SEARCH_DEG && at[2] >= -(LF_SEARCH_DEG + 2),
-		   "IMU heading: sweeps turn round at LF_SEARCH_DEG each side of the loss, last-seen side first");
-
-	/* No heading: timed sweeps.  A heading that never moves (motors
-	   bending the field): the sweep ends half as long again. */
-	t_none = first_sweep_ms(LF_HEADING_NONE, 0);
-	t_stuck = first_sweep_ms(100, 0);
-	TEST_CHECK("S3-U43", t_none >= LF_SEARCH_T1_MS && t_none <= LF_SEARCH_T1_MS + 40U,
-		   "no IMU heading: first sweep is timed (LF_SEARCH_T1_MS)");
-	TEST_CHECK("S3-U44", t_stuck >= LF_SEARCH_T1_MS + LF_SEARCH_T1_MS / 2U
-		   && t_stuck <= LF_SEARCH_T1_MS + LF_SEARCH_T1_MS / 2U + 40U,
-		   "IMU heading that does not follow the turn: sweep ends at 1.5 x the timed length");
-
-	/* Found under the LEFT sensor while sweeping left: pivot left on the
-	   spot until the centre has it, settle at half speed, then straight */
-	h = LF_HEADING_NONE;
-	lose_line(&lf, -1, &h, 0, &o);
-	for (k = 0; k < 10U; k++) {
-		lf_step(&lf, 0, 0, h, 20, TRUE, &o);
-	}
-	lf_step(&lf, IR_BIT(IR_L), 0, h, 20, TRUE, &o);
-	found = (o.events & LF_EV_FOUND) != 0U;
-	ok1 = o.steer == -LF_SIDE_PIVOT_STEER && o.speed_frac == 0;
-	lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
-	ok2 = o.steer == 0 && o.speed_frac == LF_SETTLE_SPEED;
-	for (k = 0; k < 30U; k++) {
-		lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
-	}
-	TEST_CHECK("S3-U45", found && ok1 && ok2 && o.steer == 0 && o.speed_frac == 15
-		   && lf.pos == LP_CENTER,
-		   "found under the left sensor while sweeping: pivot left until the centre has it, settle, then straight");
-
-	/* ... and the other way: found under the CENTRE while sweeping right */
-	lose_line(&lf, 1, &h, 0, &o);
-	ok1 = o.steer > 0;				/* sweeping right */
-	for (k = 0; k < 10U; k++) {
-		lf_step(&lf, 0, 0, h, 20, TRUE, &o);
-	}
-	lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
-	found = (o.events & LF_EV_FOUND) != 0U;
-	ok2 = o.steer > 0 && o.speed_frac > 0;
-	for (k = 0; k < 30U; k++) {
-		lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
-	}
-	TEST_CHECK("S3-U46", ok1 && found && ok2 && o.steer == 0 && o.speed_frac == 15
-		   && lf.pos == LP_CENTER,
-		   "found while sweeping right: keeps turning right while moving on, then centred");
-	TEST_SUMMARY("s3 line search");
-	return test_fail_;
-}
-
-/* The right sensor keeps the line centred like the left one, mirrored */
-LOCAL INT test_line_right(void)
-{
-	LINE_FOLLOW	lf;
-	LF_OUT		o;
-	UB		cal[10];
-	UINT		k;
-	W		odo = 0, at = -1;
-	INT		h = LF_HEADING_NONE;
-	BOOL		straight = TRUE, lost = FALSE, found = FALSE;
-	BOOL		ok1, ok2, ok3;
-
-	TEST_INIT();
-	lf_init(&lf);
-	for (k = 0; k < 10U; k++) {
-		cal[k] = 0x2U;
-	}
-	(void)lf_calibrate(&lf, cal, 10);
-	lf_step(&lf, IR_BIT(IR_C), odo, h, 20, TRUE, &o);
-
-	/* Centre and right black: straight while it could still be a
-	   barcode bar, then steer right */
-	for (k = 0; k < 20U && at < 0; k++) {
-		lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo, h, 20, TRUE, &o);
-		if (lf.pos == LP_RIGHT_NEAR) {
-			at = odo;
-		} else {
-			straight = straight && o.steer == 0 && o.speed_frac == 15;
-		}
-		odo += 2;
-	}
-	TEST_CHECK("S3-U47", straight && at >= LF_RIGHT_LINE_MM && at <= LF_RIGHT_LINE_MM + 2
-		   && o.steer > 0 && o.speed_frac < 15,
-		   "line drifting right (centre + right black for LF_RIGHT_LINE_MM): steer right");
-
-	/* Under the right sensor only for 600 ms, beyond LF_LOST_CONFIRM_MS */
-	for (k = 0; k < 30U; k++) {
-		lf_step(&lf, IR_BIT(IR_R), odo, h, 20, TRUE, &o);
-		lost = lost || (o.events & LF_EV_LOST) != 0U;
-		odo += 1;
-	}
-	TEST_CHECK("S3-U48", !lost && lf.state == LS_ON_LINE && lf.pos == LP_RIGHT
-		   && o.steer > LF_KP && o.speed_frac < 11,
-		   "line under the right sensor only: steer harder right, slower; still on the line");
-
-	/* Beyond the right sensor, then back under it while turning */
-	lf_step(&lf, 0, odo, h, 20, TRUE, &o);
-	ok1 = lf.pos == LP_LOST_RIGHT && o.steer > 0 && o.speed_frac == 0;
-	lf_step(&lf, IR_BIT(IR_R), odo, h, 20, TRUE, &o);
-	ok2 = lf.pos == LP_RIGHT && o.steer == LF_SIDE_PIVOT_STEER && o.speed_frac == 0;
-	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo, h, 20, TRUE, &o);
-	ok3 = lf.pos == LP_RIGHT_NEAR && o.steer > 0;	/* same black run: no wait */
-	for (k = 0; k < LF_SETTLE_MS / 20U + 3U; k++) {
-		lf_step(&lf, IR_BIT(IR_C), odo, h, 20, TRUE, &o);
-	}
-	TEST_CHECK("S3-U49", ok1 && ok2 && ok3 && lf.state == LS_ON_LINE && lf.pos == LP_CENTER
-		   && o.steer == 0 && o.speed_frac == 15,
-		   "beyond the right sensor: pivot right on the spot until the centre has it, settle, then centred");
-
-	/* Searching: the right sensor alone starts a pivot right, which ends
-	   the search; the centre then has the line */
-	lose_line(&lf, 1, &h, 0, &o);
-	ok1 = lf.state == LS_SEARCHING && o.steer > 0;
 	found = FALSE;
-	ok2 = TRUE;
-	for (k = 0; k < 5U; k++) {
-		lf_step(&lf, IR_BIT(IR_R), 0, h, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	for (k = 0; k < 30U; k++) {
+		lf_step(&lf, (k & 1U) ? IR_BIT(IR_R) : 0U, odo, 20, TRUE, &o);
+		lost = lost || (o.events & LF_EV_LOST) != 0U;
 		found = found || (o.events & LF_EV_FOUND) != 0U;
-		ok2 = ok2 && lf.pivot_dir == 1 && o.steer == LF_SIDE_PIVOT_STEER && o.speed_frac == 0;
+		held = held && o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0;
 	}
-	ok2 = ok2 && found && lf.state == LS_ON_LINE;
-	lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
-	TEST_CHECK("S3-U50", ok1 && ok2 && lf.state == LS_ON_LINE && lf.pivot_dir == 0
-		   && o.speed_frac == LF_SETTLE_SPEED,
-		   "searching: the right sensor alone starts a pivot right; the centre then has the line");
+	TEST_CHECK("S3-U53", held && lost && !found && lf.state == LS_SEARCHING,
+		   "black under IR_R alone is not the line: lost, turning towards IR_R, search not ended");
 
-	/* Left pivot under way, then black under the right sensor: the side
-	   that saw black last decides, so pivot right */
-	lf_reset_tracking(&lf);
-	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), 0, h, 20, TRUE, &o);
-	lf_step(&lf, IR_BIT(IR_L), 0, h, 20, TRUE, &o);
-	ok1 = lf.pivot_dir == -1 && o.steer == -LF_SIDE_PIVOT_STEER;
-	lf_step(&lf, 0, 0, h, 20, TRUE, &o);
-	lf_step(&lf, IR_BIT(IR_R), 0, h, 20, TRUE, &o);
-	TEST_CHECK("S3-U51", ok1 && lf.pivot_dir == 1 && o.steer == LF_SIDE_PIVOT_STEER
+	/* turning towards IR_R, then IR_L sees the line: pivot towards IR_L */
+	lf_step(&lf, IR_BIT(IR_L), odo, 20, TRUE, &o);
+	found = (o.events & LF_EV_FOUND) != 0U;
+	TEST_CHECK("S3-U54", found && lf.pivot_dir == -1 && o.steer == -LF_SIDE_PIVOT_STEER
 		   && o.speed_frac == 0,
-		   "left pivot, then black under the right sensor: pivot right");
-	TEST_SUMMARY("s3 line right");
+		   "lost-line turn, then IR_L has the line: FOUND, pivot towards IR_L");
+	TEST_SUMMARY("s3 line");
 	return test_fail_;
 }
 
@@ -726,7 +493,7 @@ LOCAL INT test_status_words(void)
 EXPORT INT s3_run_unit_tests(void)
 {
 	return test_code39() + test_capture() + test_nav_map() + test_line()
-	     + test_line_search() + test_line_right() + test_status_words();
+	     + test_status_words();
 }
 
 #endif /* APP_TEST || HOST_TEST */

@@ -584,7 +584,7 @@ LOCAL INT int_line_reacquisition(void)
 	UB	cal[10];
 	W	odo = 0;
 	UINT	k, lost_events = 0;
-	BOOL	follow, steered = FALSE, found, gave_up, failed = FALSE, reversed = FALSE;
+	BOOL	follow, steered = FALSE, found, gave_up, failed = FALSE;
 
 	TEST_INIT();
 	car_start(c);
@@ -593,14 +593,14 @@ LOCAL INT int_line_reacquisition(void)
 		cal[k] = 0x2U;				/* centre over the line */
 	}
 	(void)lf_calibrate(&lfol, cal, 10);
-	lf_step(&lfol, IR_BIT(IR_C), odo, LF_HEADING_NONE, 20, TRUE, &o);
+	lf_step(&lfol, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	follow = o.steering && lfol.state == LS_ON_LINE;
 
 	c->events = SYS_EV_OBSTACLE;
 	car_cycle(c);
 	for (k = 0; k < 30U; k++) {			/* bypass leaves the line */
 		odo += 4;
-		lf_step(&lfol, 0, odo, LF_HEADING_NONE, 20, c->vf.mode == VM_NORMAL, &o);
+		lf_step(&lfol, 0, odo, 20, c->vf.mode == VM_NORMAL, &o);
 		steered = steered || o.steering;
 		if ((o.events & LF_EV_LOST) != 0U) {
 			lost_events++;
@@ -612,7 +612,7 @@ LOCAL INT int_line_reacquisition(void)
 		   && lfol.state == LS_LOST && !steered && c->vf.line_lost,
 		   "during avoidance Buddy 3 reports the loss once and neither steers nor searches");
 
-	lf_step(&lfol, IR_BIT(IR_C) | IR_BIT(IR_L), odo, LF_HEADING_NONE, 20, FALSE, &o);
+	lf_step(&lfol, IR_BIT(IR_C) | IR_BIT(IR_L), odo, 20, FALSE, &o);
 	found = (o.events & LF_EV_FOUND) != 0U && !o.steering;
 	c->events = SYS_EV_LINE_FOUND;		/* also LEV_FOUND for Buddy 5 */
 	car_cycle(c);
@@ -623,7 +623,7 @@ LOCAL INT int_line_reacquisition(void)
 
 	lf_reset_tracking(&lfol);		/* task_line.c: fresh NORMAL */
 	for (k = 0; k < 20U; k++) {
-		lf_step(&lfol, IR_BIT(IR_C), odo, LF_HEADING_NONE, 20, c->vf.mode == VM_NORMAL, &o);
+		lf_step(&lfol, IR_BIT(IR_C), odo, 20, c->vf.mode == VM_NORMAL, &o);
 		if (o.steering) {
 			car_steer(c, o.steer, o.speed_frac);
 		}
@@ -644,7 +644,7 @@ LOCAL INT int_line_reacquisition(void)
 	lf_reset_tracking(&lfol);
 	for (k = 0; k < 1000U; k++) {
 		odo += 2;
-		lf_step(&lfol, 0, odo, LF_HEADING_NONE, 20, c->vf.mode == VM_NORMAL, &o);
+		lf_step(&lfol, 0, odo, 20, c->vf.mode == VM_NORMAL, &o);
 		if ((o.events & LF_EV_LOST) != 0U) {
 			c->events |= SYS_EV_LINE_LOST;
 		}
@@ -652,17 +652,16 @@ LOCAL INT int_line_reacquisition(void)
 			failed = TRUE;
 			c->faults |= SYS_FLT_LINE_RECOVERY;
 		}
-		reversed = reversed || o.reverse;
 		if (o.steering) {
 			car_steer(c, o.steer, o.speed_frac);
 		}
 		car_cycle(c);
 	}
 	car_cycle(c);
-	TEST_CHECK("INT-14d", gave_up && !failed && !reversed && c->vf.mode == VM_NORMAL
+	TEST_CHECK("INT-14d", gave_up && !failed && c->vf.mode == VM_NORMAL
 		   && lfol.state == LS_SEARCHING,
 		   "line never found: avoidance recovery gives up -> SAFE_STOP; Buddy 3's own search "
-		   "keeps sweeping in NORMAL (no reversing, no SAFE_STOP)");
+		   "keeps turning left in NORMAL (no SAFE_STOP)");
 	TEST_SUMMARY("int line reacquisition");
 	return test_fail_;
 }

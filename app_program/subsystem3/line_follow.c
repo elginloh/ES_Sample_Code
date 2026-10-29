@@ -15,28 +15,12 @@ EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 	lf->pos = LP_CENTER;
 	lf->err = 0;
 	lf->prev_err = 0;
-	lf->last_side = 0;
 	lf->lost_ms = 0;
 	lf->lost_start_mm = 0;
 	lf->lost_pending = FALSE;
-	lf->gap_ms = 0;
-	lf->r_black = FALSE;
-	lf->r_start_mm = 0;
-	lf->r_line = FALSE;
-	lf->realign_ms = 0;
-	lf->realign_dir = 0;
 	lf->settle_ms = 0;
 	lf->pivot_dir = 0;
 	lf->pivot_ms = 0;
-	lf->turn_dir = 0;
-	lf->turn_ms = 0;
-	lf->backing = FALSE;
-	lf->backup_start_mm = 0;
-	lf->search_ms = 0;
-	lf->search_origin = LF_HEADING_NONE;
-	lf->search_deg = 0;
-	lf->search_phase = 0;
-	lf->retries = 0;
 	lf->in_junction = FALSE;
 	lf->junction_start_mm = 0;
 }
@@ -100,21 +84,12 @@ EXPORT UB lf_black_bits(const LINE_FOLLOW *lf, UB raw)
 	return b;
 }
 
-LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms, LF_OUT *out)
+LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, LF_OUT *out)
 {
 	BOOL	l = (black & IR_BIT(IR_L)) != 0U;
 	BOOL	c = (black & IR_BIT(IR_C)) != 0U;
 	BOOL	r = (black & IR_BIT(IR_R)) != 0U;
 
-	/* Travel with the right sensor black: a barcode bar beside the
-	   line has passed within 9 mm, the line itself stays */
-	if (!r) {
-		lf->r_black = FALSE;
-		lf->r_line = FALSE;
-	} else if (!lf->r_black) {
-		lf->r_black = TRUE;
-		lf->r_start_mm = odo_mm;
-	}
 	if (l && c && r) {
 		/* crossing line under all three sensors */
 		if (!lf->in_junction) {
@@ -130,80 +105,20 @@ LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms, LF_OUT *out)
 		return;
 	}
 	lf->in_junction = FALSE;
-	if (c || l) {
-		lf->gap_ms = 0;			/* line seen: end any gap */
-	}
-	if (!c && !l && !r && lf->realign_ms > 0U) {
-		/* Just re-found by a search sweep and lost again: the line
-		   lies on the sweep side, not "probably right". */
-		lf->pos = (lf->realign_dir < 0) ? LP_LOST_LEFT : LP_LOST_RIGHT;
-		lf->err = 3 * lf->realign_dir;
-		lf->last_side = lf->realign_dir;
-		return;
-	}
-	if (c && r && !l
-	    && (lf->r_line || odo_mm - lf->r_start_mm >= LF_RIGHT_LINE_MM)) {
-		lf->r_line = TRUE;
-		lf->pos = LP_RIGHT_NEAR;	/* mirror of LEFT_NEAR */
-		lf->err = 1;
-		lf->last_side = 1;
-	} else if (c && !l) {
-		lf->pos = LP_CENTER;		/* (or a barcode bar under R) */
-		lf->err = 0;
-		lf->last_side = 0;
-	} else if (c && l) {
+	/* Otherwise IR_R is the barcode sensor: whatever it reads, it never
+	   steers */
+	if (c && l) {
 		lf->pos = LP_LEFT_NEAR;
 		lf->err = -1;
-		lf->last_side = -1;
+	} else if (c) {
+		lf->pos = LP_CENTER;
+		lf->err = 0;
 	} else if (l) {
 		lf->pos = LP_LEFT_FAR;
 		lf->err = -2;
-		lf->last_side = -1;
-	} else if (lf->prev_err < 0 || lf->last_side < 0) {
-		/* Went beyond the left sensor.  Black under the right one is
-		   then a barcode bar: the line cannot pass the centre unseen. */
-		lf->pos = LP_LOST_LEFT;
-		lf->err = -3;
-	} else if (r) {
-		/* Under the right sensor only: mirror of LEFT_FAR.  Also
-		   ends a centre gap at once (a right-hand corner). */
-		lf->r_line = TRUE;
-		lf->pos = LP_RIGHT;
-		lf->err = 2;
-		lf->last_side = 1;
-	} else if (lf->prev_err == 0 && lf->last_side == 0
-		   && lf->gap_ms < LF_GAP_HOLD_MS) {
-		/* Centre just went white with no side information: a gap,
-		   a worn patch or a noisy reading.  Hold straight briefly
-		   instead of turning right at once. */
-		lf->gap_ms += dt_ms;
-		lf->pos = LP_CENTER;
-		lf->err = 0;
-	} else if (lf->prev_err == 0 && lf->last_side == 0
-		   && lf->turn_dir > 0) {
-		/* Was steering right when the centre lost it: the car
-		   turned past the line, which is now on the LEFT. */
-		lf->pos = LP_LOST_LEFT;
-		lf->err = -2;
-		lf->last_side = -1;
-	} else if (lf->prev_err == 0 && lf->last_side == 0
-		   && lf->turn_dir < 0) {
-		/* Was steering left when the centre lost it: the car turned
-		   past the line, which is now on the RIGHT. */
-		lf->pos = LP_RIGHT;
-		lf->err = 2;
-		lf->last_side = 1;
-	} else if (lf->prev_err == 0 && lf->last_side == 0) {
-		/* Going straight and no sensor saw where it went: keep
-		   straight (no guess right).  A curve then passes under a
-		   side sensor, whose pivot takes over; nothing within
-		   LF_LOST_CONFIRM_MM / _MS starts the search. */
-		lf->pos = LP_CENTER;
-		lf->err = 0;
 	} else {
-		lf->pos = LP_LOST_RIGHT;
-		lf->err = 3;
-		lf->last_side = 1;
+		lf->pos = LP_LOST_RIGHT;		/* turn towards IR_R */
+		lf->err = 3 * LF_LOST_DIR;
 	}
 }
 
@@ -211,115 +126,35 @@ LOCAL UB speed_for(INT err)
 {
 	INT	a = (err < 0) ? -err : err;
 
-	/* |err| 3 (line beyond a side sensor, e.g. a 90 deg corner): pivot
-	   on the spot.  Driving on while turning carried the axle past the
-	   corner, and the sensors' arc then missed the new line.  Any steer
-	   runs at about half cruise (|err| 1 was 11/15) so the car turns
-	   onto the line instead of running over it.  |err| 2 (side sensor
-	   only) pivots too: see LF_SIDE_PIVOT_STEER in lf_step(). */
+	/* Any steer runs at about half cruise (|err| 1 was 11/15) so the car
+	   turns onto the line instead of running over it.  |err| 2 (IR_L
+	   only) pivots on the spot: see LF_SIDE_PIVOT_STEER in lf_step(). */
 	return (UB)((a == 0) ? 15 : (a == 1) ? 8 : 0);
 }
 
-/* Current sweep direction: -1 left, +1 right */
-LOCAL INT search_dir(const LINE_FOLLOW *lf)
+EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
+		    BOOL navigating, LF_OUT *out)
 {
-	INT	first = (lf->last_side < 0) ? -1 : 1;
-
-	return (lf->search_phase == 0U) ? first : -first;
-}
-
-/* Sweep angle from the search origin, + = right (the steering sign).
-   The IMU heading grows turning left, so the difference is negated. */
-LOCAL INT angle_right(INT origin, INT heading)
-{
-	return 180 - (heading - origin + 540) % 360;
-}
-
-LOCAL void search(LINE_FOLLOW *lf, W odo_mm, INT heading, UW dt_ms, LF_OUT *out)
-{
-	INT	dir = search_dir(lf);
-	UW	limit;
-	BOOL	done;
-
-	if (lf->backing) {
-		/* Phase 0: back up straight so the sensors come back over
-		   a line they overshot, then sweep.  The odometer counts
-		   down while reversing: compare the distance, not its sign. */
-		W	moved = odo_mm - lf->backup_start_mm;
-
-		if (moved < 0) {
-			moved = -moved;
-		}
-		if (moved < LF_BACKUP_MM) {
-			out->steer = 0;
-			out->speed_frac = 15;		/* capped to creep */
-			out->reverse = TRUE;
-			return;
-		}
-		lf->backing = FALSE;
-	}
-	/* First sweep: centre -> LF_SEARCH_DEG.  Every later sweep runs edge
-	   to edge, so repeats keep covering both sides. */
-	limit = (lf->search_phase == 0U && lf->retries == 0U)
-		? LF_SEARCH_T1_MS : 2U * LF_SEARCH_T1_MS;
-
-	lf->search_ms += dt_ms;
-	if (lf->search_origin != LF_HEADING_NONE && heading != LF_HEADING_NONE) {
-		/* Measured: turn until LF_SEARCH_DEG from where the line was
-		   lost.  Half as long again as the timed sweep ends one whose
-		   heading does not follow the turn (motors bending the field). */
-		lf->search_deg = angle_right(lf->search_origin, heading);
-		done = (dir * lf->search_deg >= LF_SEARCH_DEG
-			|| lf->search_ms >= limit + limit / 2U) ? TRUE : FALSE;
-	} else {
-		done = (lf->search_ms >= limit) ? TRUE : FALSE;
-	}
-	if (done) {
-		lf->search_ms = 0;
-		if (lf->search_phase == 0U) {
-			lf->search_phase = 1;		/* sweep back past the start */
-		} else {
-			lf->search_phase = 0;
-			lf->retries++;
-			/* Keep searching while the line is missing.  A temporary
-			   loss must not latch SAFE_STOP and require reflashing.
-			   The existing obstacle/collision safety logic still applies. */
-			if (lf->retries > LF_SEARCH_RETRIES) {
-				lf->retries = LF_SEARCH_RETRIES;	/* saturate, not 0:
-							   0 means the first sweep */
-			}
-		}
-		dir = search_dir(lf);			/* turn the new way now */
-	}
-	out->steer = dir * LF_SEARCH_PIVOT;
-	out->speed_frac = 0;				/* pivot on the spot */
-}
-
-EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, INT heading_deg,
-		    UW dt_ms, BOOL navigating, LF_OUT *out)
-{
+	BOOL	c = (black & IR_BIT(IR_C)) != 0U;
+	BOOL	l = (black & IR_BIT(IR_L)) != 0U;
+	BOOL	was_lost;
 	BOOL	on_line;
-	INT	sweep;
 
 	out->steer = 0;
 	out->speed_frac = 15;
 	out->events = 0;
 	out->steering = FALSE;
-	out->reverse = FALSE;
 	if (!lf->calibrated) {
 		return;
 	}
 
-	sweep = search_dir(lf);			/* before classify moves last_side */
-	classify(lf, black, odo_mm, dt_ms, out);
-	/* Side pivot: the line under the left or right sensor alone (centre
-	   white) commits the car to pivot that way until the centre has it,
-	   also mid-search.  The side sensor often goes white again before
-	   the centre reaches the line; the commitment stops the realign
-	   guess or the search sweep from turning the car back.  A barcode
-	   bar under the right sensor while the centre is on the line never
-	   starts one. */
-	if ((black & IR_BIT(IR_C)) != 0U) {
+	was_lost = (lf->pos == LP_LOST_RIGHT) ? TRUE : FALSE;
+	classify(lf, black, odo_mm, out);
+	/* Side pivot: the line under IR_L alone (centre white) commits the
+	   car to pivot that way until the centre has it.  IR_L often goes
+	   white again before the centre reaches the line; the commitment
+	   stops the lost-line turn from turning the car back. */
+	if (c) {
 		if (lf->pivot_dir != 0) {
 			lf->settle_ms = LF_SETTLE_MS;
 			lf->prev_err = lf->err;	/* no D kick back the other way */
@@ -327,44 +162,31 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, INT heading_deg,
 		lf->pivot_dir = 0;
 		lf->pivot_ms = 0;
 	} else {
-		BOOL	l = (black & IR_BIT(IR_L)) != 0U;
-		BOOL	r = (black & IR_BIT(IR_R)) != 0U;
-
-		if (navigating && l != r && lf->pivot_ms <= LF_SIDE_PIVOT_MAX_MS) {
-			/* the side that saw black last decides, also mid pivot:
-			   left -> pivot left, right -> pivot right */
-			lf->pivot_dir = r ? 1 : -1;
+		if (navigating && l && lf->pivot_ms <= LF_SIDE_PIVOT_MAX_MS) {
+			lf->pivot_dir = -1;
 		}
 		if (lf->pivot_dir != 0) {
 			lf->pivot_ms += dt_ms;
 			if (lf->pivot_ms > LF_SIDE_PIVOT_MAX_MS) {
-				lf->pivot_dir = 0;	/* not found: normal search */
+				lf->pivot_dir = 0;	/* not found: lost-line turn */
 			}
 		}
 	}
-	/* The line under the right sensor alone keeps the car tracking, but
-	   never ends a search: a barcode bar beside the line could */
-	on_line = (black & (IR_BIT(IR_L) | IR_BIT(IR_C))) != 0U
-		  || (lf->r_line && lf->state == LS_ON_LINE)
-		  || lf->pivot_dir != 0;
+	on_line = c || l || lf->pivot_dir != 0;
+	if (on_line && was_lost) {
+		/* The lost-line turn found it: settle in, no D kick from the
+		   turn's error */
+		lf->settle_ms = LF_SETTLE_MS;
+		lf->prev_err = lf->err;
+	}
 
 	if (on_line) {
-		if (lf->state == LS_SEARCHING) {
-			/* Found mid-sweep: the car still points across the
-			   line.  Keep turning the sweep way while moving on. */
-			lf->realign_dir = sweep;
-			lf->realign_ms = LF_REALIGN_MS;
-		}
 		if (lf->state != LS_ON_LINE) {
 			out->events |= LF_EV_FOUND;	/* line reacquired */
 		}
 		lf->state = LS_ON_LINE;
-		lf->backing = FALSE;
 		lf->lost_ms = 0;
 		lf->lost_pending = FALSE;
-		lf->search_ms = 0;
-		lf->search_phase = 0;
-		lf->retries = 0;
 	} else if (lf->state == LS_ON_LINE) {
 		if (!lf->lost_pending) {
 			lf->lost_pending = TRUE;
@@ -375,21 +197,10 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, INT heading_deg,
 		if (odo_mm - lf->lost_start_mm >= LF_LOST_CONFIRM_MM
 		    || lf->lost_ms >= LF_LOST_CONFIRM_MS) {
 			lf->state = navigating ? LS_SEARCHING : LS_LOST;
-			lf->backing = (navigating && LF_BACKUP_MM > 0) ? TRUE : FALSE;
-			lf->backup_start_mm = odo_mm;
-			lf->search_origin = heading_deg;	/* sweeps measured from here */
-			lf->search_deg = 0;
 			out->events |= LF_EV_LOST;
 		}
-	} else if (lf->state == LS_LOST && navigating && lf->retries == 0U) {
+	} else if (lf->state == LS_LOST && navigating) {
 		lf->state = LS_SEARCHING;	/* lost outside Normal Navigation */
-		lf->backing = (LF_BACKUP_MM > 0) ? TRUE : FALSE;
-		lf->backup_start_mm = odo_mm;
-		lf->search_origin = heading_deg;
-		lf->search_deg = 0;
-	}
-	if (lf->pivot_dir != 0) {
-		lf->realign_ms = 0;	/* the pivot side, not the sweep side */
 	}
 
 	if (navigating) {
@@ -399,50 +210,20 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, INT heading_deg,
 			   the line, then LF_SETTLE_MS at half speed */
 			out->steer = lf->pivot_dir * LF_SIDE_PIVOT_STEER;
 			out->speed_frac = 0;
-		} else if (lf->state == LS_ON_LINE && lf->realign_ms > 0U
-		    && (lf->err == 0 || lf->err == 3 * lf->realign_dir)) {
-			/* Settling in after a sweep: an arc while moving on,
-			   also when the centre slips off (never a spot pivot,
-			   which spun the car past the line). */
-			out->steer = lf->realign_dir * LF_REALIGN_STEER;
-			out->speed_frac = LF_REALIGN_SPEED;
-		} else if (lf->state == LS_ON_LINE) {
-			INT	kp = (lf->err == 3 || lf->err == -3) ? LF_KP_PIVOT : LF_KP;
-
-			out->steer = kp * lf->err + LF_KD * (lf->err - lf->prev_err);
+		} else if (!on_line) {
+			/* centre and IR_L white: turn on the spot towards IR_R
+			   (the car's left) until one of them sees black, also
+			   before LF_EV_LOST.  Never gives up. */
+			out->steer = LF_LOST_DIR * LF_LOST_PIVOT_STEER;
+			out->speed_frac = 0;
+		} else {
+			out->steer = LF_KP * lf->err + LF_KD * (lf->err - lf->prev_err);
 			out->speed_frac = speed_for(lf->err);
 			if (lf->settle_ms > 0U && out->speed_frac > LF_SETTLE_SPEED) {
 				out->speed_frac = LF_SETTLE_SPEED;
 			}
-		} else if (lf->state == LS_SEARCHING) {
-			search(lf, odo_mm, heading_deg, dt_ms, out);
-		} else {
-			out->steer = 0;			/* LOST: hold still */
-			out->speed_frac = 0;
-		}
-	}
-	/* Remember which way the car was recently steering on the line.
-	   Uses the steering intent (P term / realign), not out->steer: the
-	   D term's brief counter-steer as the line re-centres would
-	   otherwise read as a turn the other way. */
-	if (navigating && lf->state == LS_ON_LINE) {
-		INT	intent = (lf->realign_ms > 0U && lf->err == 0)
-				 ? lf->realign_dir * LF_REALIGN_STEER
-				 : LF_KP * lf->err;
-
-		if (intent >= LF_TURN_MIN_STEER) {
-			lf->turn_dir = 1;
-			lf->turn_ms = 0;
-		} else if (intent <= -LF_TURN_MIN_STEER) {
-			lf->turn_dir = -1;
-			lf->turn_ms = 0;
-		} else if (lf->turn_ms < LF_TURN_MEMORY_MS) {
-			lf->turn_ms += dt_ms;
-		} else {
-			lf->turn_dir = 0;	/* straight long enough: forget */
 		}
 	}
 	lf->prev_err = lf->err;
-	lf->realign_ms = (lf->realign_ms > dt_ms) ? lf->realign_ms - dt_ms : 0U;
 	lf->settle_ms = (lf->settle_ms > dt_ms) ? lf->settle_ms - dt_ms : 0U;
 }

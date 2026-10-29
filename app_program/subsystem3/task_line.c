@@ -16,7 +16,6 @@
 
 #include "subsystem3.h"
 #include "drv_ir.h"
-#include "../subsystem4/subsystem4.h"
 
 EXPORT TASK_STAT	s3_stat_line;
 EXPORT volatile UW	s3_line_word;
@@ -30,10 +29,6 @@ LOCAL LINE_FOLLOW	lf;
    Works in every mode, so the sensors can be checked by hand with the
    car still.  Set to 0 for the final build. */
 #define S3_LINE_LOG	1
-
-/* An IMU heading older than this is not used for the search sweeps (the
-   IMU task publishes every 10 ms) */
-#define S3_IMU_STALE_MS	100
 
 EXPORT void line_cyclic_handler(void *exinf)
 {
@@ -57,37 +52,6 @@ EXPORT void s3_get_line_status(S3_LINE_STATUS *s)
 	}
 	s3_line_unpack(w, s);
 	s->time_ms = t;
-}
-
-/* IMU heading for the line-search sweeps (Buddy 4, IF-I1): degrees,
-   + = left, or LF_HEADING_NONE while the IMU is not monitoring, the
-   heading is invalid (magnetometer overflow) or the snapshot is stale */
-LOCAL INT imu_heading(void)
-{
-#if LF_SEARCH_USE_IMU
-	S4_IMU_STATUS	imu;
-
-	s4_get_imu_status(&imu);
-	if (imu.status != IMU_ST_OK || imu.heading_deg == S4_HEADING_INVALID
-	    || (UW)(app_now_ms() - imu.time_ms) > S3_IMU_STALE_MS) {
-		return LF_HEADING_NONE;
-	}
-	return (INT)imu.heading_deg;
-#else
-	return LF_HEADING_NONE;
-#endif
-}
-
-/* The line follower's frame when IR_SIDES_MIRRORED: its "right" is the
-   car's left, so a turn it calls right is the car turning left and the
-   heading (+ = left) it sees must grow the other way. */
-LOCAL INT mirror_heading(INT h)
-{
-#if IR_SIDES_MIRRORED
-	return (h == LF_HEADING_NONE) ? h : (360 - h) % 360;
-#else
-	return h;
-#endif
 }
 
 /* Barcode capture in progress (published by the barcode task) */
@@ -137,7 +101,6 @@ EXPORT void line_task(INT stacd, void *exinf)
 	UB		prev_black = 0xFFU;	/* S3_LINE_LOG */
 	UB		prev_pos = 0xFFU;	/* S3_LINE_LOG */
 	UB		prev_state = 0xFFU;	/* S3_LINE_LOG */
-	UB		prev_phase = 0xFFU;	/* S3_LINE_LOG */
 	W		odo = 0;
 
 	(void)stacd;
@@ -172,14 +135,12 @@ EXPORT void line_task(INT stacd, void *exinf)
 		was_nav = nav;
 
 		black = lf_black_bits(&lf, raw);
-		lf_step(&lf, black, odo, mirror_heading(imu_heading()), S3_PERIOD_MS,
-			nav, &out);
+		lf_step(&lf, black, odo, S3_PERIOD_MS, nav, &out);
 		steer = IR_SIDES_MIRRORED ? -out.steer : out.steer;
 #if S3_LINE_LOG
-		/* Also when only the position changes: centre + right turns
-		   into "drifting right" after LF_RIGHT_LINE_MM.  L and R are
-		   the car's real sides, steer is what the motors get (+ =
-		   clockwise); err is in the line follower's own labels. */
+		/* L and R are the car's real sides, steer is what the
+		   motors get (+ = clockwise); err is in the line follower's
+		   own labels. */
 		if (black != prev_black || lf.pos != prev_pos) {
 			tm_printf((UB*)"ir: L%d C%d R%d | err %d state %d steer %d\n",
 				  (INT)((black >> (IR_SIDES_MIRRORED ? IR_R : IR_L)) & 1U),
@@ -189,39 +150,23 @@ EXPORT void line_task(INT stacd, void *exinf)
 			prev_black = black;
 			prev_pos = lf.pos;
 		}
-		/* Each search sweep and the find, with the angle reached from
-		   where the line was lost (+ = right): checks LF_SEARCH_DEG */
-		if (lf.state == LS_SEARCHING
-		    && (lf.state != prev_state || lf.search_phase != prev_phase)) {
-			if (lf.search_origin == LF_HEADING_NONE) {
-				tm_printf((UB*)"line: sweep %s (timed, no IMU heading)\n",
-					  out.reverse ? "back" : (steer < 0) ? "left" : "right");
-			} else {
-				tm_printf((UB*)"line: sweep %s (IMU), at %d deg\n",
-					  out.reverse ? "back" : (steer < 0) ? "left" : "right",
-					  (INT)lf.search_deg);
-			}
+		if (lf.state == LS_SEARCHING && prev_state != LS_SEARCHING) {
+			tm_printf((UB*)"line: lost, turning %s to find it\n",
+				  (steer < 0) ? "left" : "right");
 		}
 		if ((out.events & LF_EV_FOUND) != 0U && prev_state == LS_SEARCHING) {
-			tm_printf((UB*)"line: found at %d deg\n", (INT)lf.search_deg);
+			tm_printf((UB*)"line: found\n");
 		}
 		prev_state = lf.state;
-		prev_phase = lf.search_phase;
 #endif
 
 		if (nav && out.steering) {
-			/* Not once the right sensor is on the line itself,
-			   which starts a capture as well (LF_RIGHT_LINE_MM) */
 			if (S3_PAUSE_STEER_ON_BARCODE && barcode_capturing()
-			    && lf.state == LS_ON_LINE && lf.pos != LP_RIGHT_NEAR
+			    && lf.state == LS_ON_LINE
 			    && (black & IR_BIT(IR_C)) != 0U) {
 				steer = 0;		/* hold straight over the barcode */
 			}
-			if (out.reverse) {
-				motion_set_steer_reverse(out.speed_frac);
-			} else {
-				motion_set_steer(steer, out.speed_frac);
-			}
+			motion_set_steer(steer, out.speed_frac);
 		} else {
 			motion_clear_steer();
 		}

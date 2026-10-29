@@ -129,29 +129,22 @@ no longer exists and were never run.
 | S3-U20 | ambiguous start position -> calibration failure | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U20 PASS` |
 | S3-U21 | flickering sensor while still -> calibration failure | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U21 PASS` |
 | S3-U22 | centred: straight at full cruise fraction | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U22 PASS` |
-| S3-U23 | line drifting left: steer left | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U23 PASS` |
-| S3-U24 | line under left sensor only: steer harder, slower | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U24 PASS` |
-| S3-U25 | line lost: no reversing; pivot at once towards the side it was last seen | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U25 PASS` |
-| S3-U26 | line reacquired -> FOUND event | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U26 PASS` |
-| S3-U27 | line never found: keeps sweeping left and right; no RECOVERY_FAIL, no reversing | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U27 PASS` |
+| S3-U23 | line drifting to IR_L: steer towards it | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U23 PASS` |
+| S3-U24 | line under IR_L only: stop and pivot towards it | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U24 PASS` |
+| S3-U25 | centre and IR_L white: pivot towards IR_R (car's left) at once; LOST, same turn | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U25 PASS` |
+| S3-U26 | line reacquired -> FOUND event; settle at half speed, no kick back | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U26 PASS` |
+| S3-U27 | line never found: keeps turning towards IR_R; no RECOVERY_FAIL | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U27 PASS` |
 | S3-U28 | all three sensors black for >= 8 mm: one JUNCTION event | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U28 PASS` |
-| S3-U29 | barcode bar under the right sensor does not disturb steering | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U29 PASS` |
+| S3-U29 | black under the barcode sensor (IR_R) beside the line does not disturb steering | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U29 PASS` |
+| S3-U52 | side pivot held through all-white until the centre has the line; then half speed, no kick back | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U52 PASS` |
+| S3-U53 | black under IR_R alone is not the line: lost, turning towards IR_R, search not ended | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U53 PASS` |
+| S3-U54 | lost-line turn, then IR_L has the line: FOUND, pivot towards IR_L | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U54 PASS` |
 | S3-U30 | line status word round trip at limits (steer -63) | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U30 PASS` |
 | S3-U31 | barcode status word round trip at limits | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U31 PASS` |
 | S3-U32 | Line Following runs every 20 ms (50 per s) within half its period | auto (target only) | `subsystem3/subsystem3_test.c` | `[TEST] S3-U32 PASS` |
 | S3-U33 | line status word republished every period with a fresh timestamp (IF-L1) | auto (target only) | `subsystem3/subsystem3_test.c` | `[TEST] S3-U33 PASS` |
 | S3-U34 | IR calibration decided within 1 s of INIT (calibrated, or IR_CAL fault): never stalls | auto (target only) | `subsystem3/subsystem3_test.c` | `[TEST] S3-U34 PASS` |
 | S3-U35 | barcode reader idle outside NORMAL, no edge overflow; GPIO callbacks frozen once running | auto (target only) | `subsystem3/subsystem3_test.c` | `[TEST] S3-U35 PASS` |
-| S3-U42 | IMU heading: sweeps turn round at LF_SEARCH_DEG each side of the loss, last-seen side first | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U42 PASS` |
-| S3-U43 | no IMU heading: first sweep is timed (LF_SEARCH_T1_MS) | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U43 PASS` |
-| S3-U44 | IMU heading that does not follow the turn: sweep ends at 1.5 x the timed length | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U44 PASS` |
-| S3-U45 | found while sweeping left: keeps turning left while moving on, then centred | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U45 PASS` |
-| S3-U46 | found while sweeping right: keeps turning right while moving on, then centred | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U46 PASS` |
-| S3-U47 | line drifting right (centre + right black for LF_RIGHT_LINE_MM): steer right | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U47 PASS` |
-| S3-U48 | line under the right sensor only: steer harder right, slower; still on the line | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U48 PASS` |
-| S3-U49 | beyond the right sensor: pivot right; back under it: turn right while moving, then centred | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U49 PASS` |
-| S3-U50 | searching: the right sensor alone does not end the search, the centre does | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U50 PASS` |
-| S3-U51 | line gone left: black under the right sensor (a barcode bar) does not turn right | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U51 PASS` |
 
 ## 4. Subsystem 4 (`testing/subsystem4/TEST_LOG.md`)
 
@@ -240,7 +233,7 @@ no longer exists and were never run.
 | INT-14a | during avoidance Buddy 3 reports the loss once and neither steers nor searches | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-14a PASS` |
 | INT-14b | line under the sensors again: FOUND event; AVOID_DONE -> NORMAL | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-14b PASS` |
 | INT-14c | line steering resumes driving only after the hand-back to NORMAL | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-14c PASS` |
-| INT-14d | line never found: avoidance recovery gives up -> SAFE_STOP; Buddy 3's own search keeps sweeping in NORMAL (no reversing, no SAFE_STOP) | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-14d PASS` |
+| INT-14d | line never found: avoidance recovery gives up -> SAFE_STOP; Buddy 3's own search keeps turning left in NORMAL (no SAFE_STOP) | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-14d PASS` |
 | INT-15a | Buddies 1-5 at their limits and invalid codes: all 48 fields reach the server unchanged | auto (host + target) | `subsystem1/s1_integration_tests.c` | `[TEST] INT-15a PASS` |
 | INT-15b | engineering values arrive within their step: 2 deg, 10 mm/s, 1 deg, 5 mm, 10 mm | auto (host + target) | `subsystem1/s1_integration_tests.c` | `[TEST] INT-15b PASS` |
 | INT-16a | 30 mm hump measured by Buddy 4 arrives at the server within +-4 mm | auto (host + target) | `subsystem1/s1_integration_tests.c` | `[TEST] INT-16a PASS` |
@@ -278,7 +271,7 @@ no longer exists and were never run.
 | S3-U37 | Line following | FR1, NFR4 | Straight, curves, 3 speeds, varied lighting | stays on the line |
 | S3-U38 | Barcode reading at speed | FR2, T1-33 | Drive over a known barcode 15 times each at low, medium, high speed | 15/15 correct at each speed, no duplicates |
 | S3-U39 | Barcode vs curve | A4 | Curves and junctions without barcodes | no barcode reported |
-| S3-U40 | Line loss and search | FR1 (6.3) | Lift the car off the line while driving; watch the `line: sweep` / `line: found` console lines | no reversing; pivots ~45° (`LF_SEARCH_DEG`) towards the side last seen, then ~45° the other way, repeating until found; found line ends centred under the centre sensor |
+| S3-U40 | Line loss and search | FR1 (6.3) | Lift the car off the line while driving; watch the `line: lost, turning left` / `line: found` console lines | with the centre and right sensors white the car pivots left on the spot until one of them sees the line; the barcode (left) sensor never steers; found line ends centred under the centre sensor |
 | S3-U41 | Edge load at top speed | R3, T1-20 | Log `ir_edge_count()` and `gpio_irq_count()` while crossing barcodes | no BARCODE_OVERFLOW |
 | S4-U33 | IMU identity and axes | A5 | Read the console at boot; tilt nose-up; turn left | chip found; +1 g up; pitch +; yaw rate + |
 | S4-U34 | IMU timing | R2, NFR13 | Test image S4-U30 with all tasks running | 100 runs/s |
