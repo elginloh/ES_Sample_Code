@@ -28,6 +28,7 @@ EXPORT ER subsystem2_init(void)
 	T_CMBF	cmbf = {0};
 	T_CCYC	ccyc = {0};
 
+	hw_time_init();			/* 1 MHz TIMER after a power-on too */
 	sys_state_init();
 	gpio_irq_init();
 	motion_api_init();

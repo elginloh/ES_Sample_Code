@@ -14,6 +14,7 @@
 #include "s2_private.h"
 
 LOCAL volatile UW	sys_fault_word;		/* many writers: atomics only */
+LOCAL volatile UW	sys_fault_seen_word;	/* every bit set since boot */
 LOCAL volatile UW	sys_event_word;		/* many writers: atomics only */
 LOCAL volatile UW	sys_vsw_word;		/* writer: Motion Control */
 LOCAL UW		sys_crit_mask;		/* constant after init */
@@ -21,6 +22,7 @@ LOCAL UW		sys_crit_mask;		/* constant after init */
 EXPORT void sys_state_init(void)
 {
 	sys_fault_word = 0;
+	sys_fault_seen_word = 0;
 	sys_event_word = 0;
 	sys_vsw_word = (UW)VM_INIT << VSW_MODE_SHIFT;
 	sys_crit_mask = sys_fault_critical_mask();
@@ -40,6 +42,7 @@ EXPORT void sys_fault_set(UW bits)
 		return;
 	}
 	old = app_atomic_or(&sys_fault_word, bits);
+	(void)app_atomic_or(&sys_fault_seen_word, bits);
 	/* A NEW critical bit wakes Motion Control at once, so motor output
 	   is cut without waiting for the next control period. */
 	if ((~old & bits & sys_crit_mask) != 0U && flg_motion > 0) {
@@ -50,6 +53,14 @@ EXPORT void sys_fault_set(UW bits)
 EXPORT void sys_fault_clear(UW bits)
 {
 	(void)app_atomic_clear(&sys_fault_word, bits & SYS_FLT_ALL);
+}
+
+/* Every fault bit raised since boot, cleared or not.  A critical fault
+   that clears itself (IMU, ultrasonic silence) still leaves Safe Stop
+   latched; this is how the cause is found afterwards. */
+EXPORT UW sys_fault_seen(void)
+{
+	return app_load(&sys_fault_seen_word);
 }
 
 EXPORT UW sys_fault_crit_mask(void)

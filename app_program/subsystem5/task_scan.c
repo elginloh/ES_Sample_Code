@@ -46,7 +46,12 @@ LOCAL INT range(UW *mm)
 
 	if (r == US_NO_RESPONSE) {
 		good_run = 0;
-		if (silent_run < 255U && ++silent_run >= S5_US_FAIL_COUNT) {
+		/* Not while INIT: right after a power-on the sensor (and the
+		   servo centring) take a few pings to answer, and the critical
+		   fault latched Safe Stop before the car ever drove.  A sensor
+		   still silent once driving trips it at the next ping. */
+		if (silent_run < 255U && ++silent_run >= S5_US_FAIL_COUNT
+		    && sys_mode() != VM_INIT) {
 			sys_fault_set(SYS_FLT_US_NO_RESPONSE);
 		}
 	} else {

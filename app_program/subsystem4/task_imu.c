@@ -264,8 +264,13 @@ EXPORT void imu_task(INT stacd, void *exinf)
 							  (INT)cal.gyro_bias[0], (INT)cal.gyro_bias[1],
 							  (INT)cal.gyro_bias[2]);
 					}
-				} else if (r == IMU_CAL_NOT_STILL && ++cal_tries < S4_CAL_TRIES) {
-					/* moved during calibration: try again */
+				} else if (r == IMU_CAL_NOT_STILL
+					   && (mode == VM_INIT || ++cal_tries < S4_CAL_TRIES)) {
+					/* moved during calibration: try again.  In INIT
+					   keep trying, as Buddy 3 does for the IR: the car
+					   is often still being placed or the switch was
+					   just pressed.  A start that never settles still
+					   ends in Safe Stop via INIT_TIMEOUT_MS (SYS_FLT_INIT). */
 				} else {
 					state = IMU_ST_FAULT;
 					sys_fault_set(SYS_FLT_IMU_CAL);

@@ -40,8 +40,10 @@
 #define CREEP_PCT		15	/* NFR12 / Tribunal 1: creep = max(15 % cruise, min) */
 #define ACCEL_MMS2		800	/* [CAL] ramp limit                  */
 #define DECEL_GAIN		2	/* approach: allowed mm/s per mm left */
-#define STEER_UNIT_DIV		75	/* (was 50; 75 = steering 1.5x slower,
-					   asked for after the 135 mm/s cruise)
+#define STEER_UNIT_DIV		50	/* (was 50, then 75 = steering 1.5x slower
+					   after the 135 mm/s cruise; back to 50 =
+					   1.5x faster once wheel speed was measured
+					   over a window instead of one edge period)
 					   one steer unit = cruise / DIV mm/s of
 					   wheel speed difference: 4 mm/s at the
 					   designed 200 mm/s cruise (the old fixed

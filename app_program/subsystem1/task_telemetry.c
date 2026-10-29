@@ -28,6 +28,7 @@ LOCAL BOOL		have_prev;
 LOCAL UB		prev_avoid_count;
 LOCAL UB		tlm_seq;
 LOCAL UB		evt_seq;
+LOCAL BOOL		boot_report_sent;
 
 EXPORT void tlm_cyclic_handler(void *exinf)
 {
@@ -124,6 +125,19 @@ EXPORT void telemetry_task(INT stacd, void *exinf)
 			for (i = 0; i < ne; i++) {
 				send_event(&ev[i]);
 			}
+		}
+		/* Events raised before the first connection are dropped from the
+		   full queue, and a fault that clears within a 500 ms sample is
+		   never seen at all.  Once online, report every fault since boot
+		   so a Safe Stop at power-on still shows its cause. */
+		if (!boot_report_sent && src.comm.state == CS_ONLINE) {
+			EVT_RECORD	e;
+
+			e.code = EVT_FAULTS;
+			e.data = sys_fault_seen() & SYS_FLT_ALL;
+			send_event(&e);
+			tm_printf((UB*)"tlm: faults since boot 0x%07x\n", (INT)e.data);
+			boot_report_sent = TRUE;
 		}
 		prev = cur;
 		prev_avoid_count = src.avoid.count;

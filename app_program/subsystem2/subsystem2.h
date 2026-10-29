@@ -109,6 +109,7 @@ IMPORT UW   sys_epoch(void);
 IMPORT UW   sys_fault_get(void);
 IMPORT void sys_fault_set(UW bits);		/* ISR-safe, atomic */
 IMPORT void sys_fault_clear(UW bits);		/* ISR-safe, atomic */
+IMPORT UW   sys_fault_seen(void);		/* all bits raised since boot */
 IMPORT UW   sys_fault_crit_mask(void);
 IMPORT void sys_post_event(UW ev);		/* ISR-safe */
 

@@ -18,6 +18,20 @@
 
 #include <tk/tkernel.h>
 
+/* The TIMER counts ticks of the watchdog tick generator, which has to
+   divide clk_ref (XOSC) down to 1 MHz.  Nothing else in this firmware
+   sets it up: after a reflash the boot ROM's setting survives the
+   watchdog reboot, but after a power-on it does not, and every
+   microsecond figure (wheel speed, ultrasonic echo) came out wrong.
+   Call once at boot, before the first hw_time_us(). */
+#define WATCHDOG_TICK		0x4005802CUL	/* RP2040 datasheet 4.7.6 */
+#define WATCHDOG_TICK_ENABLE	(1UL << 9)
+
+Inline void hw_time_init(void)
+{
+	out_w(WATCHDOG_TICK, WATCHDOG_TICK_ENABLE | (UW)XOSC_MHz);
+}
+
 /* Current time in microseconds (free running, wraps) */
 Inline UW hw_time_us(void)
 {
