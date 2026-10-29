@@ -42,8 +42,17 @@ LOCAL volatile UW	wdog_tripped;		/* set by handler, cleared by task */
 LOCAL volatile UW	loop_running;		/* writer: motion task    */
 
 LOCAL UW	cycle_ms;			/* local time, +20 ms per tick */
+/* Encoder counts of the last SPD_WIN_CYCLES control periods (100 ms) */
+#define SPD_WIN_CYCLES		5
+typedef struct {
+	W	ticks[SPD_WIN_CYCLES];
+	UW	t_us[SPD_WIN_CYCLES];
+	UINT	n;				/* samples held */
+	UINT	i;				/* next slot = oldest once full */
+} SPD_WIN;
+
 LOCAL W		spd_l, spd_r;			/* filtered wheel speeds, mm/s */
-LOCAL W		prev_ticks_l, prev_ticks_r;
+LOCAL SPD_WIN	win_l, win_r;
 LOCAL INT	dir_l = 1, dir_r = 1;
 LOCAL UW	odo_um;				/* total travel, um */
 LOCAL BOOL	steer_seen;
@@ -74,28 +83,43 @@ EXPORT void motion_cyclic_handler(void *exinf)
 
 /* ------------------------------------------------------------------ */
 
-LOCAL W wheel_speed(const ENC_SNAP *s, UW now_us, W *prev_ticks, INT *dir)
+/* Speed from the edges counted over the last 100 ms, not from the last
+   edge-to-edge period.  At crawl speed the encoder chatters (edge pairs
+   1-2 ms apart, then ~50 ms of nothing), which ENC_MIN_EDGE_US does not
+   reject: one short period read as a fast wheel (telemetry: 235 mm/s
+   reported, 6 mm/s travelled) and the PID cut the power.  A stray edge
+   now moves the reading by one tick in the window instead. */
+LOCAL W wheel_speed(const ENC_SNAP *s, UW now_us, SPD_WIN *w, INT *dir)
 {
-	W	dticks = s->ticks - *prev_ticks;
-	UW	age = now_us - s->last_us;
-	UW	per = s->period_us;
+	W	dticks = 0;
+	UW	dt = 0;
 
-	if (dticks > 0) {
-		*dir = 1;
-	} else if (dticks < 0) {
-		*dir = -1;
+	if (w->n > 0U) {
+		UINT	last = (w->i + SPD_WIN_CYCLES - 1U) % SPD_WIN_CYCLES;
+		UINT	first = (w->n < SPD_WIN_CYCLES) ? 0U : w->i;
+		W	step = s->ticks - w->ticks[last];
+
+		if (step > 0) {
+			*dir = 1;
+		} else if (step < 0) {
+			*dir = -1;
+		}
+		dticks = s->ticks - w->ticks[first];
+		dt = now_us - w->t_us[first];
 	}
-	*prev_ticks = s->ticks;
-	if (s->edges < 2U || age > (UW)ENC_SPEED_TIMEOUT_MS * 1000U) {
+	w->ticks[w->i] = s->ticks;
+	w->t_us[w->i] = now_us;
+	w->i = (w->i + 1U) % SPD_WIN_CYCLES;
+	if (w->n < SPD_WIN_CYCLES) {
+		w->n++;
+	}
+	if (dticks < 0) {
+		dticks = -dticks;
+	}
+	if (s->edges < 2U || dt == 0U) {
 		return 0;
 	}
-	if (age > per) {
-		per = age;		/* slowing down: bounded by time since edge */
-	}
-	if (per == 0U) {
-		return 0;
-	}
-	return (W)(*dir) * (W)(ENC_UM_PER_TICK * 1000UL / per);
+	return (W)(*dir) * (W)((UW)dticks * ENC_UM_PER_TICK * 1000UL / dt);
 }
 
 LOCAL void measure(void)
@@ -108,8 +132,8 @@ LOCAL void measure(void)
 	if (encoder_snapshot(ENC_LEFT, &l) && encoder_snapshot(ENC_RIGHT, &r)) {
 		dist_l_um = l.ticks * (W)ENC_UM_PER_TICK;
 		dist_r_um = r.ticks * (W)ENC_UM_PER_TICK;
-		spd_l = (spd_l + wheel_speed(&l, now, &prev_ticks_l, &dir_l)) / 2;
-		spd_r = (spd_r + wheel_speed(&r, now, &prev_ticks_r, &dir_r)) / 2;
+		spd_l = (spd_l + wheel_speed(&l, now, &win_l, &dir_l)) / 2;
+		spd_r = (spd_r + wheel_speed(&r, now, &win_r, &dir_r)) / 2;
 		enc_valid = TRUE;
 	} else {
 		enc_valid = FALSE;	/* keep the previous distances */

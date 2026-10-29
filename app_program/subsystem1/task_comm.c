@@ -134,10 +134,18 @@ LOCAL void execute(const CMD_RECORD *c)
 		app_store(&s1_status_now, 1U);
 		(void)tk_wup_tsk(tid_tlm);
 	}
+	if (c->cmd == CMD_STOP) {
+		/* NFR6: never wait behind the motion queue.  The bypass cuts the
+		   motors now and the fault bit holds Safe Stop, even if the
+		   queued STOP below is lost to a full queue. */
+		motion_stop(MSRC_SUPER);
+		sys_fault_set(SYS_FLT_REMOTE_STOP);
+	}
 	if (mp_cmd_to_motion(c, &type, &arg)) {
 		if (motion_command(type, MSRC_SUPER, arg, 0, &cmd) != E_OK
 		    || motion_wait_result(cmd, S1_CMD_WAIT_MS, &res) != E_OK) {
-			result = ACK_BUSY;		/* queue full / no answer */
+			/* queue full / no answer; a STOP already took effect */
+			result = (c->cmd == CMD_STOP) ? ACK_OK : ACK_BUSY;
 		} else {
 			result = mp_ack_of_result(res, &detail);
 		}
@@ -236,6 +244,10 @@ LOCAL void tick(void)
 	}
 	if (fsm.state != old) {
 		tm_printf((UB*)"comm: %s -> %s\n", cfsm_name(old), cfsm_name(fsm.state));
+		if (fsm.state == CS_ONLINE) {
+			/* the boot banner is gone before a USB console attaches */
+			tm_printf((UB*)"comm: firmware built " __DATE__ " " __TIME__ "\n");
+		}
 	}
 
 	if (fsm.state == CS_ONLINE) {
