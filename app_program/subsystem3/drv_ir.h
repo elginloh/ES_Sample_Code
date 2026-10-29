@@ -28,6 +28,16 @@
 #define IR_CENTER_PIN		6
 #define IR_RIGHT_PIN		27
 
+/* 1 = this car has the IR_RIGHT (GP27, barcode) sensor on its LEFT side,
+   on the outrigger bracket, and IR_LEFT on its right.  The line follower
+   keeps its own labels (the barcode handling stays on GP27); task_line.c
+   mirrors its steering and the IMU heading it is given, and the "ir:"
+   console line prints the car's real left and right.  Seen on the car:
+   the left sensor on the line turned it clockwise. */
+#ifndef IR_SIDES_MIRRORED
+#define IR_SIDES_MIRRORED	1
+#endif
+
 #ifndef S3_CAPTURE_POLL_1MS
 #define S3_CAPTURE_POLL_1MS	0
 #endif

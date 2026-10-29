@@ -31,6 +31,10 @@
 #define AV_MARGIN_MM		60
 #define AV_TURN_DEG		45
 #define AV_MIN_FRONT_MM		180	/* room in front needed to pivot   */
+#define AV_ALLOW_REVERSE	0	/* 0 = never back away: closer than
+					   AV_MIN_FRONT_MM there is no plan
+					   (AVP_NO_CLEARANCE, Safe Stop); 1 =
+					   reverse first to make room */
 #define AV_OBSTACLE_DEPTH_MM	200	/* [CAL] assumed obstacle depth    */
 #define AV_SEARCH_EXTRA_MM	150
 #define AV_PREFER_RIGHT		1	/* tie-break when clearances equal */

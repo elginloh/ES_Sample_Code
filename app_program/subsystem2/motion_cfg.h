@@ -30,13 +30,19 @@
 				 / ENC_PULSES_PER_REV)
 
 /* ---- Speeds (mm/s) [CAL] ------------------------------------------- */
-#define CRUISE_DEFAULT_MMS	135	/* [CAL] normal line-following speed (was 200, 20, 30, 45, 90).
+#define CRUISE_DEFAULT_MMS	117	/* [CAL] normal line-following speed (was 200, 20, 30, 45, 90, 135;
+					   117 = 135 / 1.15).
 					   Floor: a barcode MOVE/TURN must finish
 					   inside S3_NAV_WAIT_MS (15 s) */
 #define TURN_SPEED_MMS		135	/* [CAL] wheel speed while pivoting (was 120, 20, 30, 45, 90) */
 #define MIN_CTRL_SPEED_MMS	22	/* [CAL] A2: minimum controllable speed (was 40,
 					   then 15).  Also the creep floor: line
 					   search pivot speed */
+#define MOTION_ALLOW_REVERSE	0	/* 0 = never drive backwards: a MOVE
+					   with a negative distance is rejected
+					   (MREJ_RANGE) and a reverse steer
+					   stands still.  Pivots still turn one
+					   wheel backwards. */
 #define CREEP_PCT		15	/* NFR12 / Tribunal 1: creep = max(15 % cruise, min) */
 #define ACCEL_MMS2		800	/* [CAL] ramp limit                  */
 #define DECEL_GAIN		2	/* approach: allowed mm/s per mm left */

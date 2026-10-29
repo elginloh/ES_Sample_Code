@@ -25,6 +25,9 @@ EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 	lf->r_line = FALSE;
 	lf->realign_ms = 0;
 	lf->realign_dir = 0;
+	lf->settle_ms = 0;
+	lf->pivot_dir = 0;
+	lf->pivot_ms = 0;
 	lf->turn_dir = 0;
 	lf->turn_ms = 0;
 	lf->backing = FALSE;
@@ -183,11 +186,20 @@ LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms, LF_OUT *out)
 		lf->pos = LP_LOST_LEFT;
 		lf->err = -2;
 		lf->last_side = -1;
-	} else if (lf->prev_err == 0 && lf->last_side == 0) {
-		/* Straight or steering left: the line went right. */
-		lf->pos = LP_RIGHT;		/* left the centre sensor to the right */
+	} else if (lf->prev_err == 0 && lf->last_side == 0
+		   && lf->turn_dir < 0) {
+		/* Was steering left when the centre lost it: the car turned
+		   past the line, which is now on the RIGHT. */
+		lf->pos = LP_RIGHT;
 		lf->err = 2;
 		lf->last_side = 1;
+	} else if (lf->prev_err == 0 && lf->last_side == 0) {
+		/* Going straight and no sensor saw where it went: keep
+		   straight (no guess right).  A curve then passes under a
+		   side sensor, whose pivot takes over; nothing within
+		   LF_LOST_CONFIRM_MM / _MS starts the search. */
+		lf->pos = LP_CENTER;
+		lf->err = 0;
 	} else {
 		lf->pos = LP_LOST_RIGHT;
 		lf->err = 3;
@@ -201,8 +213,11 @@ LOCAL UB speed_for(INT err)
 
 	/* |err| 3 (line beyond a side sensor, e.g. a 90 deg corner): pivot
 	   on the spot.  Driving on while turning carried the axle past the
-	   corner, and the sensors' arc then missed the new line. */
-	return (UB)((a == 0) ? 15 : (a == 1) ? 11 : (a == 2) ? 7 : 0);
+	   corner, and the sensors' arc then missed the new line.  Any steer
+	   runs at about half cruise (|err| 1 was 11/15) so the car turns
+	   onto the line instead of running over it.  |err| 2 (side sensor
+	   only) pivots too: see LF_SIDE_PIVOT_STEER in lf_step(). */
+	return (UB)((a == 0) ? 15 : (a == 1) ? 8 : 0);
 }
 
 /* Current sweep direction: -1 left, +1 right */
@@ -297,10 +312,41 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, INT heading_deg,
 
 	sweep = search_dir(lf);			/* before classify moves last_side */
 	classify(lf, black, odo_mm, dt_ms, out);
+	/* Side pivot: the line under the left or right sensor alone (centre
+	   white) commits the car to pivot that way until the centre has it,
+	   also mid-search.  The side sensor often goes white again before
+	   the centre reaches the line; the commitment stops the realign
+	   guess or the search sweep from turning the car back.  A barcode
+	   bar under the right sensor while the centre is on the line never
+	   starts one. */
+	if ((black & IR_BIT(IR_C)) != 0U) {
+		if (lf->pivot_dir != 0) {
+			lf->settle_ms = LF_SETTLE_MS;
+			lf->prev_err = lf->err;	/* no D kick back the other way */
+		}
+		lf->pivot_dir = 0;
+		lf->pivot_ms = 0;
+	} else {
+		BOOL	l = (black & IR_BIT(IR_L)) != 0U;
+		BOOL	r = (black & IR_BIT(IR_R)) != 0U;
+
+		if (navigating && l != r && lf->pivot_ms <= LF_SIDE_PIVOT_MAX_MS) {
+			/* the side that saw black last decides, also mid pivot:
+			   left -> pivot left, right -> pivot right */
+			lf->pivot_dir = r ? 1 : -1;
+		}
+		if (lf->pivot_dir != 0) {
+			lf->pivot_ms += dt_ms;
+			if (lf->pivot_ms > LF_SIDE_PIVOT_MAX_MS) {
+				lf->pivot_dir = 0;	/* not found: normal search */
+			}
+		}
+	}
 	/* The line under the right sensor alone keeps the car tracking, but
 	   never ends a search: a barcode bar beside the line could */
 	on_line = (black & (IR_BIT(IR_L) | IR_BIT(IR_C))) != 0U
-		  || (lf->r_line && lf->state == LS_ON_LINE);
+		  || (lf->r_line && lf->state == LS_ON_LINE)
+		  || lf->pivot_dir != 0;
 
 	if (on_line) {
 		if (lf->state == LS_SEARCHING) {
@@ -342,10 +388,18 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, INT heading_deg,
 		lf->search_origin = heading_deg;
 		lf->search_deg = 0;
 	}
+	if (lf->pivot_dir != 0) {
+		lf->realign_ms = 0;	/* the pivot side, not the sweep side */
+	}
 
 	if (navigating) {
 		out->steering = TRUE;
-		if (lf->state == LS_ON_LINE && lf->realign_ms > 0U
+		if (lf->pivot_dir != 0) {
+			/* side pivot: no forward travel until the centre has
+			   the line, then LF_SETTLE_MS at half speed */
+			out->steer = lf->pivot_dir * LF_SIDE_PIVOT_STEER;
+			out->speed_frac = 0;
+		} else if (lf->state == LS_ON_LINE && lf->realign_ms > 0U
 		    && (lf->err == 0 || lf->err == 3 * lf->realign_dir)) {
 			/* Settling in after a sweep: an arc while moving on,
 			   also when the centre slips off (never a spot pivot,
@@ -357,6 +411,9 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, INT heading_deg,
 
 			out->steer = kp * lf->err + LF_KD * (lf->err - lf->prev_err);
 			out->speed_frac = speed_for(lf->err);
+			if (lf->settle_ms > 0U && out->speed_frac > LF_SETTLE_SPEED) {
+				out->speed_frac = LF_SETTLE_SPEED;
+			}
 		} else if (lf->state == LS_SEARCHING) {
 			search(lf, odo_mm, heading_deg, dt_ms, out);
 		} else {
@@ -387,4 +444,5 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, INT heading_deg,
 	}
 	lf->prev_err = lf->err;
 	lf->realign_ms = (lf->realign_ms > dt_ms) ? lf->realign_ms - dt_ms : 0U;
+	lf->settle_ms = (lf->settle_ms > dt_ms) ? lf->settle_ms - dt_ms : 0U;
 }

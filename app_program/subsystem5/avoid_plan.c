@@ -64,6 +64,10 @@ EXPORT INT av_plan(const S5_PROFILE *p, AV_PLAN *plan)
 		plan->offset_mm = AV_MARGIN_MM;
 	}
 	rev = (p->dist_mm < AV_MIN_FRONT_MM) ? (AV_MIN_FRONT_MM - p->dist_mm) : 0;
+	if (rev > 0 && !AV_ALLOW_REVERSE) {
+		plan->side = AV_SIDE_NONE;	/* too close to pivot: stop */
+		return AVP_NO_CLEARANCE;
+	}
 	d1 = (W)(((D)plan->offset_mm * 32768) / sin_t);
 	prog1 = (W)(((D)plan->offset_mm * cos_t) / sin_t);
 	pass_y = p->dist_mm + rev + AV_OBSTACLE_DEPTH_MM + AV_ROBOT_LENGTH_MM

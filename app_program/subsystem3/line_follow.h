@@ -92,9 +92,9 @@
 #define LF_SEARCH_PIVOT		63	/* steer while pivot-searching (was 40;
 					   STEER_MAX, so the pivot still reaches
 					   creep speed at a 20 mm/s cruise) */
-#define LF_SEARCH_DEG		45	/* sweep this far each side of the
+#define LF_SEARCH_DEG		30	/* sweep this far each side of the
 					   heading where the line was lost
-					   (was 90: swung too far) */
+					   (was 90: swung too far, then 45) */
 #define LF_SEARCH_USE_IMU	1	/* 1 = measure the sweep with the IMU
 					   heading (Buddy 4, s4_get_imu_status);
 					   0 = time only (LF_SEARCH_T1_MS).  The
@@ -102,14 +102,29 @@
 					   if the motors bend it (sweeps far off
 					   LF_SEARCH_DEG in the "line: sweep" log) */
 #define LF_HEADING_NONE		(-1)	/* lf_step(): no usable heading */
-#define LF_SEARCH_T1_MS		2300	/* first sweep, towards last side, when
-					   timed: ~45 deg (LF_SEARCH_DEG).  The
+#define LF_SEARCH_T1_MS		1530	/* first sweep, towards last side, when
+					   timed: ~30 deg (LF_SEARCH_DEG; was
+					   2300 for 45 deg).  The
 					   pivot runs at creep speed (22 mm/s per
 					   wheel, TRACK 130 mm -> 19 deg/s); later
-					   sweeps take 2 x T1 for the full 90 deg.
+					   sweeps take 2 x T1 for the full 60 deg.
 					   With a heading, 1.5 x the timed length
 					   is the safety limit of a sweep (was
 					   4600 for 90 deg, 3100 for 60 deg) */
+#define LF_SIDE_PIVOT_STEER	20	/* only the left or right sensor on the
+					   line: stop and pivot towards it at
+					   this steer (~47 mm/s per wheel at the
+					   117 mm/s cruise) until the centre is
+					   back on it, so the car never drives
+					   off the path.  The pivot is held even
+					   when the side sensor goes white again
+					   (the line passes between the sensors) */
+#define LF_SIDE_PIVOT_MAX_MS	9000	/* ~a full turn at ~40 deg/s: the pivot
+					   always finishes first; only if the
+					   centre never finds the line does the
+					   normal search take over (was 1500) */
+#define LF_SETTLE_MS		300	/* after such a pivot: drive on ...   */
+#define LF_SETTLE_SPEED		8	/* ... at 8/15 of cruise this long    */
 #define LF_REALIGN_MS		500	/* after a sweep finds the line: keep */
 #define LF_REALIGN_STEER	14	/* arcing the sweep way this hard ... */
 #define LF_REALIGN_SPEED	8	/* ... at 8/15 of cruise, to line up  */
@@ -144,6 +159,9 @@ typedef struct {
 	BOOL	r_line;		/* that black is the line, not a bar */
 	UW	realign_ms;	/* turn-in time left after a sweep found it */
 	INT	realign_dir;	/* -1 left, +1 right */
+	UW	settle_ms;	/* half-speed time left after a side pivot */
+	INT	pivot_dir;	/* side pivot under way: -1 left, +1 right */
+	UW	pivot_ms;	/* time since the centre last saw the line */
 	INT	turn_dir;	/* recent steering on the line, -1/0/+1 */
 	BOOL	backing;	/* search phase 0: reversing */
 	W	backup_start_mm;

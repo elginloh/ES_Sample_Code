@@ -271,6 +271,10 @@ EXPORT UW mc_submit(MOTION_CTRL *mc, UW cmd, UW vmode, UW epoch, MC_OUT *out)
 	if (reason == MREJ_NONE) {
 		reason = mode_allows(src, type, vmode);
 	}
+	if (reason == MREJ_NONE && !MOTION_ALLOW_REVERSE
+	    && type == MCMD_MOVE && mcmd_arg(cmd) < 0) {
+		reason = MREJ_RANGE;		/* no driving backwards */
+	}
 	if (reason == MREJ_NONE && mc->state == MS_FAULT && type != MCMD_STOP
 	    && type != MCMD_SET_SPEED) {
 		reason = MREJ_MODE;		/* Fault overrides queued work */
@@ -415,7 +419,8 @@ LOCAL void run_steering(MOTION_CTRL *mc, UW steer, W *des_l, W *des_r)
 	W	diff = (W)steer_value(steer) * mc->cruise_mms / STEER_UNIT_DIV;
 
 	if ((steer & STEER_REV) != 0UL) {
-		base = -base;			/* line search back-up */
+		/* line search back-up; without MOTION_ALLOW_REVERSE: stand */
+		base = MOTION_ALLOW_REVERSE ? -base : 0;
 	}
 
 	*des_l = base + diff;			/* + steer = turn right */

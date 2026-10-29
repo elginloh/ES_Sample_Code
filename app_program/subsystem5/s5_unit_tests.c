@@ -252,9 +252,14 @@ LOCAL INT test_plan(void)
 	s5_profile_box(-75, 75, 120, 0, &p);			/* too close to pivot */
 	p.clear_left_mm = 900;
 	p.clear_right_mm = 900;
+#if AV_ALLOW_REVERSE
 	TEST_CHECK("S5-U17", av_plan(&p, &pl) == AVP_OK && pl.step[0].kind == AVS_MOVE
 		   && pl.step[0].arg < 0 && pl.n == 8,
 		   "obstacle closer than 180 mm: reverse first");
+#else
+	TEST_CHECK("S5-U17", av_plan(&p, &pl) == AVP_NO_CLEARANCE && pl.n == 0,
+		   "obstacle closer than 180 mm, reversing off: no plan (stop), never back away");
+#endif
 
 	p.clear_left_mm = 200;
 	p.clear_right_mm = -1;

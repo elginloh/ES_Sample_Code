@@ -78,6 +78,18 @@ LOCAL INT imu_heading(void)
 #endif
 }
 
+/* The line follower's frame when IR_SIDES_MIRRORED: its "right" is the
+   car's left, so a turn it calls right is the car turning left and the
+   heading (+ = left) it sees must grow the other way. */
+LOCAL INT mirror_heading(INT h)
+{
+#if IR_SIDES_MIRRORED
+	return (h == LF_HEADING_NONE) ? h : (360 - h) % 360;
+#else
+	return h;
+#endif
+}
+
 /* Barcode capture in progress (published by the barcode task) */
 LOCAL BOOL barcode_capturing(void)
 {
@@ -160,17 +172,20 @@ EXPORT void line_task(INT stacd, void *exinf)
 		was_nav = nav;
 
 		black = lf_black_bits(&lf, raw);
-		lf_step(&lf, black, odo, imu_heading(), S3_PERIOD_MS, nav, &out);
-		steer = out.steer;
+		lf_step(&lf, black, odo, mirror_heading(imu_heading()), S3_PERIOD_MS,
+			nav, &out);
+		steer = IR_SIDES_MIRRORED ? -out.steer : out.steer;
 #if S3_LINE_LOG
 		/* Also when only the position changes: centre + right turns
-		   into "drifting right" after LF_RIGHT_LINE_MM */
+		   into "drifting right" after LF_RIGHT_LINE_MM.  L and R are
+		   the car's real sides, steer is what the motors get (+ =
+		   clockwise); err is in the line follower's own labels. */
 		if (black != prev_black || lf.pos != prev_pos) {
 			tm_printf((UB*)"ir: L%d C%d R%d | err %d state %d steer %d\n",
-				  (INT)((black >> IR_L) & 1U),
+				  (INT)((black >> (IR_SIDES_MIRRORED ? IR_R : IR_L)) & 1U),
 				  (INT)((black >> IR_C) & 1U),
-				  (INT)((black >> IR_R) & 1U),
-				  (INT)lf.err, (INT)lf.state, (INT)out.steer);
+				  (INT)((black >> (IR_SIDES_MIRRORED ? IR_L : IR_R)) & 1U),
+				  (INT)lf.err, (INT)lf.state, (INT)steer);
 			prev_black = black;
 			prev_pos = lf.pos;
 		}
@@ -180,10 +195,10 @@ EXPORT void line_task(INT stacd, void *exinf)
 		    && (lf.state != prev_state || lf.search_phase != prev_phase)) {
 			if (lf.search_origin == LF_HEADING_NONE) {
 				tm_printf((UB*)"line: sweep %s (timed, no IMU heading)\n",
-					  out.reverse ? "back" : (out.steer < 0) ? "left" : "right");
+					  out.reverse ? "back" : (steer < 0) ? "left" : "right");
 			} else {
 				tm_printf((UB*)"line: sweep %s (IMU), at %d deg\n",
-					  out.reverse ? "back" : (out.steer < 0) ? "left" : "right",
+					  out.reverse ? "back" : (steer < 0) ? "left" : "right",
 					  (INT)lf.search_deg);
 			}
 		}

@@ -316,7 +316,7 @@ LOCAL INT test_line(void)
 	W		odo = 0;
 	BOOL		lost = FALSE, found = FALSE, fail = FALSE, junction = FALSE;
 	BOOL		reversed = FALSE, saw_left = FALSE, saw_right = FALSE;
-	BOOL		bar_ok = TRUE;
+	BOOL		bar_ok = TRUE, held = TRUE;
 	UINT		junction_events = 0;
 
 	TEST_INIT();
@@ -354,10 +354,25 @@ LOCAL INT test_line(void)
 	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), 2, LF_HEADING_NONE, 20, TRUE, &o);
 	TEST_CHECK("S3-U23", o.steer < 0 && lf.pos == LP_LEFT_NEAR, "line drifting left: steer left");
 	lf_step(&lf, IR_BIT(IR_L), 4, LF_HEADING_NONE, 20, TRUE, &o);
-	TEST_CHECK("S3-U24", o.steer < -LF_KP && lf.pos == LP_LEFT_FAR && o.speed_frac < 15,
-		   "line under left sensor only: steer harder, slower");
+	TEST_CHECK("S3-U24", o.steer == -LF_SIDE_PIVOT_STEER && o.speed_frac == 0
+		   && lf.pos == LP_LEFT_FAR,
+		   "line under left sensor only: stop and pivot left");
 
-	/* lose the line, search, find it again */
+	/* the side pivot holds while all three read white: not lost */
+	for (t = 0; t < 400U; t += 20U) {
+		odo += 4;
+		lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
+		lost = lost || ((o.events & LF_EV_LOST) != 0U);
+		held = held && o.steer == -LF_SIDE_PIVOT_STEER && o.speed_frac == 0;
+	}
+	lf_step(&lf, IR_BIT(IR_C), odo, LF_HEADING_NONE, 20, TRUE, &o);
+	TEST_CHECK("S3-U52", held && !lost && lf.state == LS_ON_LINE && lf.pivot_dir == 0
+		   && o.steer == 0 && o.speed_frac == LF_SETTLE_SPEED,
+		   "side pivot held through all-white until the centre has the line; then half speed, no kick back");
+
+	/* lose the line, last seen on the left: search, find it again */
+	lf_reset_tracking(&lf);
+	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), odo, LF_HEADING_NONE, 20, TRUE, &o);
 	for (t = 0; t < 400U; t += 20U) {
 		odo += 4;
 		lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
@@ -402,6 +417,33 @@ LOCAL INT test_line(void)
 	}
 	TEST_CHECK("S3-U29", bar_ok,
 		   "barcode bar under the right sensor does not disturb steering");
+
+	/* centre lost while going straight, no side sensor saw it: no guess
+	   right, keep straight until the line-lost search */
+	lf_reset_tracking(&lf);
+	held = TRUE;
+	lost = FALSE;
+	lf_step(&lf, IR_BIT(IR_C), odo, LF_HEADING_NONE, 20, TRUE, &o);
+	for (k = 0; k < 50U && !lost; k++) {
+		odo += 2;
+		lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
+		lost = (o.events & LF_EV_LOST) != 0U;
+		held = held && (lost || (o.steer == 0 && o.speed_frac > 0));
+	}
+	TEST_CHECK("S3-U53", held && lost,
+		   "centre lost going straight, no side information: straight on (no turn right) until the search");
+
+	/* right pivot under way, the left sensor sees the line: the centre
+	   missed it, turn back left */
+	lf_reset_tracking(&lf);
+	lf_step(&lf, IR_BIT(IR_C), odo, LF_HEADING_NONE, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_R), odo, LF_HEADING_NONE, 20, TRUE, &o);
+	held = lf.pivot_dir == 1 && o.steer == LF_SIDE_PIVOT_STEER;
+	lf_step(&lf, 0, odo, LF_HEADING_NONE, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_L), odo, LF_HEADING_NONE, 20, TRUE, &o);
+	TEST_CHECK("S3-U54", held && lf.pivot_dir == -1 && o.steer == -LF_SIDE_PIVOT_STEER
+		   && o.speed_frac == 0,
+		   "right pivot, then the left sensor has the line: pivot left");
 	TEST_SUMMARY("s3 line");
 	return test_fail_;
 }
@@ -435,7 +477,9 @@ LOCAL void lose_line(LINE_FOLLOW *lf, INT side, INT *heading, INT rate, LF_OUT *
 	(void)lf_calibrate(lf, cal, 10);
 	lf_step(lf, IR_BIT(IR_C), 0, *heading, 20, TRUE, o);
 	if (side < 0) {
-		lf_step(lf, IR_BIT(IR_L), 0, *heading, 20, TRUE, o);
+		/* centre + left: the left sensor alone would start a side
+		   pivot instead of a search */
+		lf_step(lf, IR_BIT(IR_C) | IR_BIT(IR_L), 0, *heading, 20, TRUE, o);
 	}
 	for (k = 0; k < 100U && lf->state != LS_SEARCHING; k++) {
 		lf_step(lf, 0, 0, *heading, 20, TRUE, o);
@@ -509,8 +553,8 @@ LOCAL INT test_line_search(void)
 		   && t_stuck <= LF_SEARCH_T1_MS + LF_SEARCH_T1_MS / 2U + 40U,
 		   "IMU heading that does not follow the turn: sweep ends at 1.5 x the timed length");
 
-	/* Found under the LEFT sensor while sweeping left: keep turning left
-	   while moving on, then centred and straight */
+	/* Found under the LEFT sensor while sweeping left: pivot left on the
+	   spot until the centre has it, settle at half speed, then straight */
 	h = LF_HEADING_NONE;
 	lose_line(&lf, -1, &h, 0, &o);
 	for (k = 0; k < 10U; k++) {
@@ -518,15 +562,15 @@ LOCAL INT test_line_search(void)
 	}
 	lf_step(&lf, IR_BIT(IR_L), 0, h, 20, TRUE, &o);
 	found = (o.events & LF_EV_FOUND) != 0U;
-	ok1 = o.steer < 0 && o.speed_frac > 0;
+	ok1 = o.steer == -LF_SIDE_PIVOT_STEER && o.speed_frac == 0;
 	lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
-	ok2 = o.steer < 0 && o.speed_frac > 0;
+	ok2 = o.steer == 0 && o.speed_frac == LF_SETTLE_SPEED;
 	for (k = 0; k < 30U; k++) {
 		lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
 	}
 	TEST_CHECK("S3-U45", found && ok1 && ok2 && o.steer == 0 && o.speed_frac == 15
 		   && lf.pos == LP_CENTER,
-		   "found while sweeping left: keeps turning left while moving on, then centred");
+		   "found under the left sensor while sweeping: pivot left until the centre has it, settle, then straight");
 
 	/* ... and the other way: found under the CENTRE while sweeping right */
 	lose_line(&lf, 1, &h, 0, &o);
@@ -596,38 +640,44 @@ LOCAL INT test_line_right(void)
 	lf_step(&lf, 0, odo, h, 20, TRUE, &o);
 	ok1 = lf.pos == LP_LOST_RIGHT && o.steer > 0 && o.speed_frac == 0;
 	lf_step(&lf, IR_BIT(IR_R), odo, h, 20, TRUE, &o);
-	ok2 = lf.pos == LP_RIGHT && o.steer > 0 && o.speed_frac > 0;
+	ok2 = lf.pos == LP_RIGHT && o.steer == LF_SIDE_PIVOT_STEER && o.speed_frac == 0;
 	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo, h, 20, TRUE, &o);
 	ok3 = lf.pos == LP_RIGHT_NEAR && o.steer > 0;	/* same black run: no wait */
-	for (k = 0; k < 3U; k++) {
+	for (k = 0; k < LF_SETTLE_MS / 20U + 3U; k++) {
 		lf_step(&lf, IR_BIT(IR_C), odo, h, 20, TRUE, &o);
 	}
 	TEST_CHECK("S3-U49", ok1 && ok2 && ok3 && lf.state == LS_ON_LINE && lf.pos == LP_CENTER
 		   && o.steer == 0 && o.speed_frac == 15,
-		   "beyond the right sensor: pivot right; back under it: turn right while moving, then centred");
+		   "beyond the right sensor: pivot right on the spot until the centre has it, settle, then centred");
 
-	/* Searching: the right sensor alone (perhaps a barcode bar) does
-	   not end the search, the centre does */
+	/* Searching: the right sensor alone starts a pivot right, which ends
+	   the search; the centre then has the line */
 	lose_line(&lf, 1, &h, 0, &o);
 	ok1 = lf.state == LS_SEARCHING && o.steer > 0;
+	found = FALSE;
+	ok2 = TRUE;
 	for (k = 0; k < 5U; k++) {
 		lf_step(&lf, IR_BIT(IR_R), 0, h, 20, TRUE, &o);
 		found = found || (o.events & LF_EV_FOUND) != 0U;
+		ok2 = ok2 && lf.pivot_dir == 1 && o.steer == LF_SIDE_PIVOT_STEER && o.speed_frac == 0;
 	}
-	ok2 = !found && lf.state == LS_SEARCHING;
+	ok2 = ok2 && found && lf.state == LS_ON_LINE;
 	lf_step(&lf, IR_BIT(IR_C), 0, h, 20, TRUE, &o);
-	TEST_CHECK("S3-U50", ok1 && ok2 && (o.events & LF_EV_FOUND) != 0U && lf.state == LS_ON_LINE,
-		   "searching: the right sensor alone does not end the search, the centre does");
+	TEST_CHECK("S3-U50", ok1 && ok2 && lf.state == LS_ON_LINE && lf.pivot_dir == 0
+		   && o.speed_frac == LF_SETTLE_SPEED,
+		   "searching: the right sensor alone starts a pivot right; the centre then has the line");
 
-	/* The line went off to the left: black under the right sensor is
-	   then a barcode bar, not a reason to turn right */
+	/* Left pivot under way, then black under the right sensor: the side
+	   that saw black last decides, so pivot right */
 	lf_reset_tracking(&lf);
 	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), 0, h, 20, TRUE, &o);
 	lf_step(&lf, IR_BIT(IR_L), 0, h, 20, TRUE, &o);
+	ok1 = lf.pivot_dir == -1 && o.steer == -LF_SIDE_PIVOT_STEER;
 	lf_step(&lf, 0, 0, h, 20, TRUE, &o);
 	lf_step(&lf, IR_BIT(IR_R), 0, h, 20, TRUE, &o);
-	TEST_CHECK("S3-U51", lf.pos == LP_LOST_LEFT && o.steer < 0,
-		   "line gone left: black under the right sensor (a barcode bar) does not turn right");
+	TEST_CHECK("S3-U51", ok1 && lf.pivot_dir == 1 && o.steer == LF_SIDE_PIVOT_STEER
+		   && o.speed_frac == 0,
+		   "left pivot, then black under the right sensor: pivot right");
 	TEST_SUMMARY("s3 line right");
 	return test_fail_;
 }
