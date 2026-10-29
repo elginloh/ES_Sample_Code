@@ -137,7 +137,7 @@ the team adopted them in Version B, in the interface map, or as an
 | FR7 | Telemetry over WiFi/MQTT (speed, sensor status, state, measurements) | 1 | `task_telemetry.c` + `mqtt_proto.c` | Blocked (transport hook in protected `mqtt_utk.c`); encoding Done-able |
 | FR8 | Stop or reduce speed before scanning an obstacle | 5, 2 | speed cap + obstacle event → controlled stop | Pending |
 | FR9 | Servo-mounted ultrasonic scan; position, width, clearance | 5 | `obstacle_profile.c` | Pending |
-| FR10 | Choose avoidance action and send stop/turn/reverse/move to Motion Control | 5 | `avoid_plan.c`, `task_avoid.c` | Pending |
+| FR10 | Choose avoidance action and send turn/move commands to Motion Control | 5 | `avoid_plan.c`, `task_avoid.c` | Pending |
 | FR11 | Reacquire original line before resuming | 5, 3 | Search step + `flg_line_evt` | Pending |
 | FR12 | Safe Stop if unavoidable, profiling fails, or line not reacquired in time | 5, 2 | `SYS_FLT_*` critical bits | Pending |
 | FR13 | Periodic heartbeat; report online / disconnected / recovering | 1 | Heartbeat frame + comm state | Partial (transport blocked) |

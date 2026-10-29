@@ -5,15 +5,15 @@
  *	Project Briefing p.8 workflow: detect -> measure width -> "choose
  *	direction: pick the side with more clearance" -> go off line &
  *	bypass -> search & reacquire the line behind the obstacle -> collect
- *	back to the line.  Plus "plan stop, turn or reverse actions": the
- *	plan reverses first when the obstacle is too close to pivot.
+ *	back to the line.  If there is not enough room to pivot in front of
+ *	the obstacle, planning fails and the vehicle enters Safe Stop.
  *
  *	A side is usable only if its clearance is KNOWN and at least the car
  *	width plus two margins.  If neither side qualifies the plan fails
  *	(FR12 -> Safe Stop): no bypass is ever invented.
  *
  *	Plan for side s (+1 right, -1 left), turn angle T (45 deg):
- *	    [MOVE -r]  TURN s*T  MOVE d1  TURN -s*T  MOVE d2  TURN -s*T
+ *	    TURN s*T  MOVE d1  TURN -s*T  MOVE d2  TURN -s*T
  *	    SEARCH (move until the line is found, at most dS)  TURN s*T
  *	d1 = lateral offset / sin T; d2 brings the whole car past the far
  *	face (assumed depth: the ultrasonic cannot see behind the face).
@@ -30,15 +30,11 @@
 #define AV_ROBOT_LENGTH_MM	200
 #define AV_MARGIN_MM		60
 #define AV_TURN_DEG		45
-#define AV_MIN_FRONT_MM		180	/* room in front needed to pivot   */
-#define AV_ALLOW_REVERSE	0	/* 0 = never back away: closer than
-					   AV_MIN_FRONT_MM there is no plan
-					   (AVP_NO_CLEARANCE, Safe Stop); 1 =
-					   reverse first to make room */
+#define AV_MIN_PIVOT_CLEARANCE_MM	180	/* room in front needed to pivot */
 #define AV_OBSTACLE_DEPTH_MM	200	/* [CAL] assumed obstacle depth    */
 #define AV_SEARCH_EXTRA_MM	150
 #define AV_PREFER_RIGHT		1	/* tie-break when clearances equal */
-#define AV_MAX_STEPS		8
+#define AV_MAX_STEPS		7
 
 #define AV_SIDE_NONE		0U
 #define AV_SIDE_LEFT		1U

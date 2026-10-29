@@ -204,7 +204,7 @@ no longer exists and were never run.
 | S5-U14 | both sides free: the side with more clearance; leave, pass, return, search, align | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U14 PASS` |
 | S5-U15 | lateral leg = (edge + half width + margin) / sin 45 | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U15 PASS` |
 | S5-U16 | more clearance on the left: bypass on the left | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U16 PASS` |
-| S5-U17 | obstacle closer than 180 mm: reverse first | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U17 PASS` |
+| S5-U17 | obstacle closer than 180 mm: no plan; Safe Stop | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U17 PASS` |
 | S5-U18 | no known safe side: no plan (Safe Stop), never an invented bypass | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U18 PASS` |
 | S5-U19 | no valid profile: no plan | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U19 PASS` |
 | S5-U20 | every planned step is a valid AVOID motion command | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U20 PASS` |

@@ -30,7 +30,7 @@ EXPORT INT av_plan(const S5_PROFILE *p, AV_PLAN *plan)
 	W	sin_t = op_sin_q15(AV_TURN_DEG);
 	W	cos_t = op_cos_q15(AV_TURN_DEG);
 	BOOL	l_ok, r_ok;
-	W	s, rev, d1, prog1, pass_y, d2;
+	W	s, d1, prog1, pass_y, d2;
 
 	plan->side = AV_SIDE_NONE;
 	plan->n = 0;
@@ -63,23 +63,19 @@ EXPORT INT av_plan(const S5_PROFILE *p, AV_PLAN *plan)
 	if (plan->offset_mm < AV_MARGIN_MM) {
 		plan->offset_mm = AV_MARGIN_MM;
 	}
-	rev = (p->dist_mm < AV_MIN_FRONT_MM) ? (AV_MIN_FRONT_MM - p->dist_mm) : 0;
-	if (rev > 0 && !AV_ALLOW_REVERSE) {
+	if (p->dist_mm < AV_MIN_PIVOT_CLEARANCE_MM) {
 		plan->side = AV_SIDE_NONE;	/* too close to pivot: stop */
 		return AVP_NO_CLEARANCE;
 	}
 	d1 = (W)(((D)plan->offset_mm * 32768) / sin_t);
 	prog1 = (W)(((D)plan->offset_mm * cos_t) / sin_t);
-	pass_y = p->dist_mm + rev + AV_OBSTACLE_DEPTH_MM + AV_ROBOT_LENGTH_MM
+	pass_y = p->dist_mm + AV_OBSTACLE_DEPTH_MM + AV_ROBOT_LENGTH_MM
 	       + AV_MARGIN_MM;
 	d2 = pass_y - prog1;
 	if (d2 < AV_MARGIN_MM) {
 		d2 = AV_MARGIN_MM;
 	}
 
-	if (rev > 0) {
-		add(plan, AVS_MOVE, -clamp_move(rev));		/* reverse first */
-	}
 	add(plan, AVS_TURN, s * AV_TURN_DEG);			/* leave the line */
 	add(plan, AVS_MOVE, clamp_move(d1));
 	add(plan, AVS_TURN, -s * AV_TURN_DEG);			/* parallel again */

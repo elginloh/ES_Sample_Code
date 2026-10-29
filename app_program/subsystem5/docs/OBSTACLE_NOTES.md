@@ -75,10 +75,10 @@ exact obstacle geometry".
   2 margins (150 + 2 × 60 mm `[CAL]`). If neither qualifies →
   `OBSTACLE_UNAVOIDABLE` → Safe Stop (FR12).
 * **Manoeuvre** (side s = ±1, T = 45°):
-  `[MOVE −r] TURN s·T, MOVE d1, TURN −s·T, MOVE d2, TURN −s·T, SEARCH ≤ dS, TURN s·T`.
+  `TURN s·T, MOVE d1, TURN −s·T, MOVE d2, TURN −s·T, SEARCH ≤ dS, TURN s·T`.
   Here d1 = lateral offset / sin T, and d2 carries the whole car past the
-  assumed 200 mm obstacle depth `[CAL]`. It reverses first if the face is
-  closer than 180 mm.
+  assumed 200 mm obstacle depth `[CAL]`. If the obstacle is closer than
+  180 mm, no avoidance plan is produced and the vehicle enters Safe Stop.
 * **Bounded drift (NFR5):** the lateral offset is just edge + half width +
   margin.
 * **Commands:** every step is an `MSRC_AVOID` command to Buddy 2 at speed
