@@ -1,0 +1,5 @@
+# Local configuration with passwords (copy .env.example to .env)
+.env
+# Downloaded Grafana, logs, PIDs, Node-RED runtime files, Grafana data
+.runtime/
+node_modules/

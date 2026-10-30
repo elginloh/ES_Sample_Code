@@ -1,0 +1,10 @@
+# Firmware images built 2026-10-30 with: cd build_make && make NET=lwip MQTT=1 -j8 (arm-none-eabi-gcc 15.3.1), not flashed
+# all builds: 0 warnings; profile smp1-usb_cdc-wificyw43-netlwip-mqtt1-crash0-test0
+baseline d81f8b9: text=373782 data=120 bss=85096
+candidate (d81f8b9 + subsystem1 changes): text=373798 data=120 bss=85096
+measurement (S1_STAT_REPORT_S=10): text=374670 data=120 bss=85096
+
+# SHA-256 (files in telemetry/.runtime/firmware/)
+6ddfbe46b8f5ac4ada1ca94f3603c90664e169327c6bfd66f291d35bc7694bcd  baseline_d81f8b9_smp1_usb_cdc_wifi_lwip_mqtt.uf2
+d05ee25b9cd232a3a007beb1edd3a45badb9cf4b6dab8b941493204ed8e794ef  candidate_d81f8b9+s1-obstacle-fail-event_smp1_usb_cdc_wifi_lwip_mqtt.uf2
+7114a29214fec8f1998882bea8b4096792f29d1dc113970a19bbbb389e12e425  measure_stat10_d81f8b9+s1_smp1_usb_cdc_wifi_lwip_mqtt.uf2

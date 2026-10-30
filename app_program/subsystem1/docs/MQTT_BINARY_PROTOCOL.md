@@ -11,9 +11,11 @@ requires one encode/decode standard for Buddies 1–5 and a shared field
 specification with known-value tests (risk R1: payload tags and error
 handling).
 
-> **The server must be updated.** Node-RED flows written for the Week 6 JSON
-> payloads cannot read these frames. Use `nodered_decoder.js` in a Function
-> node, with the `mqtt in` node's output set to **"a Buffer"**.
+> **Server.** The telemetry backend in `telemetry/` (Node-RED flow,
+> PostgreSQL, Grafana) loads `nodered_decoder.js` and receives every topic
+> with the `mqtt in` output set to **"a Buffer"**. Week 6 JSON flows cannot
+> read these frames. Section 11 lists how the server interprets fields
+> whose meaning depends on the firmware build.
 
 ## 1. Topics
 
@@ -103,10 +105,10 @@ with valid data.
 | 8 | speed_l | 54 | 11 | yes | mm/s | −1023..1023 | −1024 = no encoder data | B2 |
 | 9 | speed_r | 65 | 11 | yes | mm/s | −1023..1023 | −1024 = no encoder data | B2 |
 | 10 | odometer_cm | 76 | 16 | no | cm | 0..65535, saturates | — | B2 |
-| 11 | heading2 | 92 | 8 | no | 2° (encoder heading) | 0..179 (0..358°) | — | B2 |
-| 12 | cruise10 | 100 | 6 | no | 10 mm/s | 0..63 (0..630 mm/s) | — | B2 |
-| 13 | ir_black | 106 | 3 | no | bit0 L, bit1 C, bit2 R; 1 = black | 0..7 | — | B3 |
-| 14 | line_pos | 109 | 3 | no | CENTER, LEFT_NEAR, LEFT_FAR, RIGHT, LOST_LEFT, LOST_RIGHT, JUNCTION, RIGHT_NEAR | 0..7 | — | B3 |
+| 11 | heading2 | 92 | 8 | no | 2° (encoder heading, + clockwise) | 0..179 (0..358°) | — | B2 |
+| 12 | cruise10 | 100 | 6 | no | 10 mm/s (cruise setting, not a wheel target) | 0..63 (0..630 mm/s) | — | B2 |
+| 13 | ir_black | 106 | 3 | no | bit0 IR_L (GP2), bit1 IR_C (GP6), bit2 IR_R (GP27); 1 = black; see §11 for the car's sides | 0..7 | — | B3 |
+| 14 | line_pos | 109 | 3 | no | CENTER, LEFT_NEAR, LEFT_FAR, RIGHT, LOST_LEFT, LOST_RIGHT, JUNCTION, RIGHT_NEAR (line follower's own IR_L/IR_R labels) | 0..7 | — | B3 |
 | 15 | line_state | 112 | 2 | no | ON_LINE, SEARCHING, LOST, UNKNOWN | 0..3 | 3 = not calibrated | B3 |
 | 16 | steer | 114 | 7 | yes | steer units (+ = right) | −63..63 | — | B3 |
 | 17 | bc_state | 121 | 2 | no | IDLE, CAPTURING, DECODING, EXECUTING | 0..3 | — | B3 |
@@ -119,17 +121,17 @@ with valid data.
 | 24 | imu_status | 146 | 2 | no | INIT, CALIBRATING, OK, FAULT | 0..3 | — | B4 |
 | 25 | pitch | 148 | 8 | yes | 1° (nose up +) | −90..90 | −128 = invalid | B4 |
 | 26 | roll | 156 | 8 | yes | 1° (right side down +) | −90..90 | −128 = invalid | B4 |
-| 27 | yaw_rate | 164 | 9 | yes | 1 °/s (left / CCW +) | −255..255 | −256 = invalid | B4 |
-| 28 | heading | 173 | 9 | no | 1° (gyro-integrated) | 0..359 | 511 = invalid | B4 |
+| 27 | yaw_rate | 164 | 9 | yes | 1 °/s (left / CCW +); LSM303DLHC: change of the magnetometer heading over 200 ms | −255..255 | −256 = invalid | B4 |
+| 28 | heading | 173 | 9 | no | 1°, + counter-clockwise from calibration (LSM303DLHC: magnetometer, no gyroscope) | 0..359 | 511 = invalid | B4 |
 | 29 | motion_class | 182 | 2 | no | STATIONARY, MOVING, TURN_LEFT, TURN_RIGHT | 0..3 | — | B4 |
 | 30 | tilt | 184 | 1 | no | flag | 0/1 | — | B4 |
 | 31 | collision | 185 | 1 | no | latched until CLEAR / RESUME | 0/1 | — | B4 |
 | 32 | shock | 186 | 5 | no | 0.5 g (peak horizontal impact) | 0..31 (0..15.5 g) | — | B4 |
 | 33 | hump_last | 191 | 6 | no | 2 mm | 0..50 (0..100 mm) | 63 = none yet | B4 |
-| 34 | hump_max | 197 | 6 | no | 2 mm | 0..50 (0..100 mm) | 63 = none yet | B4 |
+| 34 | hump_max | 197 | 6 | no | 2 mm, highest since boot | 0..50 (0..100 mm) | 63 = none yet | B4 |
 | 35 | hump_count | 203 | 4 | no | count | 0..15, saturates | — | B4 |
 | 36 | hump_active | 207 | 1 | no | flag | 0/1 | — | B4 |
-| 37 | us_dist | 208 | 10 | no | 5 mm | 0..800 (0..4000 mm) | 1022 = no echo (clear), 1023 = invalid | B5 |
+| 37 | us_dist | 208 | 10 | no | 5 mm, latest ranging at the current servo angle (forward only while monitoring, §11) | 0..800 (0..4000 mm) | 1022 = no echo (clear), 1023 = invalid | B5 |
 | 38 | us_result | 218 | 2 | no | OK, NO_ECHO, NO_RESPONSE, INVALID | 0..3 | — | B5 |
 | 39 | avoid_state | 220 | 4 | no | IDLE, STOPPING, COARSE, FINE, PLANNING, EXECUTING, SEARCHING, ALIGNING, FAILED | 0..8 | 9..15 unused | B5 |
 | 40 | avoid_side | 224 | 2 | no | NONE, LEFT, RIGHT | 0..2 | — | B5 |
@@ -141,6 +143,9 @@ with valid data.
 | 46 | comm_state | 260 | 3 | no | INIT, CONNECTING_WIFI, CONNECTING_MQTT, SUBSCRIBING, ONLINE, RETRY_WAIT, RECOVERY, DISABLED | 0..7 | — | B1 |
 | 47 | tlm_dropped | 263 | 8 | no | frames dropped (queues) | 0..255, saturates | — | B1 |
 | 48 | rx_rejected | 271 | 8 | no | command frames rejected | 0..255, saturates | — | B1 |
+
+Fields 42–45 are all zero until the first obstacle profile (the profile
+words start at zero), which reads as a 0 mm obstacle straight ahead.
 
 Fields come from each owner's interface (motion
 status words, line and barcode status words, IMU snapshot, hump word,
@@ -171,10 +176,10 @@ subsystem's pack function to the decoded server value.
 | Code | Event | Data word layout (LSB first) |
 |---|---|---|
 | 1 | MODE | old mode 3, new mode 3, epoch 3 |
-| 2 | FAULTS | fault mask 27 (the new mask) |
+| 2 | FAULTS | fault mask 27: the new mask; the FIRST FAULTS event after the robot first goes online carries every fault raised since boot (`sys_fault_seen()`), not the active mask |
 | 3 | BARCODE | symbol 6, result 2, nav 2, nav valid 1 |
 | 4 | HUMP | last height code 6, highest code 6, count 4 |
-| 5 | OBSTACLE | outcome 2, fail reason 3, side 2, width 8 (5 mm), distance 10 (5 mm) |
+| 5 | OBSTACLE | outcome 2, fail reason 3, side 2, width 8 (5 mm), distance 10 (5 mm); sent when an avoidance finishes and, since 2026-10-30, when the avoidance state enters FAILED (a failure does not move the avoidance counter) |
 | 6 | COLLISION | shock 5 (0.5 g) |
 
 Fail reasons: 0 NONE, 1 PROFILE, 2 CLEARANCE, 3 MOTION, 4 LINE, 5 TIMEOUT,
@@ -229,7 +234,7 @@ critical event (Safe Stop, latched until CLEAR / RESUME).
 | 4 | CMD_QUEUE | D | B2 | 18 | AVOID_FAILED | E | B5 |
 | 5 | IR_CAL | E | B3 | 19 | RECOVERY_TIMEOUT | E | B5 |
 | 6 | LINE_LOST | D | B3 | 20 | WIFI_LOSS | D | B1 |
-| 7 | LINE_RECOVERY | E | B3 | 21 | MQTT_LOSS | D | B1 |
+| 7 | LINE_RECOVERY | D | B3 | 21 | MQTT_LOSS | D | B1 |
 | 8 | BARCODE_INVALID | D | B3 | 22 | CMD_INVALID | D | B1 |
 | 9 | BARCODE_OVERFLOW | D | B3 | 23 | TLM_OVERFLOW | D | B1 |
 | 10 | IMU | C | B4 | 24 | INIT | E | B2 |
@@ -319,3 +324,23 @@ print(frame(4, 7, p.data()).hex(" "))                     # 14 07 03 d4 47 0b 59
 * Keep `TLM_FIELDS` (`mqtt_proto.c`), the table in section 5.1 and
   `nodered_decoder.js` in step. The firmware's compile-time size check
   catches a width change that is not reflected in `MP_TLM_BITS`.
+
+## 11. Server-side interpretation (telemetry backend)
+
+Some meanings depend on how the firmware was built, not on the frame.
+`nodered_decoder.js` takes them as options; the backend sets them in
+`telemetry/.env`. Keep them in step with the flashed image.
+
+| Topic | Firmware fact | Server interpretation |
+|---|---|---|
+| Fault severity | `sys_state_logic.c`: LINE_RECOVERY (bit 7) is degraded; IMU, IMU_CAL, COLLISION and US_NO_RESPONSE follow `SYS_IMU_REQUIRED`, `SYS_COLLISION_STOPS`, `SYS_US_REQUIRED` (all 1) | `criticalMask(policy)`; `.env` `CSC14_SYS_*` |
+| IR sides | `IR_SIDES_MIRRORED` 1 (`drv_ir.h`): IR_R/GP27 is on the car's LEFT, IR_L/GP2 on its right | `line.ir.left/centre/right` are the car's real sides; `line.pos_phys` names `line_pos` after the real sides; `steer` is already + = clockwise and is not mirrored again |
+| Ultrasonic | monitoring (servo centred) except during COARSE/FINE scans (sample at an untransmitted angle) and PLANNING (ranging idle, value held) | `obstacle.us_context` = forward / scan_sweep / held; `forward_mm` only when forward |
+| Profile | words start at zero | all of fields 42–45 zero → `profile = none_yet`, values NULL |
+| Headings | encoder heading + clockwise; IMU heading + counter-clockwise, magnetometer | stored as `heading_enc_cw_deg` and `heading_imu_ccw_deg` |
+| Barcode | `nav`/`nav_valid` are the symbol's MAPPING (default map empty); execution is not transmitted | shown as "mapped to", never as executed |
+| Counters | `hump_count` saturates at 15 (HUMP events stop), `tlm_dropped`/`rx_rejected` at 255, `reconnects` at 15, `bc_valid`/`bc_invalid` wrap at 64, `uptime_ds` wraps at 6553.6 s, sequence numbers wrap at 256 per type | see `telemetry/docs/DESIGN.md` |
+
+A frame with a value v1 never produces (for example `mode` 5..7,
+`heading2` > 179, a hump code 51..62) is rejected as `FIELD_RANGE` and is
+not stored as a measurement.

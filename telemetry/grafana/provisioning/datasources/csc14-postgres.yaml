@@ -1,0 +1,26 @@
+# PostgreSQL data source, provisioned at Grafana start.  Grafana logs in
+# with the read-only role; the values come from telemetry/.env.
+apiVersion: 1
+
+datasources:
+  - name: CSC14 PostgreSQL
+    uid: csc14-pg
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: ${CSC14_PG_HOST}:${CSC14_PG_PORT}
+    user: ${CSC14_PG_READER_USER}
+    isDefault: true
+    editable: false
+    jsonData:
+      database: ${CSC14_PG_DATABASE}
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: false
+      maxOpenConns: 4
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+      # Smallest time bucket: two telemetry frames, so Wi-Fi jitter alone
+      # never makes an empty (gap) bucket
+      timeInterval: 1s
+    secureJsonData:
+      password: ${CSC14_PG_READER_PASSWORD}

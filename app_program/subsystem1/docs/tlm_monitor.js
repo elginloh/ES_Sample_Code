@@ -27,8 +27,8 @@ function stamp() {
 }
 
 function show(topic, f) {
-	if (f.error) {
-		console.log(`${stamp()} ${topic} INVALID: ${f.error}`);
+	if (f.error || f.issues.length > 0) {
+		console.log(`${stamp()} ${topic} INVALID: ${f.error || f.issues.join(',')}`);
 		return;
 	}
 	log.write(JSON.stringify(Object.assign({ t: Date.now(), topic }, f)) + '\n');
@@ -39,13 +39,14 @@ function show(topic, f) {
 	}
 	switch (f.kind) {
 	case 'telemetry':
+		/* ir = the car's real left, centre, right (1 = black) */
 		console.log(`${stamp()} tlm  up=${f.uptime_s}s mode=${f.mode}`
 			+ ` faults=[${f.faults.join(',')}]${f.critical ? ' CRITICAL' : ''}`
-			+ ` spd=${f.speed_l_mms}/${f.speed_r_mms} cruise=${f.cruise_mms}`
-			+ ` ir=${f.ir.left}${f.ir.centre}${f.ir.right} line=${f.line_state}`
+			+ ` spd=${f.motion.speed_l_mms}/${f.motion.speed_r_mms} cruise=${f.motion.cruise_set_mms}`
+			+ ` ir=${f.line.ir.left}${f.line.ir.centre}${f.line.ir.right} line=${f.line.state}`
 			+ ` imu=${f.imu.status} pitch=${f.imu.pitch_deg}`
-			+ ` us=${f.obstacle.distance_mm} avoid=${f.obstacle.avoid_state}`
-			+ ` comm=${f.comm_state}`);
+			+ ` us=${f.obstacle.distance_mm}(${f.obstacle.us_context}) avoid=${f.obstacle.avoid_state}`
+			+ ` comm=${f.comm.state}`);
 		break;
 	case 'heartbeat':
 		break;				/* telemetry already shows the mode */

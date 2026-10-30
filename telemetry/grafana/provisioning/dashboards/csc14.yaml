@@ -1,0 +1,16 @@
+# Loads every dashboard JSON in telemetry/grafana/dashboards at start.
+# Edit the JSON file (not the dashboard in the browser): changes made in the
+# browser cannot be saved, so the file stays the single definition.
+apiVersion: 1
+
+providers:
+  - name: csc14
+    orgId: 1
+    folder: CSC14
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: ${CSC14_TELEMETRY_DIR}/grafana/dashboards
+      foldersFromFilesStructure: false

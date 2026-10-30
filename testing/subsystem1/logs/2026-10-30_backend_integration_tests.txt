@@ -1,0 +1,27 @@
+# backend integration tests (isolated broker, database csc14_it_*, Node-RED 5.0.9, Grafana 13.2.5), 2026-10-30 13:56 +08
+▶ pipeline on isolated services
+  ✔ golden frames are routed to their tables; unavailable values are NULL (179.213792ms)
+  ✔ malformed frames are rejected and never reach the measurement tables (156.948875ms)
+  ✔ run boundaries: rows join the run active when they were received (473.541833ms)
+  ✔ a Node-RED restart keeps the boot session and the active run; lost frames show as a gap (2545.998917ms)
+  ✔ a robot reboot opens a new boot session (155.199292ms)
+  ✔ stale and offline are detected from missing frames, online again on recovery (5689.82925ms)
+  ✔ database outage: rows are buffered and all written after recovery (3623.519667ms)
+  ✔ buffer overflow drops the oldest rows and reports the loss (639.258458ms)
+  ✔ an ACK updates the matching pending command (154.147375ms)
+  ✔ command tool: PING reaches a (fake) robot, its ACK marks the command accepted; STOP is refused (479.028208ms)
+  ✔ write latency in normal operation (1044.891542ms)
+  ✔ Grafana: provisioned data source and dashboard; every panel query runs (5021.226166ms)
+  ℹ 35 panel queries OK; median 8 ms, max 26 ms
+✔ pipeline on isolated services (23781.572292ms)
+ℹ outage recovery: max received->stored 3.53 s, buffered 30 rows
+ℹ overflow: 40 dropped, 60 telemetry rows kept, reported 40
+ℹ received->committed over 40 rows: p50 1.7 ms, p95 2.7 ms, max 3.1 ms
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 39213.573625

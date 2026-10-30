@@ -1,0 +1,20 @@
+# CSC14 telemetry ingestion (Node-RED).  Installed by install-services.sh,
+# which replaces @TELEMETRY@ and @USER@.
+[Unit]
+Description=CSC14 telemetry ingestion (Node-RED)
+Wants=network-online.target
+After=network-online.target mosquitto.service postgresql.service
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@TELEMETRY@
+ExecStart=@TELEMETRY@/bin/csc14 serve nodered
+Restart=on-failure
+RestartSec=5
+# Node-RED flushes the PostgreSQL buffer and saves its state on SIGTERM
+TimeoutStopSec=20
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

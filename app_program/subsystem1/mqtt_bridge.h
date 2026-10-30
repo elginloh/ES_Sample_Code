@@ -8,9 +8,9 @@
  *	code then reads it with TMO_POL (never blocking) and publishes it."
  *	These four functions are exactly that: they are meant to be called
  *	ONLY from cyw43_utk_task (lib/liblwip/sysdepend/pico_rp2040/mqtt_utk.c)
- *	and never block.  Wiring them into mqtt_utk.c is a change to a
- *	protected, team-shared file and is NOT applied here: see
- *	subsystem1/docs/MQTT_INTEGRATION_PATCH.md.
+ *	and never block.  mqtt_utk.c calls them since commit 05a675c (a
+ *	change to a protected, team-shared file, recorded in
+ *	subsystem1/docs/MQTT_INTEGRATION_PATCH.md).
  *
  *	Plain <stdint.h> types on purpose: mqtt_utk.c lives in the lwIP /
  *	pico-sdk namespace and avoids including tk/tkernel.h.
