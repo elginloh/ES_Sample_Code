@@ -9,8 +9,8 @@ S5-U01..U20, on-target S5-U21..U23, integration INT-10, INT-14, INT-18.
 
 | Task | Prio | Owns | Does |
 |---|---|---|---|
-| Obstacle Scan | 15, core 1 | HC-SR04 (TRIG GP4, ECHO GP5 via the shared GPIO interrupt), SG90 servo (GP15, PWM slice 7B) | forward ranging every 60 ms; detection (250 mm, 2 readings); speed cap 100 mm/s under 450 mm; emergency stop under 100 mm while avoiding; coarse/fine sweeps on request |
-| Obstacle Profile | 19 | nothing | collects the packed samples of one scan id, builds the profile, sends it on |
+| Obstacle Scan | 15, core 1 | HC-SR04 (TRIG GP4, ECHO GP5 via the shared GPIO interrupt), SG90 servo (GP15, PWM slice 7B) | forward ranging every 60 ms; detection begins at 260 mm so braking settles near the requested 200 mm bumper gap; speed cap 100 mm/s below 410 mm; emergency stop at 100 mm bumper gap; smooth coarse/fine sweeps on request |
+| Obstacle Profile | 19 | nothing | collects one packed scan phase, builds the profile, sends it on |
 | Avoidance & Recovery | 16 | nothing | stop → coarse → fine → profile → plan → execute through Buddy 2 → search line → align → resume, all bounded |
 
 Messages between them are packed words over bounded message buffers
@@ -39,6 +39,30 @@ An SG90 gives no position feedback. A frozen servo is detected indirectly:
 identical ranges (± 10 mm) over a ≥ 60° sweep give an INVALID profile
 (S5-U11).
 
+Scan motion is slew-limited to 3° every 20 ms (about 150°/s) and allowed
+50 ms to settle before each range measurement.  These values are hardware
+calibration points in `drv_servo.h`; PWM remains at the servo-required 50 Hz.
+The per-scan timeout is 15 s. A 49-point fine scan with three pings per angle
+takes about 10 s, leaving margin for serial/Wi-Fi scheduling.
+
+With `SERVO_DEBUG=1`, the console reports servo initialisation, each target
+angle and PWM pulse, the slew step count, the detection distance, and every
+scan sample.  Sample result codes are `0=OK`, `1=NO_ECHO`,
+`2=NO_RESPONSE`, and `3=INVALID`.  Reported angles are commanded positions;
+the SG90 has no physical position feedback.
+
+With `US_DEBUG=1`, every ultrasonic trigger reports its sequence number,
+result code, final ECHO pin level, captured edge mask (`1=rise`, `2=fall`,
+`3=both`), trigger-to-rise time, echo pulse width, and converted distance.
+This raw timing distinguishes a missing sensor, stuck ECHO, out-of-range
+target, and a valid but geometrically unexpected reflection.
+
+During coarse and fine sweeps the scanner takes three pings at every settled
+servo angle. Two valid returns must agree within 80 mm; three valid returns
+use their median. Two NO_ECHO results establish open space. This prevents one
+off-axis/background echo from becoming an obstacle edge. The normal forward
+monitor remains one ping per 60 ms cycle so it can stop promptly.
+
 ## 3. Obstacle profile (`obstacle_profile.c`; Briefing p.8: W ≈ f(dL, dC, dR, θ))
 
 Each sample becomes a point: lateral x = d·sin θ, forward y = d·cos θ.
@@ -48,15 +72,23 @@ Each sample becomes a point: lateral x = d·sin θ, forward y = d·cos θ.
 2. **Nearest face:** the smallest forward distance y within ±30°. If it is
    farther than 700 mm the path is clear (NO_OBSTACLE).
 3. **Extent:** neighbouring samples belong to the obstacle while their
-   **forward** distance is within 150 mm of that face. Forward distance,
-   not range, is used, so a flat face or a wall is recognised as one
-   surface (S5-U10).
+   **forward** distance is within a measured symmetric ±50 mm band around
+   that face.
+   The lower bound is important: a high-angle reflection can project much
+   closer than the actual front face and must not extend the obstacle to the
+   scan limit. Forward distance, not range, is used, so a flat face or wall
+   is recognised as one surface (S5-U10, S5-U13c).
 4. **Edges:** midway between the last hit and the first miss. The fine
-   scan (3° steps) narrows that gap. Edge positions are taken on the face
-   plane: x = y_near · tan θ.
+   scan (3° steps) narrows that gap. Its bounds extend far enough beyond
+   the coarse edges to measure the complete 352 mm robot corridor, rather
+   than using only a fixed angular margin. Edge positions are taken on the
+   face plane: x = y_near · tan θ.
 5. **Clearance per side:** from the edge to the nearest other object
-   within 500 mm deeper, or to the lateral reach of the scan at that depth.
-   It is capped at 2.54 m.
+   within the ±50 mm front-plane band, or to the lateral reach of the scan
+   at that depth. Nearer specular returns and deeper background reflections
+   are not treated as an immediate side wall. One isolated fine-scan miss is
+   bridged when a front-face hit exists immediately beyond it; two consecutive
+   misses still mark an edge. Clearance is capped at 2.54 m.
 6. **Unknown is never free:** if the obstacle reaches the scan limit on a
    side, that edge and its clearance are UNKNOWN (code 255). If both are
    unknown the profile is INSUFFICIENT, and no bypass is ever planned
@@ -68,32 +100,60 @@ Accuracy against ray-cast synthetic boxes is within 10 % in width and
 half-width. Tribunal 1 rejected "assuming ultrasonic scanning determines
 exact obstacle geometry".
 
+On this car, repeated hardware sweeps expanded a roughly 200 mm central
+obstacle to 470–525 mm and requested a 426 mm offset. Production profiles
+therefore apply a measured 24° inward edge correction (`S5_BEAM_COMP_DEG`)
+after raw geometry is built. The console prints both corrected and raw widths.
+Unknown edges are never corrected, and the 320 mm maximum-offset guard remains
+active.
+
 ## 4. Avoidance plan (`avoid_plan.c`; Briefing p.8 workflow)
 
 * **Side choice:** the side with more known clearance; on a tie, right
   (`AV_PREFER_RIGHT`). A side qualifies only if its clearance ≥ car width +
-  2 margins (150 + 2 × 60 mm `[CAL]`). If neither qualifies →
+  two side gaps (152 + 2 × 100 = 352 mm `[CAL]`). Board edges are intentionally
+  not constrained because the test board is assumed wide enough. If neither qualifies →
   `OBSTACLE_UNAVOIDABLE` → Safe Stop (FR12).
-* **Manoeuvre** (side s = ±1, T = 45°):
-  `TURN s·T, MOVE d1, TURN −s·T, MOVE d2, TURN −s·T, SEARCH ≤ dS, TURN s·T`.
-  Here d1 = lateral offset / sin T, and d2 carries the whole car past the
-  assumed 200 mm obstacle depth `[CAL]`. If the obstacle is closer than
-  180 mm, no avoidance plan is produced and the vehicle enters Safe Stop.
-* **Bounded drift (NFR5):** the lateral offset is just edge + half width +
-  margin.
+* **Manoeuvre** (side s = ±1):
+  `TURN s·45°, MOVE d1, TURN −s·45°, PASS, TURN −s·30°, SEARCH ≤ dS, TURN s·30°`.
+  Here d1 = lateral offset / sin 45°. During PASS the servo looks 75° toward
+  the obstacle. Two side hits establish it; five consecutive readings beyond
+  230 mm (or NO_ECHO) establish the far edge. The 230 mm centre-sensor limit
+  includes tolerance above the expected 176 mm reading at a 100 mm edge gap.
+  Buddy 5 stops the bounded pass, advances only 160 mm, then turns 30° and
+  travels forward-diagonally toward the line. The shallower return uses the
+  100 mm lateral gap while avoiding the inner-corner sweep of an immediate
+  45° pivot. It therefore handles variable obstacle length instead of
+  assuming 200 mm or travelling a full body length while still parallel.
+  The measured geometry is 152 mm width, 215 mm length, with the sensor
+  directly above the front bumper. If the initial bumper gap is below 200 mm,
+  no avoidance plan is produced until the bounded reverse/rescan succeeds.
+* **Bounded drift (NFR5):** the lateral offset is measured edge + 76 mm
+  half-width + the requested 100 mm side gap. Because the ultrasonic edge is
+  treated conservatively, this is a minimum predicted gap rather than extra
+  drift. A centre offset above 320 mm is rejected as an implausible/noisy
+  profile instead of allowing the robot to leave the course.
+* **Too-close recovery:** when a bypass side is already known safe but the
+  bumper gap is below 200 mm, Buddy 5 may reverse once along the path just
+  travelled. It targets a 220 mm gap, is capped at 150 mm, runs at 25 mm/s,
+  stops, and repeats the complete coarse/fine scan. Reverse remains disabled
+  for every other source and mode; failure or a second unsafe scan → Safe Stop.
 * **Commands:** every step is an `MSRC_AVOID` command to Buddy 2 at speed
-  level 6 (150 mm/s; search at level 3). Each waits for its done/aborted/fault
+  level 2 (50 mm/s; search at level 1). Each waits for its done/aborted/fault
   result with a timeout (Tribunal 1: "Buddy 5 waits on the completion
   status"). Buddy 5 never touches the motors.
 
 ## 5. Recovery and line reacquisition (FR11, FR12)
 
-* **SEARCH:** move forward until Buddy 3 reports the line, either through
-  the `LEV_FOUND` event bit of `flg_line_evt` or the line status word
-  showing L or C black. Then stop (`motion_stop`, queue bypass) and align.
-  One retry with a 20° steeper approach.
-* **Bounds:** the whole avoidance is limited to 25 s
-  (`RECOVERY_TIMEOUT`). An emergency stop (something new within 100 mm)
+* **SEARCH:** move towards the line. A side-sensor `LEV_FOUND` event only
+  wakes the task; it continues until the centre IR sensor is black. The
+  centre sensor is approximately 80 mm ahead of the wheel axle, so the robot
+  then advances that calibrated distance before its final alignment turn.
+  This puts the body on the line instead of turning as soon as the front
+  sensor touches it. One retry uses a 20° steeper approach.
+* **Bounds:** the whole avoidance is limited to 90 s
+  (`RECOVERY_TIMEOUT`), including one bounded reverse and rescan. An emergency
+  stop (something new within 100 mm)
   allows one re-plan from where the car stands.
 * **Failures → Safe Stop** with a reason (telemetry `avoid_state`
   FAILED, fail code): profile invalid, no clearance, manoeuvre failed, line
@@ -106,9 +166,9 @@ exact obstacle geometry".
 
 Simulated bypass of a 150 mm box at 300 mm with the plant model (INT-10):
 
-* closest approach 201 mm beside the box edge;
-* back on the line (offset 1 mm);
-* end heading −8.0° (within ±10°).
+* closest approach 193 mm beside the box edge;
+* back on the line (offset 0 mm);
+* end heading 0.6° (within ±10°).
 
 The heading error comes mostly from the 10 mm encoder tick (20 slots/rev
 `[CAL]`); see `subsystem2/docs/VERIFICATION_REPORT.md` §7.

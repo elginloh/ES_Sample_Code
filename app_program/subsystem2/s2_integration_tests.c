@@ -318,13 +318,23 @@ LOCAL INT int_avoidance(void)
 
 	for (k = 0; k < plan.n && steps_ok; k++) {
 		const AV_STEP	*st = &plan.step[k];
+		INT		arg = st->arg;
 		UW		type = (st->kind == AVS_TURN) ? MCMD_TURN : MCMD_MOVE;
 		UW		spd = (st->kind == AVS_SEARCH) ? AVOID_SPEED_LVL / 2U
 						      : AVOID_SPEED_LVL;
-		UW		cmd = car_cmd(c, type, MSRC_AVOID, st->arg, spd);
+		UW		cmd;
 		UW		r;
 
-		if (mcmd_arg(cmd) != st->arg || mcmd_type(cmd) != type
+		/* The target implementation terminates PASS when the side sensor
+		   crosses the far edge, then advances AV_RETURN_APPROACH_MM. The plant
+		   has a 200 mm-deep synthetic box, so model that detected distance
+		   instead of executing the 1 m safety bound. */
+		if (st->kind == AVS_PASS) {
+			arg = q.dist_mm + 200 - plan.offset_mm + AV_RETURN_APPROACH_MM;
+		}
+		cmd = car_cmd(c, type, MSRC_AVOID, arg, spd);
+
+		if (mcmd_arg(cmd) != arg || mcmd_type(cmd) != type
 		    || mcmd_validate(cmd) != MREJ_NONE) {
 			packed_ok = FALSE;
 		}

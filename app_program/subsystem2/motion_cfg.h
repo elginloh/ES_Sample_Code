@@ -43,6 +43,8 @@
 					   (MREJ_RANGE) and a reverse steer
 					   stands still.  Pivots still turn one
 					   wheel backwards. */
+#define MOTION_ALLOW_AVOID_REVERSE 1	/* bounded negative MOVE from Buddy 5
+					   only while in VM_OBSTACLE */
 #define CREEP_PCT		15	/* NFR12 / Tribunal 1: creep = max(15 % cruise, min) */
 #define ACCEL_MMS2		800	/* [CAL] ramp limit                  */
 #define DECEL_GAIN		2	/* approach: allowed mm/s per mm left */

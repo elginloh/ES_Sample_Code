@@ -272,7 +272,9 @@ EXPORT UW mc_submit(MOTION_CTRL *mc, UW cmd, UW vmode, UW epoch, MC_OUT *out)
 		reason = mode_allows(src, type, vmode);
 	}
 	if (reason == MREJ_NONE && !MOTION_ALLOW_REVERSE
-	    && type == MCMD_MOVE && mcmd_arg(cmd) < 0) {
+	    && type == MCMD_MOVE && mcmd_arg(cmd) < 0
+	    && !(MOTION_ALLOW_AVOID_REVERSE && src == MSRC_AVOID
+		 && vmode == VM_OBSTACLE)) {
 		reason = MREJ_RANGE;		/* no driving backwards */
 	}
 	if (reason == MREJ_NONE && mc->state == MS_FAULT && type != MCMD_STOP

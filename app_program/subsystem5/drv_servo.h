@@ -27,11 +27,17 @@
 #define SERVO_MIN_US		500
 #define SERVO_MAX_US		2500
 #define SERVO_LIMIT_DEG		80	/* never drive into the end stops     */
-#define SERVO_MS_PER_DEG	2	/* [CAL] SG90 ~0.1 s / 60 deg + margin */
-#define SERVO_SETTLE_MIN_MS	30
+#define SERVO_SLEW_STEP_DEG	3	/* smooth commanded motion             */
+#define SERVO_SLEW_STEP_MS	20	/* 3 deg / 20 ms = 150 deg/s [CAL]     */
+#define SERVO_SETTLE_MS		50	/* wait after reaching each scan angle */
+#define SERVO_DEBUG		0	/* set to 1 for command/sample diagnostics */
 
 IMPORT ER   servo_init(void);
-/* Move; returns the settle time in ms the caller must wait before ranging */
+/*
+ * Move through bounded intermediate angles.  The function performs the
+ * inter-step delays and returns the final settle time which the caller must
+ * wait before taking an ultrasonic reading.
+ */
 IMPORT UW   servo_set(INT deg);
 IMPORT INT  servo_angle(void);
 

@@ -134,10 +134,11 @@ subfolders, is compiled automatically.
   every subsystem's `subsystemN_init()` (create kernel objects), then every
   `subsystemN_start()` (start tasks). Read its comments first.
 - **One folder per student:** `app_program/subsystem1/` … `subsystem5/`.
-  Subsystems 1–4 hold a working example, one task each (LED, producer,
-  consumer, monitor). Together they use the main micro T-Kernel APIs and
-  pass data between subsystems. Subsystem 5 is an empty template.
-  Replace the examples with your own subsystems.
+  The current integrated firmware assigns communication/telemetry to Buddy 1,
+  motion control and the vehicle state machine to Buddy 2, line following and
+  barcode navigation to Buddy 3, IMU/terrain monitoring to Buddy 4, and
+  ultrasonic obstacle scanning, avoidance and line recovery to Buddy 5.
+  `TEAM.md` records the pins, task priorities and interfaces between them.
 - `subsystemN.h` is that subsystem's public interface: the object IDs and
   data formats the other subsystems may use.
 - `app.h` holds the definitions shared by the whole team.

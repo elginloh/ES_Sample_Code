@@ -12,8 +12,8 @@
 #ifndef WIFI_SECRETS_H
 #define WIFI_SECRETS_H
 
-#define WIFI_SSID     "elginiphone"
-#define WIFI_PASSWORD "radiants"
+#define WIFI_SSID     "Xiang_Zenbook"
+#define WIFI_PASSWORD "P@qqw0rd*123"
 
 /* Only used when built with MQTT=1 (also requires NET=lwip). */
 #define MQTT_BROKER_IP   "172.20.10.7"

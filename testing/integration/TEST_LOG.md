@@ -10,8 +10,9 @@ Define a test here before running it. Test IDs never change.
 
 | ID | What is tested | Requirement / interface | Method | Steps / how | Expected result |
 |---|---|---|---|---|---|
-| INT-01 | samples flow from S2 to S3 (≥ 5 in 2 s) | IF-01, IF-02 | auto | `subsystem3_test.c` | `[TEST] INT-01 PASS` |
-| INT-02 | summary lines flow from S3 to S4 (≥ 2 in 3.5 s) | IF-03 | auto | `subsystem4_test.c` | `[TEST] INT-02 PASS` |
+| INT-10a/b | Buddy 5 profile → plan → packed AVOID commands → Buddy 2; line search stops on the line | IF-M1, IF-M3, IF-S1 | auto, host + target | `subsystem2/s2_integration_tests.c` | `[TEST] INT-10a/b PASS` |
+| INT-14a–d | Buddy 3 line loss/found events during Buddy 5 avoidance; hand-back to NORMAL or Safe Stop | IF-L1, IF-L2, IF-S1 | auto, host + target | `subsystem2/s2_integration_tests.c` | `[TEST] INT-14a-d PASS` |
+| INT-18a–c | Critical safety stop overrides Buddy 5 completion and all motion commands | IF-M3, IF-S2 | auto, host + target | `subsystem2/s2_integration_tests.c` | `[TEST] INT-18a-c PASS` |
 
 *Method:* **auto** = `TEST_CHECK` in code, result printed on the console;
 **manual** = a person observes the result (LED, scope, meter, phone app…).

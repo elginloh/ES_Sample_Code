@@ -1,11 +1,13 @@
 /*
  *	task_profile.c
  *	Obstacle Profile task (Week 6: Medium, queue-driven).  Collects the
- *	packed samples of one scan (coarse, then fine with the same scan id),
- *	builds the profile when the last sample arrives and sends it to the
- *	Avoidance & Recovery task.  Samples of another scan id start a new
- *	profile, so a late sample can never mix two obstacles (Tribunal 1:
- *	"scan identifiers, validity checks").
+ *	packed samples of one scan phase, builds the profile when the last
+ *	sample arrives and sends it to the Avoidance & Recovery task.  Coarse
+ *	and fine use the same scan id, so a phase change must also clear the
+ *	buffer; otherwise the two angular grids are mixed into one profile.
+ *	Samples of another scan id likewise start over, so a late sample can
+ *	never mix two obstacles (Tribunal 1: "scan identifiers, validity
+ *	checks").
  */
 
 #include "subsystem5.h"
@@ -39,7 +41,9 @@ EXPORT void profile_task(INT stacd, void *exinf)
 	UW		w, pw[2];
 	UINT		n = 0;
 	UB		cur_id = 0xFFU;
+	UB		cur_phase = 0xFFU;
 	INT		limit = 0;
+	W		raw_width;
 	BOOL		aborted = FALSE;
 
 	(void)stacd;
@@ -49,8 +53,9 @@ EXPORT void profile_task(INT stacd, void *exinf)
 			continue;
 		}
 		s5_sample_unpack(w, &smp);
-		if (smp.scan_id != cur_id) {
-			cur_id = smp.scan_id;		/* new obstacle: start over */
+		if (smp.scan_id != cur_id || smp.phase != cur_phase) {
+			cur_id = smp.scan_id;		/* new obstacle or scan phase */
+			cur_phase = smp.phase;
 			n = 0;
 			limit = 0;
 			aborted = FALSE;
@@ -74,11 +79,20 @@ EXPORT void profile_task(INT stacd, void *exinf)
 		}
 
 		op_build(buf, n, limit, &prof);
+		raw_width = prof.width_mm;
 		if (aborted) {
 			prof.status = PRF_INVALID;	/* sensor silent for the whole scan */
+		} else {
+			op_beam_compensate(&prof, S5_BEAM_COMP_DEG);
 		}
+		tm_printf((UB*)"profile: scan %d phase %d, samples %d, limit %d deg, "
+			  "status %d, sensor %d mm, width %d mm (raw %d), "
+			  "clear L %d R %d mm\n",
+			  (INT)cur_id, (INT)cur_phase, (INT)n, limit,
+			  (INT)prof.status, (INT)prof.dist_mm, (INT)prof.width_mm, (INT)raw_width,
+			  (INT)prof.clear_left_mm, (INT)prof.clear_right_mm);
 		prof.scan_id = cur_id;
-		prof.phase = smp.phase;
+		prof.phase = cur_phase;
 		s5_profile_pack(&prof, pw);
 		app_seq_write_begin(&s5_prof_seq);
 		s5_prof_words[0] = pw[0];

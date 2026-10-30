@@ -1,7 +1,7 @@
 # Team and subsystems
 
-The tables are pre-filled with the **example** in `app_program/` (marked
-*example*). Replace those rows with your own as you replace the example code.
+The tables below describe the integrated five-Buddy firmware in
+`app_program/`. Keep them synchronized with pin, task and interface changes.
 
 Fill this in at the start of the project and keep it up to date. It is the
 single place that says **who owns what**, so that five people can work in
@@ -17,11 +17,11 @@ subsystem, ask its owner or open a pull request for them to review.
 
 | # | Subsystem (what it does) | Student ID | GitHub username | Code | Tests |
 |---|---|---|---|---|---|
-| 1 | *example:* LED heartbeat on GP19 | | | `app_program/subsystem1/` | `testing/subsystem1/` |
-| 2 | *example:* Producer: makes a sample every 300 ms | | | `app_program/subsystem2/` | `testing/subsystem2/` |
-| 3 | *example:* Consumer: collects samples into statistics | | | `app_program/subsystem3/` | `testing/subsystem3/` |
-| 4 | *example:* Monitor: prints reports, pauses the LED | | | `app_program/subsystem4/` | `testing/subsystem4/` |
-| 5 | | | | `app_program/subsystem5/` | `testing/subsystem5/` |
+| 1 | WiFi/MQTT communication, supervisory commands and telemetry | 2501573 | | `app_program/subsystem1/` | `testing/subsystem1/` |
+| 2 | Motion control, motors, encoders, PID, vehicle mode and fault handling | 2502591 | | `app_program/subsystem2/` | `testing/subsystem2/` |
+| 3 | IR line following, barcode decoding and navigation commands | 2501720 | | `app_program/subsystem3/` | `testing/subsystem3/` |
+| 4 | IMU, collision and hump/terrain monitoring | 2500320 | | `app_program/subsystem4/` | `testing/subsystem4/` |
+| 5 | Ultrasonic/servo scanning, obstacle profiling, avoidance and line recovery | 2502075 | | `app_program/subsystem5/` | `testing/subsystem5/` |
 
 Shared files (`app_program/app_main.c`, `app_program/app.h`, this file)
 are changed only by agreement of the team. The exception is claiming an empty
@@ -48,32 +48,32 @@ fixed.
 | Pin | Owner | Used for |
 |---|---|---|
 | GP23, GP24, GP25, GP29 | *reserved* | Pico W radio |
-| GP0 | | (taken whenever the team builds with `CRASH_REPORT=1`) |
-| GP1 | | (taken whenever the team builds with `CRASH_REPORT=1`) |
-| GP2 | | |
-| GP3 | | |
-| GP4 | | |
-| GP5 | | |
-| GP6 | | |
-| GP7 | | |
-| GP8 | | |
-| GP9 | | |
-| GP10 | | |
-| GP11 | | |
+| GP0 | S2 | left encoder A; unavailable with `CRASH_REPORT=1` / `CONSOLE=uart` |
+| GP1 | S2 | left encoder B; unavailable with `CRASH_REPORT=1` / `CONSOLE=uart` |
+| GP2 | S3 | IR left digital output |
+| GP3 | S3 | IR left analogue connection (currently unused) |
+| GP4 | S5 | HC-SR04 trigger |
+| GP5 | S5 | HC-SR04 echo, shared GPIO interrupt |
+| GP6 | S3 | IR centre digital output |
+| GP7 | S2 | right encoder A |
+| GP8 | S2 | left motor M1A, PWM slice 4A |
+| GP9 | S2 | left motor M1B, PWM slice 4B |
+| GP10 | S2 | right motor M2A, PWM slice 5A |
+| GP11 | S2 | right motor M2B, PWM slice 5B |
 | GP12 | | |
 | GP13 | | |
 | GP14 | | |
-| GP15 | | |
-| GP16 | | |
-| GP17 | | |
+| GP15 | S5 | SG90 scan servo, PWM slice 7B |
+| GP16 | S4 | I2C0 SDA for IMU |
+| GP17 | S4 | I2C0 SCL for IMU |
 | GP18 | | |
-| GP19 | *example:* S1 | external LED (LED + 330 Ω to GND) |
-| GP20 | | |
+| GP19 | | |
+| GP20 | S2 | Safe Stop restart button, active low |
 | GP21 | | |
 | GP22 | | |
 | GP26 | | (ADC0 capable) |
-| GP27 | | (ADC1 capable) |
-| GP28 | | (ADC2 capable) |
+| GP27 | S3 | IR right digital output and barcode edge capture |
+| GP28 | S2 | right encoder B; check the VBAT jumper |
 
 ## 3. Peripherals
 
@@ -106,12 +106,15 @@ the drivers have no locking to stop it.
 | Peripheral | Owner subsystem | Owning task | Pins |
 |---|---|---|---|
 | UART1 | | | |
-| I2C0 | | | |
+| I2C0 (own driver, IRQ 23) | S4 | `imu_task` | GP16, GP17 |
 | I2C1 | | | |
 | SPI0 | | | |
 | SPI1 | | | |
-| ADC | | | GP26–GP28 |
-| PWM slices (list) | | | |
+| ADC | | | GP26 |
+| PWM slices 4 and 5 | S2 | `motion_task` | GP8–GP11 |
+| PWM slice 7 | S5 | `scan_task` | GP15 |
+| IO_IRQ_BANK0 (shared dispatcher) | S2; S2/S3/S5 register callbacks | core 1 interrupt | GP0, GP5, GP7, GP27 |
+| TIMER counter (read-only microsecond clock) | all | — | — |
 | WiFi radio, TCP/IP, MQTT | *kernel* | `cyw43_utk_task` (built in) | GP23–25, GP29 |
 
 ### WiFi and MQTT are special
@@ -141,16 +144,16 @@ What students *can* do:
 
 ## 4. Task priorities
 
-1 is the highest. 1–4 are used by the kernel (USB console 3, WiFi 4). Each subsystem gets its own band by default;
-change it only by team agreement. Write down every task you create.
+1 is the highest. Priorities 1–4 are used by the kernel. Application tasks
+are ordered by control criticality rather than by subsystem number.
 
 | Subsystem | Priority band | Tasks (name – priority – core) |
 |---|---|---|
-| 1 | 12–13 | *example:* led_task – 12 – any |
-| 2 | 14–15 | *example:* producer_task – 14 – core 1 |
-| 3 | 16–17 | *example:* consumer_task – 16 – core 0 |
-| 4 | 18–19 | *example:* monitor_task – 18 – any |
-| 5 | 20–21 | |
+| 1 | 20–21 | `comm_task` – 20 – core 0; `telemetry_task` – 21 – core 0 |
+| 2 | 12 | `motion_task` – 12 – core 1 |
+| 3 | 14, 17 | `line_task` – 14 – core 1; `barcode_task` – 17 – core 1 |
+| 4 | 13, 18 | `imu_task` – 13 – core 1; `hump_task` – 18 – any |
+| 5 | 15, 16, 19 | `scan_task` – 15 – core 1; `avoid_task` – 16 – any; `profile_task` – 19 – any |
 
 Core: `TP_PRC1` = core 0, `TP_PRC2` = core 1, or "any".
 
@@ -162,12 +165,20 @@ sends to it or waits on it. Agree on the data format before coding.
 
 | ID | From → To | Mechanism | Object ID name | Data / meaning | Agreed by |
 |---|---|---|---|---|---|
-| IF-01 | S2 → S3 | mailbox (owned by S3) | `mbx_samples` | `SAMPLE_MSG` in `subsystem2.h` | *example* |
-| IF-02 | S3 → S2 | semaphore + fixed memory pool (owned by S2) | `sem_slots`, `mpf_samples` | receiver returns the block, then 1 slot | *example* |
-| IF-03 | S3 → S4 | message buffer + event flag (owned by S4) | `mbf_summary`, `flg_events` | text line ≤ `S4_SUMMARY_MAX` bytes, then `FLG_BATCH` | *example* |
-| IF-04 | S4 → S3 | shared data under a mutex (owned by S3) | `app_stats`, `mtx_stats` | `APP_STATS`, read only while locked | *example* |
-| IF-05 | S4 → S1 | task control | `tid_led` | `tk_sus_tsk` / `tk_rsm_tsk` / `tk_chg_pri` | *example* |
-| IF-06 | | | | | |
+| IF-M1 | S3, S5, S1 → S2 | message buffer + event flag | `mbf_motion_cmd`, `flg_motion` | packed motion command (`motion_msg.h`) | |
+| IF-M2 | S3 → S2 | single-writer atomic word | `motion_set_steer()` | steering and speed fraction | |
+| IF-M3 | S2 → S1, S3, S5 | event flag + result words | `flg_motion_done` | completion result for each command source | |
+| IF-M4 | any → S2 | atomic request + event flag | `motion_stop()` | immediate stop bypass | |
+| IF-M5 | S5 → S2 | single-writer atomic word | `motion_set_speed_cap()` | obstacle-distance speed cap | |
+| IF-S1 | S3, S4, S5 → S2 | atomic event word + flag | `sys_post_event()` | vehicle events (`SYS_EV_*`) | |
+| IF-S2 | all ↔ S2 | atomic fault bitmask | `sys_fault_set/clear/get()` | system faults (`SYS_FLT_*`) | |
+| IF-S3 | S2 → all | single-writer atomic word | `sys_vsw()` | vehicle mode/status word | |
+| IF-L1/L3 | S3 → S1, S5 | snapshot getters | `s3_get_line_status()`, `s3_get_barcode_status()` | line and barcode status | |
+| IF-L2 | S3 → S5 | event flag | `flg_line_evt` | line FOUND/LOST/JUNCTION | |
+| IF-I1/I2 | S4 → S1 | snapshot getters | `s4_get_imu_status()`, `s4_get_hump_status()` | IMU and terrain status | |
+| IF-O1/O2/O3 | S5 → S1 | snapshot getters | `s5_get_scan_status()`, `s5_get_avoid_status()`, `s5_get_profile()` | obstacle telemetry | |
+| IF-C1 | S1 → S2 | validated supervisory motion commands | `motion_command()` | stop, speed, clear and resume requests | |
+| IF-C2 | S1 ↔ MQTT service | bounded message buffers | `mbf_mqtt_tx`, `mbf_mqtt_rx` | binary MQTT protocol frames | |
 
 Each interface is tested by at least one integration test
 (`testing/integration/TEST_LOG.md`).
@@ -175,19 +186,19 @@ Each interface is tested by at least one integration test
 ## 6. Kernel object budget
 
 Limits are set in `config/config.h`. If the team needs more, raise the
-limit there. The numbers below are the example's usage.
+limit there. The numbers below are the current firmware's application usage.
 
 | Object | Limit | S1 | S2 | S3 | S4 | S5 |
 |---|---|---|---|---|---|---|
-| Task | 32 | 1 | 1 | 1 | 1 | |
-| Semaphore | 16 | | 1 | | | |
-| Event flag | 16 | | | | 1 | |
-| Mailbox | 12 | | | 1 | | |
-| Mutex | 12 | | | 1 | | |
-| Message buffer | 12 | | | | 1 | |
-| Fixed memory pool | 12 | | 1 | | | |
+| Task | 32 | 2 | 1 | 2 | 2 | 3 |
+| Semaphore | 16 | | | | | |
+| Event flag | 16 | 1 | 2 | 1 | 1 | 2 |
+| Mailbox | 12 | | | | | |
+| Mutex | 12 | | | | | |
+| Message buffer | 12 | 3 | 1 | | 1 | 3 |
+| Fixed memory pool | 12 | | | | | |
 | Variable memory pool | 12 | | | | | |
-| Cyclic handler | 12 | 1 | | | | |
-| Alarm handler | 12 | | | | 1 | |
+| Cyclic handler | 12 | 2 | 1 | 1 | 1 | |
+| Alarm handler | 12 | | | | | |
 
 (The kernel's USB and WiFi service tasks also use a few of these.)

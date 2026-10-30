@@ -63,6 +63,8 @@ no longer exists and were never run.
 | S2-U08 | turn arc for 90 deg = pi*track/4 (102.1 mm at 130 mm track) | auto (host + target) | `subsystem2/s2_unit_tests.c` | `[TEST] S2-U08 PASS` |
 | S2-U09 | MOVE 500 mm: DONE, within 25 mm, wheels within 15 mm | auto (host + target) | `subsystem2/s2_unit_tests.c` | `[TEST] S2-U09 PASS` |
 | S2-U09a | MOVE accepted in Obstacle Handling | auto (host + target) | `subsystem2/s2_unit_tests.c` | `[TEST] S2-U09a PASS` |
+| S2-U09b | bounded AVOID reverse accepted only in Obstacle Handling | auto (host + target) | `subsystem2/s2_unit_tests.c` | `[TEST] S2-U09b PASS` |
+| S2-U09c | negative MOVE drives both wheels backward and completes | auto (host + target) | `subsystem2/s2_unit_tests.c` | `[TEST] S2-U09c PASS` |
 | S2-U10 | TURN +90: left forward, right backward, arc within 12 mm | auto (host + target) | `subsystem2/s2_unit_tests.c` | `[TEST] S2-U10 PASS` |
 | S2-U11 | queued TURN starts straight from creep speed (no full stop) | auto (host + target) | `subsystem2/s2_unit_tests.c` | `[TEST] S2-U11 PASS` |
 | S2-U12 | AVOID command rejected outside Obstacle Handling | auto (host + target) | `subsystem2/s2_unit_tests.c` | `[TEST] S2-U12 PASS` |
@@ -205,10 +207,17 @@ no longer exists and were never run.
 | S5-U11 | identical range at every angle: servo suspect (INVALID) | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U11 PASS` |
 | S5-U12 | too few valid samples: INVALID | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U12 PASS` |
 | S5-U13 | wall beside the obstacle limits that side's clearance | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U13 PASS` |
+| S5-U13b | isolated 3-degree dropout remains one obstacle; open sides ignore deeper background reflections | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U13b PASS` |
+| S5-U13c | extreme-angle near echoes do not extend the obstacle beyond the symmetric front-plane band | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U13c PASS` |
+| S5-U13d | captured 49-point hardware fine scan gives a valid profile and open bypass sides | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U13d PASS` |
+| S5-U13e | hardware-calibrated beam correction removes false obstacle width without losing clearance | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U13e PASS` |
 | S5-U14 | both sides free: the side with more clearance; leave, pass, return, search, align | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U14 PASS` |
-| S5-U15 | lateral leg = (edge + half width + margin) / sin 45 | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U15 PASS` |
+| S5-U15 | lateral leg gives the configured 50 mm robot-to-obstacle side gap | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U15 PASS` |
 | S5-U16 | more clearance on the left: bypass on the left | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U16 PASS` |
-| S5-U17 | obstacle closer than 180 mm: no plan; Safe Stop | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U17 PASS` |
+| S5-U16b | excessive lateral offset is rejected instead of driving off the course | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U16b PASS` |
+| S5-U17 | obstacle closer than 200 mm: no plan until bounded reverse/rescan succeeds | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U17 PASS` |
+| S5-U17b | known safe side and close front requests a bounded reverse to 220 mm | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U17b PASS` |
+| S5-U17c | required reverse beyond 150 mm is refused | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U17c PASS` |
 | S5-U18 | no known safe side: no plan (Safe Stop), never an invented bypass | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U18 PASS` |
 | S5-U19 | no valid profile: no plan | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U19 PASS` |
 | S5-U20 | every planned step is a valid AVOID motion command | auto (host + target) | `subsystem5/s5_unit_tests.c` | `[TEST] S5-U20 PASS` |

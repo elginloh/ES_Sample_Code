@@ -218,6 +218,80 @@ LOCAL INT test_profile(void)
 	TEST_CHECK("S5-U13", p.status == PRF_VALID && p.clear_right_mm >= 0
 		   && p.clear_right_mm < 250 && p.clear_left_mm > 400,
 		   "wall beside the obstacle limits that side's clearance");
+
+	/* Hardware regression: one far return at 39 deg split a continuous
+	   obstacle, while deeper background echoes made both clear sides look
+	   blocked.  One isolated gap must be closed; two misses still mark an
+	   edge, and background behind the front-plane band must be ignored. */
+	n = 0;
+	for (k = 0; k <= 40U; k++) {
+		INT	a = -48 + (INT)k * 3;
+
+		o[n].angle_deg = (B)a;
+		o[n].status = SS_OK;
+		o[n].dist_mm = (H)((a >= -39 && a <= 45 && a != 39) ? 300 : 760);
+		n++;
+	}
+	op_build(o, n, 72, &p);
+	TEST_CHECK("S5-U13b", p.status == PRF_VALID
+		   && p.clear_left_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM
+		   && p.clear_right_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM
+		   && p.right_mm > 200,
+		   "single 3-deg dropout stays in one obstacle; open sides ignore deep background");
+
+	/* Hardware regression: extreme-angle returns can have a smaller forward
+	   projection than the real obstacle even though their radial range is
+	   unrelated.  They must not extend the main face to both scan limits. */
+	n = s5_synth_scan(o, -150, 150, 250, 0, -72, 72, 3, 0);
+	for (k = 0; k < n; k++) {
+		if (iabs((W)o[k].angle_deg) >= 60) {
+			o[k].status = SS_OK;
+			o[k].dist_mm = 150;
+		}
+	}
+	op_build(o, n, 72, &p);
+	TEST_CHECK("S5-U13c", p.status == PRF_VALID
+		   && p.clear_left_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM
+		   && p.clear_right_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM,
+		   "extreme-angle near echoes stay outside the symmetric front-plane band");
+
+	/* Pico regression, 2026-10-30: phase-1 readings from scan 1.  The
+	   Profile task must feed this phase on its own (not append the earlier
+	   coarse grid); despite several specular dropouts it has two known
+	   edges and open clearance on both sides. */
+	{
+		static const H hw_dist[] = {
+			367, 367, 436, 376, 371, 371, 367, 432, 582, 282,
+			642, 296, 296, 294, 267, 270, 261, 264, 255, 255,
+			255, 255, 255, 255, 250, 250, 250, 247, 255, 255,
+			255, 252, 252, 270, 267, 294, 1089, 282, 296, 296,
+			264, 264, 282, 288, 261, 270, 341, 1014, 299
+		};
+
+		n = (UINT)(sizeof(hw_dist) / sizeof(hw_dist[0]));
+		for (k = 0; k < n; k++) {
+			o[k].angle_deg = (B)(-72 + (INT)k * 3);
+			o[k].status = SS_OK;
+			o[k].dist_mm = (H)s5_dist_mm(s5_dist_code((UW)hw_dist[k]));
+		}
+		op_build(o, n, 72, &p);
+		{
+			W raw_width = p.width_mm;
+			W raw_left = p.clear_left_mm;
+			W raw_right = p.clear_right_mm;
+
+			op_beam_compensate(&p, S5_BEAM_COMP_DEG);
+			TEST_CHECK("S5-U13d", p.status == PRF_VALID
+				   && p.clear_left_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM
+				   && p.clear_right_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM,
+				   "captured production profile proves the 10 cm-gap corridor");
+			TEST_CHECK("S5-U13e", p.status == PRF_VALID
+				   && p.width_mm < raw_width && p.width_mm <= 300
+				   && p.clear_left_mm >= raw_left
+				   && p.clear_right_mm >= raw_right,
+				   "measured beam compensation removes false width and preserves clearance");
+		}
+	}
 	TEST_SUMMARY("s5 profile");
 	return test_fail_;
 }
@@ -237,23 +311,45 @@ LOCAL INT test_plan(void)
 	TEST_CHECK("S5-U14", av_plan(&p, &pl) == AVP_OK && pl.side == AV_SIDE_RIGHT
 		   && pl.n == 7 && pl.step[0].kind == AVS_TURN && pl.step[0].arg == 45
 		   && pl.step[1].kind == AVS_MOVE && pl.step[2].arg == -45
-		   && pl.step[3].kind == AVS_MOVE && pl.step[4].arg == -45
-		   && pl.step[5].kind == AVS_SEARCH && pl.step[6].arg == 45,
+		   && pl.step[3].kind == AVS_PASS && pl.step[3].arg == AV_SIDE_PASS_MAX_MM
+		   && pl.step[4].arg == -30
+		   && pl.step[5].kind == AVS_SEARCH && pl.step[6].arg == 30,
 		   "both sides free: the side with more clearance; leave, pass, return, search, align");
 	expect_d1 = (W)(((D)pl.offset_mm * 32768) / op_sin_q15(45));
-	TEST_CHECK("S5-U15", pl.step[1].arg == expect_d1 && pl.offset_mm == p.right_mm + 75 + AV_MARGIN_MM,
-		   "lateral leg = (edge + half width + margin) / sin 45");
+	TEST_CHECK("S5-U15", pl.step[1].arg == expect_d1
+		   && pl.offset_mm == p.right_mm + AV_ROBOT_WIDTH_MM / 2 + AV_SIDE_GAP_MM
+		   && pl.required_mm == AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM
+		   && pl.front_gap_mm == p.dist_mm - AV_SENSOR_BEHIND_FRONT_MM
+		   && pl.side_gap_mm == AV_SIDE_GAP_MM && AV_RETURN_APPROACH_MM == 160,
+		   "lateral leg gives the configured robot-to-obstacle side gap");
 
 	p.clear_left_mm = 900;
 	p.clear_right_mm = 400;
 	TEST_CHECK("S5-U16", av_plan(&p, &pl) == AVP_OK && pl.side == AV_SIDE_LEFT && pl.step[0].arg == -45,
 		   "more clearance on the left: bypass on the left");
 
+	p.left_mm = -400;
+	p.right_mm = 400;
+	p.width_mm = 800;
+	p.clear_left_mm = 900;
+	p.clear_right_mm = 900;
+	TEST_CHECK("S5-U16b", av_plan(&p, &pl) == AVP_NO_CLEARANCE
+		   && pl.offset_mm > AV_MAX_LATERAL_OFFSET_MM && pl.n == 0,
+		   "implausibly large lateral offset is rejected instead of leaving the course");
+
 	s5_profile_box(-75, 75, 120, 0, &p);			/* too close to pivot */
 	p.clear_left_mm = 900;
 	p.clear_right_mm = 900;
 	TEST_CHECK("S5-U17", av_plan(&p, &pl) == AVP_NO_CLEARANCE && pl.n == 0,
-		   "obstacle closer than 180 mm: no plan; Safe Stop");
+		   "bumper gap below minimum: no plan; Safe Stop");
+	p.dist_mm = 165;					/* sensor is at bumper: 165 mm gap */
+	p.clear_left_mm = 400;
+	p.clear_right_mm = -1;
+	TEST_CHECK("S5-U17b", av_reverse_needed_mm(&p) == 55,
+		   "safe side + close front requests bounded reverse to 220 mm gap");
+	p.dist_mm = 60;					/* would need 160 mm (> bound) */
+	TEST_CHECK("S5-U17c", av_reverse_needed_mm(&p) < 0,
+		   "reverse beyond the 150 mm bound is refused");
 
 	p.clear_left_mm = 200;
 	p.clear_right_mm = -1;
@@ -271,7 +367,8 @@ LOCAL INT test_plan(void)
 		UW	type = (pl.step[k].kind == AVS_TURN) ? MCMD_TURN : MCMD_MOVE;
 
 		if (mcmd_validate(mcmd_pack(type, MSRC_AVOID, k, 0, 6, pl.step[k].arg)) != MREJ_NONE
-		    || (pl.step[k].kind == AVS_MOVE && pl.step[k].arg <= 0)) {
+		    || ((pl.step[k].kind == AVS_MOVE || pl.step[k].kind == AVS_PASS)
+			&& pl.step[k].arg <= 0)) {
 			valid = FALSE;
 		}
 	}

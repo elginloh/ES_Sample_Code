@@ -11,7 +11,8 @@
  *	1022 = no echo (nothing within 4 m), 1023 = invalid / no reading.
  *
  *	Scan request (Avoidance -> Scan), 25 bits
- *	    bits  0..1   type    SREQ_*            (2)
+ *	    bits  0..1   type    SREQ_*            (2; type 3 uses start angle
+ *	                                             for side-watch requests)
  *	    bits  2..4   scan id                   (3)
  *	    bits  5..12  start angle, deg signed   (8)
  *	    bits 13..20  end angle, deg signed     (8)
@@ -50,7 +51,8 @@
 #define SREQ_COARSE		0U
 #define SREQ_FINE		1U
 #define SREQ_MONITOR		2U	/* forward ranging, servo centred */
-#define SREQ_IDLE		3U	/* stop ranging, servo centred    */
+#define SREQ_SIDE		3U	/* request: range at start_deg    */
+#define SREQ_IDLE		3U	/* status only: stopped after scan */
 
 #define SS_OK			0U
 #define SS_NO_ECHO		1U
@@ -113,7 +115,7 @@ IMPORT void s5_profile_unpack(const UW w[2], S5_PROFILE *p);
  *      bits  0..9   forward distance code   (10)
  *      bits 10..17  servo angle, deg signed (8)
  *      bits 18..19  last ranging result     (2)  US_* (drv_ultrasonic.h)
- *      bits 20..21  scan mode               (2)  SREQ_*
+ *      bits 20..21  scan mode               (2)  SREQ_* (3 = side/idle)
  *      bits 22..25  sequence                (4)  +1 per ranging
  *      bit  26      speed cap active        (1)
  *      bit  27      obstacle detected       (1)

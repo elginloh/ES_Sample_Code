@@ -229,6 +229,19 @@ LOCAL INT test_execution(void)
 		   && iabs(pl.d_l_um - pl.d_r_um) < 15000,
 		   "MOVE 500 mm: DONE, within 25 mm, wheels within 15 mm");
 
+	/* Reverse remains globally disabled, but Buddy 5 may make one bounded
+	   negative MOVE after entering Obstacle Handling. */
+	mc_init(&mc);
+	plant_init(&pl);
+	mc_out_clear(&out);
+	cmd = mcmd_pack(MCMD_MOVE, MSRC_AVOID, 2, 2, 1, -120);
+	TEST_CHECK("S2-U09b", mc_submit(&mc, cmd, VM_OBSTACLE, 2, &out) == MREJ_NONE,
+		   "bounded AVOID reverse accepted only in Obstacle Handling");
+	t = run_until_result(&mc, &pl, VM_OBSTACLE, MSRC_AVOID, 15000, &res);
+	TEST_CHECK("S2-U09c", t < 15000 && mres_status(res) == MRES_DONE
+		   && (pl.d_l_um + pl.d_r_um) / 2 < -90000,
+		   "negative MOVE drives both wheels backward and completes");
+
 	/* TURN +90 */
 	plant_init(&pl);
 	mc_init(&mc);

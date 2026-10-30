@@ -29,14 +29,17 @@
 #define OP_MAX_SAMPLES		64
 #define OP_FORWARD_CONE_DEG	30	/* nearest face searched in +-30 deg */
 #define OP_DETECT_RANGE_MM	700	/* farther = no obstacle to avoid    */
-#define OP_DEPTH_TOL_MM		150	/* returns this close to the nearest
-					   face belong to the same obstacle */
-#define OP_NEIGHBOUR_DEPTH_MM	500	/* other objects that limit clearance */
+#define OP_DEPTH_TOL_MM		50	/* measured front-face band; rejects
+					   high-angle near reflections */
+#define OP_NEIGHBOUR_DEPTH_MM	50	/* only objects beside the same plane;
+					   unrelated reflections are not walls */
+#define OP_MAX_HIT_GAP		1	/* bridge one isolated fine-scan miss */
 #define OP_MIN_HITS		2
 #define OP_MIN_VALID		5
 #define OP_FROZEN_SPREAD_MM	10	/* identical readings everywhere ...  */
 #define OP_FROZEN_SPAN_DEG	60	/* ... over this sweep = servo stuck  */
 #define OP_CLEAR_CAP_MM		2540
+#define S5_BEAM_COMP_DEG	24	/* [CAL] 525 mm apparent vs ~200 mm object */
 #ifndef US_BEAM_COMP_DEG
 #define US_BEAM_COMP_DEG	0	/* [CAL] beam half-width allowance   */
 #endif
@@ -53,6 +56,10 @@ typedef struct {
 /* samples need not be sorted; scan_limit_deg = largest |angle| scanned */
 IMPORT void op_build(const OP_SAMPLE *s, UINT n, INT scan_limit_deg,
 		     S5_PROFILE *out);
+
+/* Shrink both known angular edges by a measured ultrasonic beam/reflection
+   allowance.  Clearance grows by the same removed apparent width. */
+IMPORT void op_beam_compensate(S5_PROFILE *p, INT half_angle_deg);
 
 IMPORT W    op_sin_q15(INT deg);	/* integer sine, Q15 */
 IMPORT W    op_cos_q15(INT deg);

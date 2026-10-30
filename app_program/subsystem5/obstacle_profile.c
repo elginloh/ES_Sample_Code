@@ -122,6 +122,74 @@ LOCAL W planar(W y, INT deg)
 	return (c > 0) ? (W)(((D)y * op_sin_q15(deg)) / c) : 0;
 }
 
+EXPORT void op_beam_compensate(S5_PROFILE *p, INT half_angle_deg)
+{
+	INT	left_a, right_a;
+	W	old_left, old_right;
+	W	gain;
+
+	/* Both edges must be known.  Never manufacture an edge on a side whose
+	   clearance is unknown. */
+	if (p->status != PRF_VALID || p->dist_mm <= 0 || half_angle_deg <= 0
+	    || p->clear_left_mm < 0 || p->clear_right_mm < 0) {
+		return;
+	}
+	left_a = op_atan_deg(p->left_mm, p->dist_mm);
+	right_a = op_atan_deg(p->right_mm, p->dist_mm);
+	if (right_a - left_a <= 2 * half_angle_deg) {
+		return;				/* allowance would erase the object */
+	}
+	old_left = p->left_mm;
+	old_right = p->right_mm;
+	left_a += half_angle_deg;
+	right_a -= half_angle_deg;
+	p->left_mm = planar(p->dist_mm, left_a);
+	p->right_mm = planar(p->dist_mm, right_a);
+	p->width_mm = p->right_mm - p->left_mm;
+	p->bearing_deg = (left_a + right_a) / 2;
+
+	/* Moving an apparent edge inward exposes the same amount of additional
+	   free corridor; retain any nearer side object already found. */
+	gain = p->left_mm - old_left;
+	if (gain > 0) {
+		p->clear_left_mm += gain;
+		if (p->clear_left_mm > OP_CLEAR_CAP_MM) p->clear_left_mm = OP_CLEAR_CAP_MM;
+	}
+	gain = old_right - p->right_mm;
+	if (gain > 0) {
+		p->clear_right_mm += gain;
+		if (p->clear_right_mm > OP_CLEAR_CAP_MM) p->clear_right_mm = OP_CLEAR_CAP_MM;
+	}
+}
+
+LOCAL BOOL is_hit(const OP_SAMPLE *o, const H *y, INT n, INT i, W y_near)
+{
+	return (i >= 0 && i < n && o[i].status == SS_OK
+		&& iabs((W)y[i] - y_near) <= OP_DEPTH_TOL_MM) ? TRUE : FALSE;
+}
+
+/*
+ * Ultrasonic reflections can disappear at one servo angle and reappear at
+ * the next (the 3-degree fine scan observed 325, 781, 301 mm).  Treat one
+ * isolated miss between front-face hits as part of the same obstacle.  Two
+ * consecutive misses still establish a real edge.
+ */
+LOCAL BOOL region_continues(const OP_SAMPLE *o, const H *y, INT n, INT i,
+			    INT step, W y_near)
+{
+	INT	j;
+
+	if (is_hit(o, y, n, i, y_near) || (i >= 0 && i < n && o[i].status == SS_INVALID)) {
+		return TRUE;
+	}
+	for (j = 1; j <= OP_MAX_HIT_GAP; j++) {
+		if (is_hit(o, y, n, i + step * j, y_near)) {
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
 /* Clearance on one side: from the obstacle edge to the nearest other
    object on that side, or to the lateral reach of the scan at the
    obstacle's plane if nothing else was seen. */
@@ -138,7 +206,8 @@ LOCAL W side_clearance(const OP_SAMPLE *o, const H *y, UINT n, INT from, INT ste
 	for (i = from; i >= 0 && i < (INT)n; i += step) {
 		W	x;
 
-		if (o[i].status != SS_OK || y[i] > y_near + OP_NEIGHBOUR_DEPTH_MM) {
+		if (o[i].status != SS_OK
+		    || iabs((W)y[i] - y_near) > OP_NEIGHBOUR_DEPTH_MM) {
 			continue;
 		}
 		x = lateral(o[i].dist_mm, o[i].angle_deg);
@@ -196,27 +265,25 @@ EXPORT void op_build(const OP_SAMPLE *s, UINT n, INT scan_limit_deg,
 	/* An echo belongs to the obstacle when it lies on (or just behind)
 	   the nearest front plane: forward distance, not range, so a flat
 	   face or a wall is recognised as one surface. */
-#define HIT(j)	(o[(j)].status == SS_OK && y[(j)] <= y_near + OP_DEPTH_TOL_MM)
 	li = near_i;
-	while (li - 1 >= 0 && (HIT(li - 1) || o[li - 1].status == SS_INVALID)) {
+	while (li - 1 >= 0 && region_continues(o, y, (INT)n, li - 1, -1, y_near)) {
 		li--;
 	}
 	ri = near_i;
-	while (ri + 1 < (INT)n && (HIT(ri + 1) || o[ri + 1].status == SS_INVALID)) {
+	while (ri + 1 < (INT)n && region_continues(o, y, (INT)n, ri + 1, 1, y_near)) {
 		ri++;
 	}
-	while (li < near_i && !HIT(li)) {
+	while (li < near_i && !is_hit(o, y, (INT)n, li, y_near)) {
 		li++;				/* do not end the region on a gap */
 	}
-	while (ri > near_i && !HIT(ri)) {
+	while (ri > near_i && !is_hit(o, y, (INT)n, ri, y_near)) {
 		ri--;
 	}
 	for (k = li; k <= ri; k++) {
-		if (HIT(k)) {
+		if (is_hit(o, y, (INT)n, k, y_near)) {
 			hits++;
 		}
 	}
-#undef HIT
 	if (hits < OP_MIN_HITS) {
 		return;					/* PRF_INVALID: one stray echo */
 	}

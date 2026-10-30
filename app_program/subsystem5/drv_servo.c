@@ -33,26 +33,57 @@ EXPORT ER servo_init(void)
 	cur_deg = 0;
 	pwm_slice_write_cc(SERVO_SLICE, 0, deg_to_us(0));	/* channel B */
 	servo_ready = TRUE;
+#if SERVO_DEBUG
+	tm_printf((UB*)"servo: init pin %d, centre 0 deg, pulse %d us, 50 Hz\n",
+		  SERVO_PIN, (INT)deg_to_us(0));
+#endif
 	return E_OK;
 }
 
 EXPORT UW servo_set(INT deg)
 {
-	INT	d;
-	UW	settle;
+	INT	next;
 
 	if (deg > SERVO_LIMIT_DEG) {
 		deg = SERVO_LIMIT_DEG;
 	} else if (deg < -SERVO_LIMIT_DEG) {
 		deg = -SERVO_LIMIT_DEG;
 	}
-	d = (deg > cur_deg) ? (deg - cur_deg) : (cur_deg - deg);
-	if (servo_ready) {
-		pwm_slice_write_cc(SERVO_SLICE, 0, deg_to_us(deg));
+#if SERVO_DEBUG
+	INT	from = cur_deg;
+	INT	delta = (deg >= from) ? deg - from : from - deg;
+
+	if (delta != 0) {
+		tm_printf((UB*)"servo: cmd %d -> %d deg, pulse %d us, ramp %d steps\n",
+			  from, deg, (INT)deg_to_us(deg),
+			  (delta + SERVO_SLEW_STEP_DEG - 1) / SERVO_SLEW_STEP_DEG);
 	}
-	cur_deg = deg;
-	settle = (UW)d * SERVO_MS_PER_DEG;
-	return (settle < SERVO_SETTLE_MIN_MS) ? SERVO_SETTLE_MIN_MS : settle;
+#endif
+	if (!servo_ready) {
+		cur_deg = deg;
+		return SERVO_SETTLE_MS;
+	}
+
+	/*
+	 * An SG90 always moves to a newly commanded position at its own maximum
+	 * speed.  Ramp the command in small increments so a coarse 15-degree scan
+	 * step does not become one fast mechanical jump.
+	 */
+	while (cur_deg != deg) {
+		if (deg - cur_deg > SERVO_SLEW_STEP_DEG) {
+			next = cur_deg + SERVO_SLEW_STEP_DEG;
+		} else if (cur_deg - deg > SERVO_SLEW_STEP_DEG) {
+			next = cur_deg - SERVO_SLEW_STEP_DEG;
+		} else {
+			next = deg;
+		}
+		pwm_slice_write_cc(SERVO_SLICE, 0, deg_to_us(next));
+		cur_deg = next;
+		if (cur_deg != deg) {
+			(void)tk_dly_tsk(SERVO_SLEW_STEP_MS);
+		}
+	}
+	return SERVO_SETTLE_MS;
 }
 
 EXPORT INT servo_angle(void)
