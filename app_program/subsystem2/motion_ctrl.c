@@ -462,6 +462,16 @@ LOCAL W wheel_control(PID *pid, W target, W meas)
 		pid_reset(pid);			/* parked: no integrator creep */
 		return 0;
 	}
+#if !ENC_QUADRATURE
+	if (target == 0) {
+		/* Stopping (obstacle, end of a command): coast.  Reverse duty
+		   to brake turned the wheel backwards, which the encoder still
+		   counted as forward, so the PID pushed ever harder in reverse
+		   (both B pins on until Safe Stop cut the power). */
+		pid_reset(pid);
+		return 0;
+	}
+#endif
 	ff = (target == 0) ? 0
 	   : isign(target) * (FF_OFFSET_PM + FF_GAIN_Q8 * iabs(target) / 256);
 #if !ENC_QUADRATURE

@@ -16,13 +16,17 @@
  *	    C=1 L=1      line drifting to IR_L   error -1
  *	    C=0 L=1      line under IR_L only    error -2: pivot towards IR_L
  *	                 until the centre has it (held through all-white)
- *	    C=0 L=0      line lost: pivot on the spot towards IR_R (the car's
- *	                 left) until C or L sees black again
+ *	    C=0 L=0      line lost: after LF_LOST_WAIT_MS straight (a flicker
+ *	                 or a gap), turn towards IR_R (the car's left) until C
+ *	                 or L sees black again.  First an arc while moving on
+ *	                 (a curve), after LF_LOST_ARC_MM / _MS a pivot on the
+ *	                 spot (a sharp corner).  Once found, keep turning that
+ *	                 way gently for LF_REALIGN_MS: the curve goes on.
  *	    L=C=R=1      junction (crossing line)
  *	Steering = PD on the error, + = turn right (motion_msg.h convention).
  *
  *	Week 6 statechart 6.3 "Error / recover": the turn towards IR_R starts
- *	at once; after LF_LOST_CONFIRM_MM / _MS without the line LF_EV_LOST
+ *	after the wait; after LF_LOST_CONFIRM_MM / _MS without the line LF_EV_LOST
  *	is raised and the state becomes LS_SEARCHING, still turning the same
  *	way.  The search never latches a safe stop (LF_EV_RECOVERY_FAIL is
  *	kept for compatibility but no longer raised).
@@ -75,8 +79,23 @@
 #define LF_LOST_DIR		1	/* centre and IR_L white: turn towards
 					   IR_R (+1), the car's left with
 					   IR_SIDES_MIRRORED */
+#define LF_LOST_WAIT_MS		200	/* ... first holding straight this
+					   long ... */
+#define LF_LOST_WAIT_SPEED	8	/* ... at 8/15 of cruise (0 = stand
+					   still while waiting), then ... */
+#define LF_LOST_ARC_STEER	20	/* ... arcing at this steer ... */
+#define LF_LOST_ARC_SPEED	8	/* ... and 8/15 of cruise (inner wheel
+					   ~13 %, outer ~93 % of cruise) ... */
+#define LF_LOST_ARC_MM		40	/* ... for this much travel ... */
+#define LF_LOST_ARC_MS		400	/* ... or this long after the wait,
+					   then ... */
 #define LF_LOST_PIVOT_STEER	20	/* ... pivoting on the spot at this
 					   steer (as LF_SIDE_PIVOT_STEER) */
+#define LF_REALIGN_MS		400	/* found by that turn: keep turning the
+					   same way this long ... */
+#define LF_REALIGN_STEER	14	/* ... this hard, while the centre alone
+					   has the line ... */
+#define LF_REALIGN_SPEED	8	/* ... at 8/15 of cruise */
 #define LF_SIDE_PIVOT_STEER	20	/* only IR_L on the line: stop and pivot
 					   towards it at this steer (~47 mm/s
 					   per wheel at the 117 mm/s cruise)
@@ -89,8 +108,7 @@
 					   always finishes first; only if the
 					   centre never finds the line does the
 					   lost-line turn take over (was 1500) */
-#define LF_SETTLE_MS		300	/* after a pivot or the lost-line turn:
-					   drive on ... */
+#define LF_SETTLE_MS		300	/* after a side pivot: drive on ...   */
 #define LF_SETTLE_SPEED		8	/* ... at 8/15 of cruise this long    */
 
 typedef struct {
@@ -104,6 +122,10 @@ typedef struct {
 	W	lost_start_mm;
 	BOOL	lost_pending;
 	UW	settle_ms;	/* half-speed time left after a pivot */
+	BOOL	turning;	/* lost-line turn under way ... */
+	UW	turn_ms;	/* ... this long, wait included ... */
+	W	turn_start_mm;	/* ... arcing since this odometer reading */
+	UW	realign_ms;	/* turn-on time left after it found the line */
 	INT	pivot_dir;	/* side pivot under way: -1 towards IR_L */
 	UW	pivot_ms;	/* time since the centre last saw the line */
 	BOOL	in_junction;

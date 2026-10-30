@@ -315,8 +315,8 @@ LOCAL INT test_line(void)
 	UW		t;
 	W		odo = 0;
 	BOOL		lost = FALSE, found = FALSE, fail = FALSE, junction = FALSE;
-	BOOL		bar_ok = TRUE, held = TRUE;
-	UINT		junction_events = 0;
+	BOOL		bar_ok = TRUE, held = TRUE, ok1;
+	UINT		junction_events = 0, waits, arcs, pivots;
 
 	TEST_INIT();
 	lf_init(&lf);
@@ -370,37 +370,82 @@ LOCAL INT test_line(void)
 		   && o.steer == 0 && o.speed_frac == LF_SETTLE_SPEED,
 		   "side pivot held through all-white until the centre has the line; then half speed, no kick back");
 
-	/* centre and IR_L white: turn towards IR_R at once, LOST after the
-	   confirm time, still turning the same way */
+	/* centre and IR_L white: straight for LF_LOST_WAIT_MS, then arc
+	   towards IR_R while moving on, then pivot on the spot after
+	   LF_LOST_ARC_MS; LOST meanwhile */
 	lf_reset_tracking(&lf);
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
-	lf_step(&lf, 0, odo, 20, TRUE, &o);
-	held = o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0
-	       && lf.pos == LP_LOST_RIGHT;
+	waits = 0;
+	arcs = 0;
+	pivots = 0;
+	held = TRUE;
 	lost = FALSE;
-	for (t = 0; t < 400U; t += 20U) {
-		odo += 4;
+	for (t = 0; t < 1000U; t += 20U) {
+		odo += 1;				/* slow: the time limit ends the arc */
 		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		lost = lost || ((o.events & LF_EV_LOST) != 0U);
-		held = held && o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0;
+		if (o.steer == 0 && o.speed_frac == LF_LOST_WAIT_SPEED) {
+			held = held && arcs == 0U && pivots == 0U;	/* wait first */
+			waits++;
+		} else if (o.steer == LF_LOST_DIR * LF_LOST_ARC_STEER
+			   && o.speed_frac == LF_LOST_ARC_SPEED) {
+			held = held && pivots == 0U;	/* arc only before the pivot */
+			arcs++;
+		} else if (o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0) {
+			pivots++;
+		} else {
+			held = FALSE;
+		}
 	}
-	TEST_CHECK("S3-U25", held && lost && lf.state == LS_SEARCHING,
-		   "centre and IR_L white: pivot towards IR_R (car's left) at once; LOST, same turn");
+	TEST_CHECK("S3-U25", held && lost && lf.state == LS_SEARCHING && lf.pos == LP_LOST_RIGHT
+		   && waits == LF_LOST_WAIT_MS / 20U && arcs == LF_LOST_ARC_MS / 20U && pivots > 0U,
+		   "centre and IR_L white: straight for LF_LOST_WAIT_MS, then arc towards IR_R (car's left), then pivot; LOST");
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	found = (o.events & LF_EV_FOUND) != 0U;
-	TEST_CHECK("S3-U26", found && lf.state == LS_ON_LINE && o.steer == 0
-		   && o.speed_frac == LF_SETTLE_SPEED,
-		   "line reacquired -> FOUND event; settle at half speed, no kick back");
+	ok1 = o.steer == LF_LOST_DIR * LF_REALIGN_STEER && o.speed_frac == LF_REALIGN_SPEED;
+	for (t = 20; t < LF_REALIGN_MS; t += 20U) {
+		lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+		ok1 = ok1 && o.steer == LF_LOST_DIR * LF_REALIGN_STEER && o.speed_frac == LF_REALIGN_SPEED;
+	}
+	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	TEST_CHECK("S3-U26", found && ok1 && lf.state == LS_ON_LINE && o.steer == 0
+		   && o.speed_frac == 15,
+		   "line reacquired -> FOUND; keeps turning gently towards IR_R for LF_REALIGN_MS, then straight");
 
-	/* never found: keeps turning the same way, never gives up */
+	/* faster travel: the distance limit ends the arc */
+	lf_reset_tracking(&lf);
+	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	arcs = 0;
+	for (k = 0; k < 20U; k++) {
+		odo += 10;
+		lf_step(&lf, 0, odo, 20, TRUE, &o);
+		if (o.speed_frac == LF_LOST_ARC_SPEED) {
+			arcs++;			/* (wait, then arc: same speed) */
+		}
+	}
+	TEST_CHECK("S3-U55", arcs == LF_LOST_WAIT_MS / 20U + (UINT)(LF_LOST_ARC_MM / 10)
+		   && o.speed_frac == 0
+		   && o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER,
+		   "lost-line arc ends after LF_LOST_ARC_MM of travel, then pivot");
+
+	/* found by the turn, then the line drifts to IR_L: normal steering
+	   towards IR_L wins over the gentle turn-on */
+	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), odo, 20, TRUE, &o);
+	TEST_CHECK("S3-U56", o.steer < 0 && lf.pos == LP_LEFT_NEAR,
+		   "turning on after a find, line drifts to IR_L: steer towards IR_L");
+
+	/* never found: arcs, then keeps pivoting the same way, never gives up */
 	held = TRUE;
 	for (t = 0; t < 20000U; t += 20U) {
 		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		fail = fail || (o.events & LF_EV_RECOVERY_FAIL) != 0U;
-		held = held && o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0;
+		if (t > LF_LOST_WAIT_MS + LF_LOST_ARC_MS) {
+			held = held && o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0;
+		}
 	}
 	TEST_CHECK("S3-U27", !fail && held && lf.state == LS_SEARCHING,
-		   "line never found: keeps turning towards IR_R; no RECOVERY_FAIL");
+		   "line never found: keeps pivoting towards IR_R; no RECOVERY_FAIL");
 
 	lf_reset_tracking(&lf);
 	for (k = 0; k < 10U; k++) {
@@ -434,7 +479,7 @@ LOCAL INT test_line(void)
 		lf_step(&lf, (k & 1U) ? IR_BIT(IR_R) : 0U, odo, 20, TRUE, &o);
 		lost = lost || (o.events & LF_EV_LOST) != 0U;
 		found = found || (o.events & LF_EV_FOUND) != 0U;
-		held = held && o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0;
+		held = held && (k < LF_LOST_WAIT_MS / 20U ? o.steer == 0 : o.steer * LF_LOST_DIR > 0);
 	}
 	TEST_CHECK("S3-U53", held && lost && !found && lf.state == LS_SEARCHING,
 		   "black under IR_R alone is not the line: lost, turning towards IR_R, search not ended");
@@ -445,6 +490,21 @@ LOCAL INT test_line(void)
 	TEST_CHECK("S3-U54", found && lf.pivot_dir == -1 && o.steer == -LF_SIDE_PIVOT_STEER
 		   && o.speed_frac == 0,
 		   "lost-line turn, then IR_L has the line: FOUND, pivot towards IR_L");
+
+	/* centre flickers white for less than the wait: no turn at all,
+	   and no turn-on afterwards */
+	lf_reset_tracking(&lf);
+	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	held = TRUE;
+	for (k = 0; k < LF_LOST_WAIT_MS / 20U; k++) {
+		odo += 2;
+		lf_step(&lf, 0, odo, 20, TRUE, &o);
+		held = held && o.steer == 0 && o.speed_frac == LF_LOST_WAIT_SPEED
+		       && (o.events & LF_EV_LOST) == 0U;
+	}
+	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	TEST_CHECK("S3-U57", held && lf.state == LS_ON_LINE && o.steer == 0 && o.speed_frac == 15,
+		   "line back within LF_LOST_WAIT_MS: straight on, no left turn, no turn-on, no LOST");
 	TEST_SUMMARY("s3 line");
 	return test_fail_;
 }

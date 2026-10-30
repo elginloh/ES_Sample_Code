@@ -19,6 +19,10 @@ EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 	lf->lost_start_mm = 0;
 	lf->lost_pending = FALSE;
 	lf->settle_ms = 0;
+	lf->turning = FALSE;
+	lf->turn_start_mm = 0;
+	lf->turn_ms = 0;
+	lf->realign_ms = 0;
 	lf->pivot_dir = 0;
 	lf->pivot_ms = 0;
 	lf->in_junction = FALSE;
@@ -137,7 +141,6 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 {
 	BOOL	c = (black & IR_BIT(IR_C)) != 0U;
 	BOOL	l = (black & IR_BIT(IR_L)) != 0U;
-	BOOL	was_lost;
 	BOOL	on_line;
 
 	out->steer = 0;
@@ -148,7 +151,6 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 		return;
 	}
 
-	was_lost = (lf->pos == LP_LOST_RIGHT) ? TRUE : FALSE;
 	classify(lf, black, odo_mm, out);
 	/* Side pivot: the line under IR_L alone (centre white) commits the
 	   car to pivot that way until the centre has it.  IR_L often goes
@@ -173,11 +175,30 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 		}
 	}
 	on_line = c || l || lf->pivot_dir != 0;
-	if (on_line && was_lost) {
-		/* The lost-line turn found it: settle in, no D kick from the
-		   turn's error */
-		lf->settle_ms = LF_SETTLE_MS;
-		lf->prev_err = lf->err;
+	if (on_line) {
+		if (lf->turning) {
+			lf->prev_err = lf->err;	/* no D kick from the lost error */
+			if (lf->pivot_dir == 0 && lf->turn_ms > LF_LOST_WAIT_MS) {
+				/* The lost-line turn found it: the car still
+				   points across the curve, keep turning that
+				   way while moving on.  Not after just the
+				   wait: the car never turned. */
+				lf->realign_ms = LF_REALIGN_MS;
+			}
+		}
+		lf->turning = FALSE;
+	} else {
+		if (!lf->turning) {
+			lf->turning = TRUE;
+			lf->turn_ms = 0;
+		}
+		lf->turn_ms += dt_ms;
+		if (lf->turn_ms - dt_ms <= LF_LOST_WAIT_MS) {
+			lf->turn_start_mm = odo_mm;	/* up to the arc's first period */
+		}
+	}
+	if (lf->pivot_dir != 0) {
+		lf->realign_ms = 0;	/* the pivot side, not the turn side */
 	}
 
 	if (on_line) {
@@ -210,12 +231,27 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 			   the line, then LF_SETTLE_MS at half speed */
 			out->steer = lf->pivot_dir * LF_SIDE_PIVOT_STEER;
 			out->speed_frac = 0;
+		} else if (!on_line && lf->turn_ms <= LF_LOST_WAIT_MS) {
+			/* centre and IR_L white: hold straight a moment, it
+			   may be a flicker or a gap in the line ... */
+			out->steer = 0;
+			out->speed_frac = LF_LOST_WAIT_SPEED;
+		} else if (!on_line && lf->turn_ms <= LF_LOST_WAIT_MS + LF_LOST_ARC_MS
+			   && odo_mm - lf->turn_start_mm < LF_LOST_ARC_MM) {
+			/* ... then arc towards IR_R (the car's left) while
+			   moving on, a curve ... */
+			out->steer = LF_LOST_DIR * LF_LOST_ARC_STEER;
+			out->speed_frac = LF_LOST_ARC_SPEED;
 		} else if (!on_line) {
-			/* centre and IR_L white: turn on the spot towards IR_R
-			   (the car's left) until one of them sees black, also
-			   before LF_EV_LOST.  Never gives up. */
+			/* ... still white: a sharp corner, turn on the spot
+			   until one of them sees black.  Never gives up. */
 			out->steer = LF_LOST_DIR * LF_LOST_PIVOT_STEER;
 			out->speed_frac = 0;
+		} else if (lf->realign_ms > 0U && lf->err == 0) {
+			/* just found by that turn, centre only: keep turning
+			   gently the same way while moving on */
+			out->steer = LF_LOST_DIR * LF_REALIGN_STEER;
+			out->speed_frac = LF_REALIGN_SPEED;
 		} else {
 			out->steer = LF_KP * lf->err + LF_KD * (lf->err - lf->prev_err);
 			out->speed_frac = speed_for(lf->err);
@@ -226,4 +262,5 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 	}
 	lf->prev_err = lf->err;
 	lf->settle_ms = (lf->settle_ms > dt_ms) ? lf->settle_ms - dt_ms : 0U;
+	lf->realign_ms = (lf->realign_ms > dt_ms) ? lf->realign_ms - dt_ms : 0U;
 }

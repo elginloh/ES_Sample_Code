@@ -480,6 +480,42 @@ LOCAL INT test_steering(void)
 	mc_step(&mc, &in, MOTION_PERIOD_MS, &out);
 	TEST_CHECK("S2-U27", out.duty_l_pm == 0 && out.duty_r_pm == 0,
 		   "SAFE_STOP: zero motor output whatever the inputs");
+
+	/* Driving, then an obstacle: no steering, the targets ramp to 0
+	   while the wheels still roll.  Without ENC_QUADRATURE the encoder
+	   cannot see direction and counts a reversing wheel as forward
+	   (the last driven direction), as modelled here. */
+	mc_init(&mc);
+	plant_init(&pl);
+	for (k = 0; k < 50; k++) {
+		plant_input(&pl, &in, VM_NORMAL);
+		in.steer = steer_pack(k, 0, 15);
+		in.steer_fresh = TRUE;
+		mc_out_clear(&out);
+		mc_step(&mc, &in, MOTION_PERIOD_MS, &out);
+		plant_step(&pl, out.duty_l_pm, out.duty_r_pm, MOTION_PERIOD_MS);
+	}
+	capped_max = 0;				/* here: most reverse duty seen */
+	for (k = 0; k < 150; k++) {
+		plant_input(&pl, &in, VM_OBSTACLE);
+#if !ENC_QUADRATURE
+		in.speed_l_mms = iabs(pl.v_l);
+		in.speed_r_mms = iabs(pl.v_r);
+#endif
+		mc_out_clear(&out);
+		mc_step(&mc, &in, MOTION_PERIOD_MS, &out);
+		plant_step(&pl, out.duty_l_pm, out.duty_r_pm, MOTION_PERIOD_MS);
+		if (-out.duty_l_pm > capped_max) {
+			capped_max = -out.duty_l_pm;
+		}
+		if (-out.duty_r_pm > capped_max) {
+			capped_max = -out.duty_r_pm;
+		}
+	}
+	TEST_CHECK("S2-U40", (ENC_QUADRATURE || capped_max == 0)
+		   && out.duty_l_pm == 0 && out.duty_r_pm == 0
+		   && iabs(pl.v_l) < MIN_CTRL_SPEED_MMS && iabs(pl.v_r) < MIN_CTRL_SPEED_MMS,
+		   "stop for an obstacle: wheels coast to rest, no reverse duty (no runaway backwards)");
 	TEST_SUMMARY("s2 steering");
 	return test_fail_;
 }
