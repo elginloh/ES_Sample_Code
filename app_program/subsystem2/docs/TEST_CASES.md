@@ -132,7 +132,7 @@ no longer exists and were never run.
 | S3-U22 | centred: straight at full cruise fraction | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U22 PASS` |
 | S3-U23 | line drifting to IR_L: steer towards it | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U23 PASS` |
 | S3-U24 | line under IR_L only: stop and pivot towards it | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U24 PASS` |
-| S3-U25 | centre and IR_L white: straight for LF_LOST_WAIT_MS, then arc towards IR_R (car's left), then pivot; LOST | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U25 PASS` |
+| S3-U25 | centre and IR_L white: arc towards IR_R (car's left) at once, then pivot; LOST | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U25 PASS` |
 | S3-U26 | line reacquired -> FOUND; keeps turning gently towards IR_R for LF_REALIGN_MS, then straight | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U26 PASS` |
 | S3-U27 | line never found: keeps pivoting towards IR_R; no RECOVERY_FAIL | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U27 PASS` |
 | S3-U28 | all three sensors black for >= 8 mm: one JUNCTION event | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U28 PASS` |
@@ -142,7 +142,7 @@ no longer exists and were never run.
 | S3-U54 | lost-line turn, then IR_L has the line: FOUND, pivot towards IR_L | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U54 PASS` |
 | S3-U55 | lost-line arc ends after LF_LOST_ARC_MM of travel, then pivot | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U55 PASS` |
 | S3-U56 | turning on after a find, line drifts to IR_L: steer towards IR_L | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U56 PASS` |
-| S3-U57 | line back within LF_LOST_WAIT_MS: straight on, no left turn, no turn-on, no LOST | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U57 PASS` |
+| S3-U57 | short lost-line arc (< LF_REALIGN_MIN_MS) finds the line: straight on, no turn-on | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U57 PASS` |
 | S3-U30 | line status word round trip at limits (steer -63) | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U30 PASS` |
 | S3-U31 | barcode status word round trip at limits | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U31 PASS` |
 | S3-U32 | Line Following runs every 20 ms (50 per s) within half its period | auto (target only) | `subsystem3/subsystem3_test.c` | `[TEST] S3-U32 PASS` |
@@ -275,7 +275,7 @@ no longer exists and were never run.
 | S3-U37 | Line following | FR1, NFR4 | Straight, curves, 3 speeds, varied lighting | stays on the line |
 | S3-U38 | Barcode reading at speed | FR2, T1-33 | Drive over a known barcode 15 times each at low, medium, high speed | 15/15 correct at each speed, no duplicates |
 | S3-U39 | Barcode vs curve | A4 | Curves and junctions without barcodes | no barcode reported |
-| S3-U40 | Line loss and search | FR1 (6.3) | Lift the car off the line while driving; watch the `line: lost, turning left` / `line: found` console lines | with the centre and right sensors white the car holds straight briefly (~0.2 s), then arcs left while moving, then pivots left on the spot if the line is still missing, until one of them sees it; once found it keeps turning gently left briefly; the barcode (left) sensor never steers; found line ends centred under the centre sensor |
+| S3-U40 | Line loss and search | FR1 (6.3) | Lift the car off the line while driving; watch the `line: lost, turning left` / `line: found` console lines | with the centre and right sensors white the car arcs left at once while moving, then pivots left on the spot if the line is still missing, until one of them sees it; once found it keeps turning gently left briefly; the barcode (left) sensor never steers; found line ends centred under the centre sensor |
 | S3-U41 | Edge load at top speed | R3, T1-20 | Log `ir_edge_count()` and `gpio_irq_count()` while crossing barcodes | no BARCODE_OVERFLOW |
 | S4-U33 | IMU identity and axes | A5 | Read the console at boot; tilt nose-up; turn left | chip found; +1 g up; pitch +; yaw rate + |
 | S4-U34 | IMU timing | R2, NFR13 | Test image S4-U30 with all tasks running | 100 runs/s |

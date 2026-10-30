@@ -178,11 +178,13 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 	if (on_line) {
 		if (lf->turning) {
 			lf->prev_err = lf->err;	/* no D kick from the lost error */
-			if (lf->pivot_dir == 0 && lf->turn_ms > LF_LOST_WAIT_MS) {
-				/* The lost-line turn found it: the car still
-				   points across the curve, keep turning that
-				   way while moving on.  Not after just the
-				   wait: the car never turned. */
+			if (lf->pivot_dir == 0 && lf->turn_ms >= LF_REALIGN_MIN_MS) {
+				/* A long lost-line turn found it: the car
+				   still points across the curve, keep turning
+				   that way while moving on.  Not after a short
+				   one: the car is about straight, and turning
+				   on swung it ~10 deg across a straight line,
+				   which then weaved right and left. */
 				lf->realign_ms = LF_REALIGN_MS;
 			}
 		}
@@ -190,12 +192,10 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 	} else {
 		if (!lf->turning) {
 			lf->turning = TRUE;
+			lf->turn_start_mm = odo_mm;
 			lf->turn_ms = 0;
 		}
 		lf->turn_ms += dt_ms;
-		if (lf->turn_ms - dt_ms <= LF_LOST_WAIT_MS) {
-			lf->turn_start_mm = odo_mm;	/* up to the arc's first period */
-		}
 	}
 	if (lf->pivot_dir != 0) {
 		lf->realign_ms = 0;	/* the pivot side, not the turn side */
@@ -231,15 +231,10 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 			   the line, then LF_SETTLE_MS at half speed */
 			out->steer = lf->pivot_dir * LF_SIDE_PIVOT_STEER;
 			out->speed_frac = 0;
-		} else if (!on_line && lf->turn_ms <= LF_LOST_WAIT_MS) {
-			/* centre and IR_L white: hold straight a moment, it
-			   may be a flicker or a gap in the line ... */
-			out->steer = 0;
-			out->speed_frac = LF_LOST_WAIT_SPEED;
-		} else if (!on_line && lf->turn_ms <= LF_LOST_WAIT_MS + LF_LOST_ARC_MS
+		} else if (!on_line && lf->turn_ms <= LF_LOST_ARC_MS
 			   && odo_mm - lf->turn_start_mm < LF_LOST_ARC_MM) {
-			/* ... then arc towards IR_R (the car's left) while
-			   moving on, a curve ... */
+			/* centre and IR_L white: arc towards IR_R (the car's
+			   left) at once while moving on, a curve ... */
 			out->steer = LF_LOST_DIR * LF_LOST_ARC_STEER;
 			out->speed_frac = LF_LOST_ARC_SPEED;
 		} else if (!on_line) {
