@@ -11,12 +11,14 @@ typedef struct {
 	UB	nav;		/* NAV_* */
 } NAV_ENTRY;
 
-/* !!! TEAM DECISION REQUIRED (see nav_map.h) !!!
-   Example of a filled table, kept commented out on purpose:
-	{ 10, NAV_LEFT },	'A'
-	{ 35, NAV_RIGHT },	'Z'                                         */
+/* Buddy 3 barcode assignments supplied for Buddy 3:
+   A = left, F = right, Z = U-turn, X = straight. */
 LOCAL const NAV_ENTRY S3_NAV_MAP_DEFAULT[] = {
-	{ 0xFF, 0 }		/* terminator: no default meanings */
+	{ 10, NAV_LEFT },	/* A */
+	{ 15, NAV_RIGHT },	/* F */
+	{ 35, NAV_UTURN },	/* Z */
+	{ 33, NAV_STRAIGHT },	/* X */
+	{ 0xFF, 0 }		/* terminator */
 };
 
 LOCAL NAV_ENTRY	nav_tab[NAV_MAP_SIZE];

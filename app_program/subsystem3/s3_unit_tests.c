@@ -280,18 +280,25 @@ LOCAL INT test_nav_map(void)
 	UB	nav;
 	UW	type;
 	INT	arg;
-	BOOL	t_ok;
+	BOOL	t_ok, map_ok;
 
 	TEST_INIT();
 	nav_map_reset();
-	TEST_CHECK("S3-U15", !nav_map_lookup((UB)c39_index_of_char('A'), &nav)
-		   && !nav_map_lookup((UB)c39_index_of_char('Z'), &nav),
-		   "default map is EMPTY: no invented barcode meanings");
-	TEST_CHECK("S3-U16", nav_map_set((UB)c39_index_of_char('A'), NAV_LEFT) == E_OK
-		   && nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_LEFT
+	map_ok = nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_LEFT
+		 && nav_map_lookup((UB)c39_index_of_char('F'), &nav) && nav == NAV_RIGHT
+		 && nav_map_lookup((UB)c39_index_of_char('Z'), &nav) && nav == NAV_UTURN
+		 && nav_map_lookup((UB)c39_index_of_char('X'), &nav) && nav == NAV_STRAIGHT
+		 && !nav_map_lookup((UB)c39_index_of_char('W'), &nav);
+	TEST_CHECK("S3-U15", map_ok,
+		   "default barcode mapping: A=LEFT, F=RIGHT, Z=U-TURN, X=STRAIGHT");
+	t_ok = nav_map_set((UB)c39_index_of_char('A'), NAV_RIGHT) == E_OK
+		   && nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_RIGHT
 		   && nav_map_set(C39_STAR, NAV_LEFT) == E_PAR
-		   && nav_map_set(1, 4) == E_PAR,
-		   "configured mapping works; '*' and nav > 3 rejected");
+		   && nav_map_set(1, 4) == E_PAR;
+	nav_map_reset();
+	t_ok = t_ok && nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_LEFT;
+	TEST_CHECK("S3-U16", t_ok,
+		   "mapping overrides work; '*' and nav > 3 rejected; reset restores defaults");
 	nav_to_motion(NAV_LEFT, &type, &arg);
 	t_ok = (type == MCMD_TURN && arg == -90);
 	nav_to_motion(NAV_RIGHT, &type, &arg);

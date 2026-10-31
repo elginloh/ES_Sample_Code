@@ -124,8 +124,8 @@ no longer exists and were never run.
 | S3-U12 | 60 mm black run rejected as not-a-barcode at once | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U12 PASS` |
 | S3-U13 | no edge for 3 s while capturing: aborted (bounded) | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U13 PASS` |
 | S3-U14 | capture longer than the 450 mm window: aborted | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U14 PASS` |
-| S3-U15 | default map is EMPTY: no invented barcode meanings | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U15 PASS` |
-| S3-U16 | configured mapping works; '*' and nav > 3 rejected | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U16 PASS` |
+| S3-U15 | default mapping A=LEFT, F=RIGHT, Z=U-TURN, X=STRAIGHT | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U15 PASS` |
+| S3-U16 | mapping override/reset works; '*' and nav > 3 rejected | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U16 PASS` |
 | S3-U17 | LEFT/RIGHT/U-TURN/STRAIGHT -> encoder TURN/MOVE commands | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U17 PASS` |
 | S3-U18 | calibration on the line: black = high | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U18 PASS` |
 | S3-U19 | inverted sensor polarity is learnt, not assumed | auto (host + target) | `subsystem3/s3_unit_tests.c` | `[TEST] S3-U19 PASS` |
@@ -233,8 +233,8 @@ no longer exists and were never run.
 | INT-10b | every planned step crosses the interface packed and completes; search stops on the line | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-10b PASS` |
 | INT-10c | car centre kept >= 150 mm right of the box edge; back on the line, heading within 10 deg | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-10c PASS` |
 | INT-10d | AVOID_DONE -> NORMAL: line steering drives the car again | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-10d PASS` |
-| INT-11a | valid barcode with the default (empty) map: decoded and reported, no motion | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-11a PASS` |
-| INT-11b | RIGHT/LEFT/U-TURN/STRAIGHT barcodes -> BARCODE commands -> NAV_ACTION -> DONE -> NORMAL | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-11b PASS` |
+| INT-11a | valid unmapped barcode decoded and reported without motion | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-11a PASS` |
+| INT-11b | A/F/Z/X -> LEFT/RIGHT/U-TURN/STRAIGHT -> BARCODE commands -> NAV_ACTION -> DONE -> NORMAL | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-11b PASS` |
 | INT-11c | barcode status word carries symbol, command and motion result | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-11c PASS` |
 | INT-12a | obstacle during a barcode turn: OBSTACLE wins, turn ABORTED, motors off, line loss kept | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-12a PASS` |
 | INT-12b | then: stale command, barcode command and speed change refused; Buddy 5's command accepted | auto (host + target) | `subsystem2/s2_integration_tests.c` | `[TEST] INT-12b PASS` |

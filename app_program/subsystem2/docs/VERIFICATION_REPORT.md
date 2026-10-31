@@ -209,7 +209,7 @@ Legend: **Impl.** = implemented (and software-tested where possible);
 |---|---|---|
 | FR1 line following | Impl. + HW | `line_follow.c`, `task_line.c`; S3-U18..U29, INT-14 |
 | FR2 barcode scan/decode | Impl. + HW | Code 39 from samples; S3-U01..U14 |
-| FR3 navigation by barcode with encoder motion | **Partial (TD)** | path implemented and tested (INT-11). No document defines which character means which command, so the map ships empty |
+| FR3 navigation by barcode with encoder motion | **Impl. (software)** | Buddy 3 mapping A=LEFT, F=RIGHT, Z=U-TURN, X=STRAIGHT; full path tested (INT-11); physical track validation pending |
 | FR4 encoder feedback for straight/turns | Impl. + HW | heading hold + arc turns; S2-U08..U11 |
 | FR5 hump detection/height | Impl. + HW | `hump.c`; S4-U19..U23 |
 | FR6 hump record + highest | Impl. | S4-U20, INT-16 |
@@ -254,12 +254,12 @@ Legend: **Impl.** = implemented (and software-tested where possible);
 |---|---|---|
 | PB-1 communication API, telemetry framework, MQTT documentation | Impl. | telemetry demo needs the transport patch |
 | PB-2 motion library | Impl. | PID tuning report and motion accuracy evaluation need the car (S2-U48..U52) |
-| PB-3 line following, barcode decoder, navigation interface | Impl. | meaning map is a TD |
+| PB-3 line following, barcode decoder, navigation interface | Impl. | Buddy 3 supplied mapping is configured in `subsystem3/nav_map.c` |
 | PB-4 IMU processing, hump detection | Impl. | terrain analysis report needs physical logs |
 | PB-5 scanning, profile generator, avoidance + recovery | Impl. | |
 | BC-1 symbology from the samples | Impl. | Code 39 established from all 11 samples |
 | BC-2 geometry (141 / 20 / 18 mm) | Impl. | 47 units → 3 mm narrow; ratio-based classification |
-| BC-3 symbol → command meaning | TD | not in any document; empty default |
+| BC-3 symbol → command meaning | Impl. | Buddy 3 supplied mapping A/F/Z/X is configured and covered by S3-U15/INT-11 |
 
 ## 4. Tribunal 1 compliance review (every confirmed change)
 

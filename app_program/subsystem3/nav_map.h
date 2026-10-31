@@ -6,13 +6,9 @@
  *	Buddy 3: "2-bit codes for up to 4 navigation commands"); validity is
  *	a separate bit, so all four codes stay usable.
  *
- *	!!! TEAM DECISION REQUIRED !!!  None of the supplied documents says
- *	which barcode character means Turn Left / Turn Right / Go Straight /
- *	U-Turn (FR3).  The samples only establish the symbology (Code 39) and
- *	the characters A, F, W, X, Y, Z.  The default table is therefore
- *	EMPTY: a valid barcode is decoded and reported (telemetry, status
- *	word) but produces no motion.  Fill S3_NAV_MAP_DEFAULT in nav_map.c
- *	once the track's meaning is known, or call nav_map_set() at start-up.
+ *	Default Buddy 3 mapping: A = LEFT, F = RIGHT, Z = U-TURN,
+ *	X = STRAIGHT. Other valid but unmapped barcode symbols are reported
+ *	without producing motion.
  */
 
 #ifndef NAV_MAP_H

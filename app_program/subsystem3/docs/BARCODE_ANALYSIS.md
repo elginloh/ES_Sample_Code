@@ -52,19 +52,22 @@ common symbologies do not fit:
 group) rather than from a typed list. S3-U01 checks the table: 44 unique
 patterns, 3 wide each, and `*`, `A` and `Z` equal to the measured patterns.
 
-## 3. What the samples do NOT establish (team decision required)
+## 3. Buddy 3 navigation mapping
 
-**Which character means which navigation command.** FR3 names four commands
-(Turn Left, Turn Right, Go Straight, U-Turn), but no document maps
-characters to them. The samples only show the characters A, F, W, X, Y, Z.
-To avoid inventing a mapping:
+The supplied Buddy 3 mapping is:
 
-* `nav_map.c` ships with an **empty** default table. A valid barcode is
-  decoded, counted and reported (telemetry fields 17–23, `EVT_BARCODE`),
-  but produces **no motion** (S3-U15, INT-11a).
-* Fill `S3_NAV_MAP_DEFAULT` in `nav_map.c` (example in the comment), or call
-  `nav_map_set(symbol, NAV_x)` at start-up, once the track's meanings are
-  known. INT-11 shows the full path with a test-only mapping.
+| Code 39 character | Buddy 3 command |
+|---|---|
+| A | Turn Left |
+| F | Turn Right |
+| Z | U-turn |
+| X | Straight |
+
+`nav_map.c` loads these defaults at barcode-task startup. Other valid Code 39
+characters are decoded and reported (telemetry fields 17–23, `EVT_BARCODE`)
+but produce no motion unless explicitly mapped. S3-U15 verifies these
+assignments.
+
 * Navigation codes use 2 bits plus a separate valid bit (Tribunal 1,
   Buddy 3: "2-bit codes for up to 4 navigation commands").
 

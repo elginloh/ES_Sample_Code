@@ -386,9 +386,9 @@ LOCAL INT int_avoidance(void)
 
 LOCAL INT int_barcode_nav(void)
 {
-	static const char	sym[4] = { 'A', 'F', 'W', 'X' };
-	static const UB		navs[4] = { NAV_RIGHT, NAV_LEFT, NAV_UTURN, NAV_STRAIGHT };
-	static const W		turn_mdeg[4] = { 90000, -90000, 180000, 0 };
+	static const char	sym[4] = { 'A', 'F', 'Z', 'X' };
+	static const UB		navs[4] = { NAV_LEFT, NAV_RIGHT, NAV_UTURN, NAV_STRAIGHT };
+	static const W		turn_mdeg[4] = { -90000, 90000, 180000, 0 };
 	CAR		*c = &car;
 	BC_RESULT	res;
 	S3_BC_STATUS	bs, bs2;
@@ -396,22 +396,19 @@ LOCAL INT int_barcode_nav(void)
 	W		x_um = 0;
 	UINT		k;
 	UB		nav = 0;
-	BOOL		no_default, ok = TRUE, word_ok = TRUE;
+	BOOL		unmapped_no_motion, ok = TRUE, word_ok = TRUE;
 
 	TEST_INIT();
 	car_start(c);
 	bc_init(&bc);
 	nav_map_reset();
-	s3_drive_over(&bc, 'A', 200, 50000, 0, &t_us, &x_um, &res);
-	no_default = res.result == BCR_VALID && res.n_data == 1U && c39_char(res.data[0]) == 'A'
+	s3_drive_over(&bc, 'W', 200, 50000, 0, &t_us, &x_um, &res);
+	unmapped_no_motion = res.result == BCR_VALID && res.n_data == 1U && c39_char(res.data[0]) == 'W'
 		     && !nav_map_lookup(res.data[0], &nav);
 	car_cycle(c);
-	TEST_CHECK("INT-11a", no_default && c->vf.mode == VM_NORMAL && c->res_mask == 0U,
-		   "valid barcode with the default (empty) map: decoded and reported, no motion");
+	TEST_CHECK("INT-11a", unmapped_no_motion && c->vf.mode == VM_NORMAL && c->res_mask == 0U,
+		   "valid unmapped barcode is decoded and reported without motion");
 
-	for (k = 0; k < 4U; k++) {		/* the team's meanings, for this test */
-		(void)nav_map_set((UB)c39_index_of_char(sym[k]), navs[k]);
-	}
 	for (k = 0; k < 4U; k++) {
 		W	th0 = c->th_mdeg;
 		W	d0 = (c->pl.d_l_um + c->pl.d_r_um) / 2;
@@ -461,7 +458,7 @@ LOCAL INT int_barcode_nav(void)
 	}
 	nav_map_reset();
 	TEST_CHECK("INT-11b", ok,
-		   "RIGHT/LEFT/U-TURN/STRAIGHT barcodes -> BARCODE commands -> NAV_ACTION -> DONE -> NORMAL");
+		   "A/F/Z/X -> LEFT/RIGHT/U-TURN/STRAIGHT -> NAV_ACTION -> DONE -> NORMAL");
 	TEST_CHECK("INT-11c", word_ok, "barcode status word carries symbol, command and motion result");
 	TEST_SUMMARY("int barcode nav");
 	return test_fail_;
