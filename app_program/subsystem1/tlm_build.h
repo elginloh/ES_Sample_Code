@@ -49,7 +49,7 @@ typedef struct {
 IMPORT void tlm_build(TLM_RECORD *r, const TLM_SOURCES *s);
 
 /* Events for what changed since the previous sample: mode, faults,
-   barcode read, hump completed, avoidance finished, collision.  Event
+   barcode read, hump completed, avoidance finished or failed, collision.  Event
    data word layouts: mqtt_proto.h.  Returns the number of events
    written to ev[] (0..TLM_MAX_EVENTS). */
 IMPORT UINT tlm_events(const TLM_RECORD *prev, UB prev_avoid_count,

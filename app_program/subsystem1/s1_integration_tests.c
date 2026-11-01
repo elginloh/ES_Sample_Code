@@ -8,7 +8,8 @@
  *	          engineering values keep their documented resolution
  *	  INT-16  a hump measured by Buddy 4 reaches the server within +-4 mm
  *	          (Tribunal 1 success criterion), with its event frame; event
- *	          words for mode, barcode, obstacle and collision
+ *	          words for mode, barcode, obstacle and collision; a failed
+ *	          avoidance is reported although its counter does not move
  *	The expected values are written out by hand from the field
  *	definitions, not computed by the code under test.
  *	Runs on the host (subsystem2/host_test/) and in the on-target test
@@ -380,6 +381,24 @@ LOCAL INT int_hump_telemetry(void)
 	quiet = tlm_events(&prev, src.avoid.count, &dec, &src, evs) == 0U;
 	TEST_CHECK("INT-16d", others && quiet,
 		   "mode, barcode, obstacle and collision events decode to their fields; no change, no event");
+
+	prev = dec;					/* a failure leaves the counter alone */
+	src.avoid.state = AVST_EXECUTING;
+	(void)send_tlm(5);
+	quiet = tlm_events(&prev, src.avoid.count, &dec, &src, evs) == 0U;
+	prev = dec;
+	src.avoid.state = AVST_FAILED;
+	src.avoid.outcome = AVO_FAILED;
+	src.avoid.fail = AVF_CLEARANCE;
+	(void)send_tlm(6);
+	ne = tlm_events(&prev, src.avoid.count, &dec, &src, evs);
+	others = ne == 1U && evs[0].code == EVT_OBSTACLE && (evs[0].data & 3UL) == AVO_FAILED
+		 && ((evs[0].data >> 2) & 7UL) == AVF_CLEARANCE;
+	prev = dec;
+	(void)send_tlm(7);
+	others = others && tlm_events(&prev, src.avoid.count, &dec, &src, evs) == 0U;
+	TEST_CHECK("INT-16e", quiet && others,
+		   "a failed avoidance (counter unchanged) sends one OBSTACLE event with its reason");
 	TEST_SUMMARY("int hump telemetry");
 	return test_fail_;
 }

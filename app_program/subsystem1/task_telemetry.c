@@ -92,6 +92,45 @@ LOCAL void print_hex(const UB *f, INT n)
 }
 #endif
 
+#if S1_STAT_REPORT_S
+/* Diagnostics only: reads other tasks' single-writer TASK_STAT words (a
+   torn read of a diagnostic is harmless, task_stat.h) after this cycle's
+   frames are queued, from this lowest-priority task on core 0. */
+LOCAL void stat_line(const char *name, const TASK_STAT *s)
+{
+	tm_printf((UB*)"stat: %s runs %d exec %d/%d us (last/max) period %d..%d us overruns %d\n",
+		  name, (INT)s->runs, (INT)s->exec_last_us, (INT)s->exec_max_us,
+		  (INT)s->period_min_us, (INT)s->period_max_us, (INT)s->overruns);
+}
+
+LOCAL void queue_line(const char *name, ID mbf)
+{
+	T_RMBF	r;
+
+	if (tk_ref_mbf(mbf, &r) == E_OK) {
+		tm_printf((UB*)"stat: queue %s free %d bytes, next msg %d\n",
+			  name, (INT)r.frbufsz, (INT)r.msgsz);
+	}
+}
+
+LOCAL void stat_report(void)
+{
+	S1_COMM_STATUS	cs;
+
+	stat_line("motion", &s2_stat_motion);
+	stat_line("line", &s3_stat_line);
+	stat_line("imu", &s4_stat_imu);
+	stat_line("scan", &s5_stat_scan);
+	stat_line("tlm", &s1_stat_tlm);
+	queue_line("telemetry", mbf_telemetry);
+	queue_line("mqtt_tx", mbf_mqtt_tx);
+	s1_get_comm_status(&cs);
+	tm_printf((UB*)"stat: comm %s reconnects %d tlm_dropped %d rx_rejected %d faults 0x%07x\n",
+		  cfsm_name(cs.state), (INT)cs.reconnects, (INT)cs.tlm_dropped, (INT)cs.rx_rejected,
+		  (INT)sys_fault_get());
+}
+#endif
+
 EXPORT void telemetry_task(INT stacd, void *exinf)
 {
 	EVT_RECORD	ev[TLM_MAX_EVENTS];
@@ -143,5 +182,10 @@ EXPORT void telemetry_task(INT stacd, void *exinf)
 		prev_avoid_count = src.avoid.count;
 		have_prev = TRUE;
 		task_stat_end(&s1_stat_tlm, start, 50000U);
+#if S1_STAT_REPORT_S
+		if (tlm_seq % (S1_STAT_REPORT_S * (1000U / S1_TLM_PERIOD_MS)) == 0U) {
+			stat_report();			/* outside the measured section */
+		}
+#endif
 	}
 }

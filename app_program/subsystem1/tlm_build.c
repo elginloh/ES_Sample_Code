@@ -110,7 +110,11 @@ EXPORT UINT tlm_events(const TLM_RECORD *prev, UB prev_avoid_count,
 		add(ev, &n, EVT_HUMP, (UW)cur->hump_last | ((UW)cur->hump_max << 6)
 				      | ((UW)cur->hump_count << 12));
 	}
-	if (s->avoid.count != prev_avoid_count) {
+	/* The avoidance counter only counts finished manoeuvres (task_avoid.c
+	   fail() leaves it alone), so a failure is also reported when the
+	   state enters AVST_FAILED; the event then carries the reason. */
+	if (s->avoid.count != prev_avoid_count
+	    || (cur->avoid_state == AVST_FAILED && prev->avoid_state != AVST_FAILED)) {
 		UH	d = (s->profile.dist_mm < 0) ? (UH)S5_DIST_INVALID
 			  : s5_dist_code((UW)s->profile.dist_mm);
 

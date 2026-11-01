@@ -1,0 +1,182 @@
+{
+  "when": "2026-10-30T05:51:04.432Z",
+  "host": "Darwin 27.0.0 arm64, 10 CPUs, 16 GB",
+  "node": "v26.3.1",
+  "phases": {
+    "idle": {
+      "resources": {
+        "Node-RED": {
+          "cpu_pct": 0.24406912037488981,
+          "rss_mb": 19.21875,
+          "peak_rss_mb": 118.953125
+        },
+        "PostgreSQL": {
+          "cpu_pct": 0.09762764814995616,
+          "rss_mb": 19.421875,
+          "peak_rss_mb": 29.765625
+        },
+        "Mosquitto": {
+          "cpu_pct": 0,
+          "rss_mb": 1.078125,
+          "peak_rss_mb": 2.203125
+        },
+        "Grafana": {
+          "cpu_pct": 0.6833935370496931,
+          "rss_mb": 26.03125,
+          "peak_rss_mb": 293.4375
+        }
+      }
+    },
+    "normal": {
+      "seconds": 120,
+      "frames_published": 373,
+      "payload_bytes": 10692,
+      "rows": {
+        "t": "236",
+        "hb": "118",
+        "ev": "32"
+      },
+      "latency": {
+        "rows": 236,
+        "pub_to_rx_ms": {
+          "p50": 1,
+          "p95": 4,
+          "max": 41
+        },
+        "rx_to_commit_ms": {
+          "p50": 2.418,
+          "p95": 7.024,
+          "max": 905.046
+        }
+      },
+      "resources": {
+        "Node-RED": {
+          "cpu_pct": 0.7396203836053585,
+          "rss_mb": 37.75,
+          "peak_rss_mb": 71.75
+        },
+        "PostgreSQL": {
+          "cpu_pct": 0.2576205830535519,
+          "rss_mb": 30,
+          "peak_rss_mb": 32.015625
+        },
+        "Mosquitto": {
+          "cpu_pct": 0.02493102416647276,
+          "rss_mb": 1.5,
+          "peak_rss_mb": 1.546875
+        },
+        "Grafana": {
+          "cpu_pct": 0.8642755044377219,
+          "rss_mb": 55,
+          "peak_rss_mb": 173.421875
+        }
+      },
+      "storage": {
+        "bytes_added": 589824,
+        "row_bytes": 1477.9788135593221,
+        "frame_bytes": 41,
+        "decoded_json_bytes": 1166.4703389830509
+      }
+    },
+    "dashboard": {
+      "resources": {
+        "Node-RED": {
+          "cpu_pct": 0.41350336591739856,
+          "rss_mb": 37.65625,
+          "peak_rss_mb": 45.515625
+        },
+        "PostgreSQL": {
+          "cpu_pct": 0.8766271357448849,
+          "rss_mb": 44.921875,
+          "peak_rss_mb": 55.125
+        },
+        "Mosquitto": {
+          "cpu_pct": 0.016540134636695944,
+          "rss_mb": 1.515625,
+          "peak_rss_mb": 1.515625
+        },
+        "Grafana": {
+          "cpu_pct": 4.995120660282176,
+          "rss_mb": 324.015625,
+          "peak_rss_mb": 323.90625
+        }
+      },
+      "queries": 420,
+      "failed": 0,
+      "query_ms": {
+        "p50": 7.032708,
+        "p95": 14.530791,
+        "max": 80.363166
+      },
+      "six_hour_range_ms": {
+        "p50": 6.008,
+        "max": 11.518166,
+        "failed": 0
+      }
+    },
+    "stress": {
+      "telemetry_per_s": 20,
+      "frames_published": 633,
+      "latency": {
+        "rows": 600,
+        "pub_to_rx_ms": {
+          "p50": 2,
+          "p95": 4,
+          "max": 9
+        },
+        "rx_to_commit_ms": {
+          "p50": 3.723,
+          "p95": 6.407,
+          "max": 20.839
+        }
+      },
+      "resources": {
+        "Node-RED": {
+          "cpu_pct": 1.3871915975823237,
+          "rss_mb": 70.46875,
+          "peak_rss_mb": 80.09375
+        },
+        "PostgreSQL": {
+          "cpu_pct": 0.46239719919410666,
+          "rss_mb": 38.828125,
+          "peak_rss_mb": 46.484375
+        },
+        "Mosquitto": {
+          "cpu_pct": 0.03302837137100768,
+          "rss_mb": 1.5,
+          "peak_rss_mb": 1.515625
+        },
+        "Grafana": {
+          "cpu_pct": 0.5614823133071306,
+          "rss_mb": 46.890625,
+          "peak_rss_mb": 324.015625
+        }
+      }
+    },
+    "db_outage": {
+      "seconds": 30,
+      "buffered_peak": {
+        "bulk": 93,
+        "priority": 13,
+        "inflight": 0,
+        "limits": {
+          "bulk": 10800,
+          "priority": 5000
+        },
+        "loss_pending": 0
+      },
+      "drain_ms": 2633,
+      "telemetry_rows_kept": 60,
+      "dropped_bulk": 0,
+      "dropped_priority": 0
+    },
+    "broker_outage": {
+      "seconds": 15,
+      "nodered_detect_ms": 8,
+      "nodered_reconnect_ms": 4934,
+      "frames_published": 64,
+      "telemetry_rows_added": 10,
+      "link_unknown_events": 1
+    }
+  }
+}

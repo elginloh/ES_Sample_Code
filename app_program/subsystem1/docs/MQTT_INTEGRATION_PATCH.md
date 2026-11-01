@@ -1,6 +1,11 @@
-# MQTT transport hook-up: required change to a protected file (NOT applied)
+# MQTT transport hook-up: change to a protected file
 
-**Status: blocked by repository rules. Reported here, not applied.**
+**Status: applied** in commit `05a675c` (2026-10-28):
+`lib/liblwip/sysdepend/pico_rp2040/mqtt_utk.c` calls the four bridge
+functions below. This document is kept as the record of the change; the
+current file differs from the diff in comments only. Steps 3-6 of
+"How to verify" still need the robot and are listed again in
+`telemetry/docs/FIRMWARE.md` (live verification).
 
 Buddy 1's firmware encodes, queues, validates and acknowledges everything
 inside `app_program/subsystem1/`. Getting frames onto the network, however,

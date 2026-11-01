@@ -1,0 +1,357 @@
+#!/usr/bin/env bash
+#
+# csc14 -- everyday commands for the CSC14 telemetry backend
+#          (Pico W -> Mosquitto -> Node-RED -> PostgreSQL -> Grafana)
+#
+#   csc14 setup                 install pinned Node-RED/Grafana, create .env and the database
+#   csc14 start | stop | status
+#   csc14 run start "name" [--notes "..."] [--description "..."] [--simulated]
+#   csc14 run end [--notes "..."] [--simulated]      csc14 run list | run show [run-id]
+#   csc14 simulate [--seconds N]                      synthetic robot on sim/csc14/... (never live)
+#   csc14 test [unit|integration|all]                 csc14 bench | logs NAME | migrate
+#   csc14 command ping|status    csc14 prune --decoded-older-than DAYS [--yes]
+#
+# Works on macOS (Homebrew) and Raspberry Pi OS / Debian.  Starting or
+# ending a run only writes to the database; it never sends anything to the
+# robot.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"	# telemetry/
+RT="${CSC14_RUNTIME_DIR:-$HERE/.runtime}"
+LOGS="$RT/logs"
+PIDS="$RT/pids"
+GRAFANA_VERSION=13.2.5
+GRAFANA_BUILD=40359240686
+NODE_MIN_MAJOR=22
+NODE_MIN_MINOR=9
+
+say()  { printf '%s\n' "$*"; }
+warn() { printf 'WARNING: %s\n' "$*" >&2; }
+die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+load_env() {
+	[ -f "$HERE/.env" ] || die "telemetry/.env is missing: run 'bin/csc14 setup' first"
+	set -a
+	# shellcheck disable=SC1091
+	. "$HERE/.env"
+	set +a
+	export CSC14_RUNTIME_DIR="$RT"
+}
+
+port_open() {	# host port
+	(exec 3<>"/dev/tcp/$1/$2") 2>/dev/null
+}
+
+is_local() {
+	case "$1" in 127.0.0.1|localhost|::1) return 0 ;; *) return 1 ;; esac
+}
+
+pid_alive() {	# name
+	local f="$PIDS/$1.pid"
+	[ -f "$f" ] && kill -0 "$(cat "$f")" 2>/dev/null
+}
+
+wait_http() {	# url seconds
+	local i
+	for i in $(seq 1 "$2"); do
+		curl -fs -o /dev/null "$1" && return 0
+		sleep 1
+	done
+	return 1
+}
+
+platform() {
+	local os arch
+	case "$(uname -s)" in Darwin) os=darwin ;; Linux) os=linux ;; *) die "unsupported OS $(uname -s)" ;; esac
+	case "$(uname -m)" in arm64|aarch64) arch=arm64 ;; x86_64|amd64) arch=amd64 ;;
+		armv7l) arch=arm-7 ;; *) die "unsupported CPU $(uname -m)" ;; esac
+	printf '%s_%s' "$os" "$arch"
+}
+
+grafana_home() { printf '%s/grafana-%s' "$RT" "$GRAFANA_VERSION"; }
+
+check_node() {
+	command -v node >/dev/null || die "Node.js is not installed (need >= $NODE_MIN_MAJOR.$NODE_MIN_MINOR)"
+	local v major minor
+	v="$(node -p 'process.versions.node')"
+	major="${v%%.*}"; minor="$(printf '%s' "$v" | cut -d. -f2)"
+	if [ "$major" -lt "$NODE_MIN_MAJOR" ] || { [ "$major" -eq "$NODE_MIN_MAJOR" ] && [ "$minor" -lt "$NODE_MIN_MINOR" ]; }; then
+		die "Node.js $v is too old for Node-RED 5 (need >= $NODE_MIN_MAJOR.$NODE_MIN_MINOR)"
+	fi
+}
+
+# ---------------------------------------------------------------------------
+cmd_setup() {
+	check_node
+	mkdir -p "$LOGS" "$PIDS" "$RT/nodered"
+	say "== Node.js packages (pinned in package-lock.json)"
+	(cd "$HERE" && npm ci --no-audit --no-fund --loglevel=error)
+
+	if [ ! -f "$HERE/.env" ]; then
+		say "== creating telemetry/.env with random passwords"
+		local secret
+		cp "$HERE/.env.example" "$HERE/.env"
+		chmod 600 "$HERE/.env"
+		for key in CSC14_PG_WRITER_PASSWORD CSC14_PG_READER_PASSWORD CSC14_GRAFANA_ADMIN_PASSWORD \
+			   CSC14_NODERED_CREDENTIAL_SECRET; do
+			secret="$(node -e 'process.stdout.write(require("crypto").randomBytes(18).toString("base64url"))')"
+			sed -i.bak "s|^$key=\$|$key=$secret|" "$HERE/.env"
+		done
+		# reuse what this computer already has, if present
+		if [ -f "$HOME/mosquitto-dev.conf" ]; then
+			sed -i.bak "s|^CSC14_BROKER_CONF=\$|CSC14_BROKER_CONF=$HOME/mosquitto-dev.conf|" "$HERE/.env"
+		fi
+		for d in /opt/homebrew/var/postgresql@18 /usr/local/var/postgresql@18; do
+			if [ -f "$d/PG_VERSION" ]; then
+				sed -i.bak "s|^CSC14_PG_DATA=\$|CSC14_PG_DATA=$d|" "$HERE/.env"
+				break
+			fi
+		done
+		rm -f "$HERE/.env.bak"
+	else
+		say "== telemetry/.env exists, left unchanged"
+	fi
+	load_env
+
+	local gh; gh="$(grafana_home)"
+	if [ ! -x "$gh/bin/grafana" ]; then
+		local plat file url
+		plat="$(platform)"
+		file="grafana_${GRAFANA_VERSION}_${GRAFANA_BUILD}_${plat}.tar.gz"
+		url="https://dl.grafana.com/grafana/release/$GRAFANA_VERSION/$file"
+		say "== downloading Grafana $GRAFANA_VERSION ($plat, ~450 MB)"
+		curl -fL --retry 3 --progress-bar -o "$RT/$file" "$url"
+		curl -fsSL -o "$RT/$file.sha256" "$url.sha256"
+		local want got
+		want="$(cut -d' ' -f1 < "$RT/$file.sha256")"
+		got="$( (shasum -a 256 "$RT/$file" 2>/dev/null || sha256sum "$RT/$file") | cut -d' ' -f1)"
+		[ "$want" = "$got" ] || die "Grafana download checksum mismatch ($got != $want)"
+		rm -rf "$gh.tmp" && mkdir -p "$gh.tmp"
+		tar -xzf "$RT/$file" -C "$gh.tmp" --strip-components=1
+		mv "$gh.tmp" "$gh"
+		rm -f "$RT/$file" "$RT/$file.sha256"
+		say "   Grafana installed in $gh (checksum verified)"
+	else
+		say "== Grafana $GRAFANA_VERSION already installed"
+	fi
+
+	ensure_postgres
+	say "== database"
+	node "$HERE/tools/migrate.js"
+	say ""
+	say "Setup done.  Next: bin/csc14 start"
+}
+
+ensure_postgres() {
+	if pg_isready -q -h "$CSC14_PG_HOST" -p "$CSC14_PG_PORT" 2>/dev/null; then
+		return 0
+	fi
+	if [ -n "${CSC14_PG_DATA:-}" ] && is_local "$CSC14_PG_HOST" && command -v pg_ctl >/dev/null; then
+		say "== starting PostgreSQL ($CSC14_PG_DATA)"
+		mkdir -p "$LOGS" "$PIDS"
+		pg_ctl -D "$CSC14_PG_DATA" -l "$LOGS/postgresql.log" -w -t 60 start >/dev/null
+		touch "$PIDS/postgres.started-by-csc14"
+	else
+		die "PostgreSQL is not answering on $CSC14_PG_HOST:$CSC14_PG_PORT (start it, or set CSC14_PG_DATA)"
+	fi
+}
+
+ensure_broker() {
+	if port_open "$CSC14_MQTT_HOST" "$CSC14_MQTT_PORT"; then
+		say "   broker: answering on $CSC14_MQTT_HOST:$CSC14_MQTT_PORT (existing broker reused)"
+		return 0
+	fi
+	if [ -n "${CSC14_BROKER_CONF:-}" ] && is_local "$CSC14_MQTT_HOST"; then
+		command -v mosquitto >/dev/null || PATH="$PATH:/opt/homebrew/sbin:/usr/local/sbin:/usr/sbin"
+		[ -f "$CSC14_BROKER_CONF" ] || die "CSC14_BROKER_CONF=$CSC14_BROKER_CONF does not exist"
+		say "   broker: nothing on port $CSC14_MQTT_PORT, starting mosquitto -c $CSC14_BROKER_CONF"
+		nohup mosquitto -c "$CSC14_BROKER_CONF" >> "$LOGS/mosquitto.log" 2>&1 &
+		echo $! > "$PIDS/mosquitto.pid"
+		sleep 1
+		port_open "$CSC14_MQTT_HOST" "$CSC14_MQTT_PORT" || die "mosquitto did not start, see $LOGS/mosquitto.log"
+	else
+		warn "no MQTT broker on $CSC14_MQTT_HOST:$CSC14_MQTT_PORT; Node-RED keeps retrying until one appears"
+	fi
+}
+
+# Foreground processes (systemd ExecStart, and what 'start' runs in the background)
+serve_nodered() {
+	mkdir -p "$RT/nodered"
+	exec node "$HERE/node_modules/node-red/red.js" --settings "$HERE/nodered/settings.js" --userDir "$RT/nodered"
+}
+
+serve_grafana() {
+	local gh; gh="$(grafana_home)"
+	[ -x "$gh/bin/grafana" ] || die "Grafana is not installed: run 'bin/csc14 setup'"
+	mkdir -p "$RT/grafana-data" "$LOGS"
+	export CSC14_TELEMETRY_DIR="$HERE" \
+	GF_PATHS_DATA="$RT/grafana-data" GF_PATHS_LOGS="$LOGS" GF_PATHS_PLUGINS="$RT/grafana-data/plugins" \
+	GF_PATHS_PROVISIONING="$HERE/grafana/provisioning" \
+	GF_SERVER_HTTP_ADDR="$CSC14_GRAFANA_HOST" GF_SERVER_HTTP_PORT="$CSC14_GRAFANA_PORT" \
+	GF_SECURITY_ADMIN_PASSWORD="$CSC14_GRAFANA_ADMIN_PASSWORD" \
+	GF_AUTH_ANONYMOUS_ENABLED="$CSC14_GRAFANA_ANONYMOUS" \
+	GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH="$HERE/grafana/dashboards/csc14-robot.json"
+	exec "$gh/bin/grafana" server --homepath "$gh" --config "$HERE/grafana/grafana.ini"
+}
+
+start_nodered() {
+	if pid_alive nodered; then
+		say "   Node-RED: already running (pid $(cat "$PIDS/nodered.pid"))"
+		return 0
+	fi
+	nohup "$HERE/bin/csc14" serve nodered >> "$LOGS/nodered.log" 2>&1 &
+	echo $! > "$PIDS/nodered.pid"
+	if wait_http "http://$CSC14_NODERED_HOST:$CSC14_NODERED_PORT/csc14/health" 40 \
+	   || curl -s -o /dev/null "http://$CSC14_NODERED_HOST:$CSC14_NODERED_PORT/csc14/health"; then
+		say "   Node-RED: started (pid $(cat "$PIDS/nodered.pid"))"
+	else
+		warn "Node-RED did not answer within 40 s, see $LOGS/nodered.log"
+	fi
+}
+
+start_grafana() {
+	local gh; gh="$(grafana_home)"
+	[ -x "$gh/bin/grafana" ] || die "Grafana is not installed: run 'bin/csc14 setup'"
+	if pid_alive grafana; then
+		say "   Grafana: already running (pid $(cat "$PIDS/grafana.pid"))"
+		return 0
+	fi
+	nohup "$HERE/bin/csc14" serve grafana >> "$LOGS/grafana.out" 2>&1 &
+	echo $! > "$PIDS/grafana.pid"
+	if wait_http "http://$CSC14_GRAFANA_HOST:$CSC14_GRAFANA_PORT/api/health" 90; then
+		say "   Grafana: started (pid $(cat "$PIDS/grafana.pid"))"
+	else
+		warn "Grafana did not answer within 90 s, see $LOGS/grafana.log"
+	fi
+}
+
+cmd_start() {
+	load_env
+	mkdir -p "$LOGS" "$PIDS"
+	say "== starting the CSC14 telemetry backend"
+	ensure_postgres
+	say "   PostgreSQL: answering on $CSC14_PG_HOST:$CSC14_PG_PORT"
+	node "$HERE/tools/migrate.js" > "$LOGS/migrate.log" 2>&1 || die "database migration failed, see $LOGS/migrate.log"
+	ensure_broker
+	start_nodered
+	start_grafana
+	say ""
+	say "Dashboard:  http://$CSC14_GRAFANA_HOST:$CSC14_GRAFANA_PORT/d/csc14-robot"
+	say "Node-RED:   http://$CSC14_NODERED_HOST:$CSC14_NODERED_PORT/   (health: /csc14/health)"
+}
+
+stop_pid() {	# name
+	local f="$PIDS/$1.pid" pid i
+	[ -f "$f" ] || return 0
+	pid="$(cat "$f")"
+	if kill -0 "$pid" 2>/dev/null; then
+		kill "$pid"
+		for i in $(seq 1 20); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
+		kill -0 "$pid" 2>/dev/null && kill -9 "$pid"
+		say "   stopped $1 (pid $pid)"
+	fi
+	rm -f "$f"
+}
+
+cmd_stop() {
+	load_env
+	say "== stopping"
+	stop_pid grafana
+	stop_pid nodered
+	if [ "${1:-}" = "--all" ]; then
+		stop_pid mosquitto
+		if [ -f "$PIDS/postgres.started-by-csc14" ] && [ -n "${CSC14_PG_DATA:-}" ]; then
+			pg_ctl -D "$CSC14_PG_DATA" -w stop >/dev/null && say "   stopped PostgreSQL"
+			rm -f "$PIDS/postgres.started-by-csc14"
+		fi
+	else
+		say "   (broker and PostgreSQL left running; 'stop --all' also stops them if csc14 started them)"
+	fi
+}
+
+cmd_status() {
+	load_env
+	local ok=0
+	if pg_isready -q -h "$CSC14_PG_HOST" -p "$CSC14_PG_PORT" 2>/dev/null; then
+		say "PostgreSQL  up    $CSC14_PG_HOST:$CSC14_PG_PORT/$CSC14_PG_DATABASE"
+	else
+		say "PostgreSQL  DOWN  $CSC14_PG_HOST:$CSC14_PG_PORT"; ok=1
+	fi
+	if port_open "$CSC14_MQTT_HOST" "$CSC14_MQTT_PORT"; then
+		say "Broker      up    $CSC14_MQTT_HOST:$CSC14_MQTT_PORT"
+	else
+		say "Broker      DOWN  $CSC14_MQTT_HOST:$CSC14_MQTT_PORT"; ok=1
+	fi
+	local h
+	if h="$(curl -fs "http://$CSC14_NODERED_HOST:$CSC14_NODERED_PORT/csc14/health" 2>/dev/null || \
+		curl -s "http://$CSC14_NODERED_HOST:$CSC14_NODERED_PORT/csc14/health" 2>/dev/null)" && [ -n "$h" ]; then
+		printf '%s' "$h" | node -e '
+			let s = ""; process.stdin.on("data", (d) => s += d).on("end", () => {
+				const h = JSON.parse(s);
+				console.log(`Node-RED    ${h.ok ? "up  " : "DEGRADED"}  broker ${h.broker.connected ? "connected" : "NOT connected"}, database ${h.database.connected === false ? "UNAVAILABLE" : "ok"}, buffer ${h.buffer.bulk + h.buffer.priority} row(s), ${h.ingest.frames} frames (${h.ingest.rejected} rejected), write p95 ${h.write_latency_ms.p95 ?? "-"} ms`);
+				for (const s of h.streams) console.log(`  robot ${s.robot_id} (${s.source}): ${s.link}${s.last_rx_age_s === null ? "" : ", last frame " + s.last_rx_age_s.toFixed(1) + " s ago"}`);
+			});'
+	else
+		say "Node-RED    DOWN"; ok=1
+	fi
+	if curl -fs "http://$CSC14_GRAFANA_HOST:$CSC14_GRAFANA_PORT/api/health" >/dev/null 2>&1; then
+		say "Grafana     up    http://$CSC14_GRAFANA_HOST:$CSC14_GRAFANA_PORT/d/csc14-robot"
+	else
+		say "Grafana     DOWN"; ok=1
+	fi
+	node "$HERE/tools/run.js" active 2>/dev/null || true
+	return $ok
+}
+
+cmd_logs() {
+	case "${1:-nodered}" in
+		nodered) tail -n 100 -f "$LOGS/nodered.log" ;;
+		grafana) tail -n 100 -f "$LOGS/grafana.log" ;;
+		mosquitto) tail -n 100 -f "$LOGS/mosquitto.log" ;;
+		postgresql) tail -n 100 -f "$LOGS/postgresql.log" ;;
+		*) die "logs: nodered | grafana | mosquitto | postgresql" ;;
+	esac
+}
+
+cmd_test() {
+	local what="${1:-unit}"
+	cd "$HERE"
+	say "== protocol self-test (app_program/subsystem1/docs/nodered_decoder.js)"
+	node ../app_program/subsystem1/docs/nodered_decoder.js
+	if [ "$what" = unit ] || [ "$what" = all ]; then
+		say "== unit tests"
+		node --test "test/unit/*.test.js"
+	fi
+	if [ "$what" = integration ] || [ "$what" = all ]; then
+		say "== integration tests (isolated broker, database and Node-RED; never the live robot)"
+		[ -f "$HERE/.env" ] && load_env
+		node --test --test-concurrency=1 --test-timeout=900000 "test/integration/*.test.js"
+	fi
+}
+
+main() {
+	local c="${1:-}"
+	[ $# -gt 0 ] && shift
+	case "$c" in
+		setup) cmd_setup "$@" ;;
+		start) cmd_start "$@" ;;
+		stop) cmd_stop "$@" ;;
+		restart) cmd_stop; cmd_start ;;
+		serve)	# foreground, for systemd: serve nodered | serve grafana
+			load_env
+			case "${1:-}" in nodered) serve_nodered ;; grafana) serve_grafana ;;
+				*) die "serve: nodered | grafana" ;; esac ;;
+		status) cmd_status "$@" ;;
+		run) load_env; node "$HERE/tools/run.js" "$@" ;;
+		simulate) load_env; node "$HERE/tools/simulate.js" "$@" ;;
+		command) load_env; node "$HERE/tools/command.js" "$@" ;;
+		bench) load_env; node "$HERE/tools/bench.js" "$@" ;;
+		prune) load_env; node "$HERE/tools/prune.js" "$@" ;;
+		migrate) load_env; node "$HERE/tools/migrate.js" ;;
+		test) cmd_test "$@" ;;
+		logs) cmd_logs "$@" ;;
+		*) sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; [ -z "$c" ] || exit 1 ;;
+	esac
+}
+
+main "$@"

@@ -1,0 +1,490 @@
+[
+    {
+        "id": "csc14_tab",
+        "type": "tab",
+        "label": "CSC14 telemetry",
+        "disabled": false,
+        "info": "Pico W -> Mosquitto -> **this flow** -> PostgreSQL -> Grafana.\n\nRobot frames are compact binary (protocol v1, app_program/subsystem1/docs/MQTT_BINARY_PROTOCOL.md). The decoding, validation and storage code is in telemetry/lib and is loaded through global context `csc14` (telemetry/nodered/settings.js).\n\nThis flow only receives. It never publishes on csc14/cmd."
+    },
+    {
+        "id": "csc14_broker",
+        "type": "mqtt-broker",
+        "name": "Robot broker (CSC14_MQTT_HOST)",
+        "broker": "${CSC14_MQTT_HOST}",
+        "port": "${CSC14_MQTT_PORT}",
+        "clientid": "${CSC14_MQTT_CLIENT_ID}",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "15",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "csc14_c_in",
+        "type": "comment",
+        "z": "csc14_tab",
+        "name": "Robot output topics, binary frames, QoS 0 (as published)",
+        "info": "Live: CSC14_TOPIC_LIVE/+ (csc14/tlm, hb, evt, ack). Simulated: CSC14_TOPIC_SIM/+ (stored with source = simulated, never in a live run).",
+        "x": 200,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "csc14_in_live",
+        "type": "mqtt in",
+        "z": "csc14_tab",
+        "name": "robot frames (live)",
+        "topic": "${CSC14_SUB_LIVE}",
+        "qos": "0",
+        "datatype": "buffer",
+        "broker": "csc14_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 100,
+        "wires": [
+            [
+                "csc14_decode"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_in_sim",
+        "type": "mqtt in",
+        "z": "csc14_tab",
+        "name": "simulated frames",
+        "topic": "${CSC14_SUB_SIM}",
+        "qos": "0",
+        "datatype": "buffer",
+        "broker": "csc14_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 160,
+        "wires": [
+            [
+                "csc14_decode"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_decode",
+        "type": "function",
+        "z": "csc14_tab",
+        "name": "validate, decode, route",
+        "func": "// Every robot frame arrives as a Buffer (mqtt in: output \"a Buffer\").\n// api.ingest() checks length, CRC, version, type and the range of every\n// field, interprets the frame and returns the database operations\n// (telemetry/lib/ingest.js).  Malformed frames only produce a\n// rejected_frame row; they never reach the measurement tables.\nconst api = global.get('csc14');\nconst r = api.ingest(msg.topic, msg.payload, Date.now());\nmsg.kind = r.kind;\nmsg.ops = r.ops;\nmsg.payload = r.decoded || { rejected: r.reason || r.kind, detail: r.detail || null };\nconst order = ['telemetry', 'heartbeat', 'event', 'ack', 'rejected'];\nconst out = [null, null, null, null, null, null];\nconst i = order.indexOf(r.kind);\nout[i < 0 ? 5 : i] = msg;\nconst st = api.stats().ingest;\nnode.status({ fill: st.rejected ? 'yellow' : 'green', shape: 'dot',\n\ttext: st.frames + ' frames, ' + st.rejected + ' rejected' });\nreturn out;\n",
+        "outputs": 6,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "// Node-RED stop or re-deploy: flush, save state\nreturn global.get('csc14').shutdown();\n",
+        "libs": [],
+        "x": 420,
+        "y": 130,
+        "wires": [
+            [
+                "csc14_store",
+                "csc14_dbg_tlm"
+            ],
+            [
+                "csc14_store"
+            ],
+            [
+                "csc14_store",
+                "csc14_dbg_evt"
+            ],
+            [
+                "csc14_store",
+                "csc14_dbg_ack"
+            ],
+            [
+                "csc14_store",
+                "csc14_dbg_rej"
+            ],
+            [
+                "csc14_store"
+            ]
+        ],
+        "outputLabels": [
+            "telemetry",
+            "heartbeat",
+            "event",
+            "ack",
+            "rejected",
+            "other"
+        ]
+    },
+    {
+        "id": "csc14_store",
+        "type": "function",
+        "z": "csc14_tab",
+        "name": "store in PostgreSQL",
+        "func": "// Rows -> bounded in-memory queue -> PostgreSQL (telemetry/lib/store.js):\n// parameterized INSERTs, retried with back-off while the database is\n// unavailable; only a full buffer drops rows (oldest first, counted).\nconst api = global.get('csc14');\nif (msg.ops && msg.ops.length) {\n\tapi.store(msg.ops);\n}\nconst st = api.stats();\nnode.status({ fill: st.db === false ? 'red' : (st.db ? 'green' : 'grey'),\n\tshape: st.db ? 'dot' : 'ring',\n\ttext: (st.db === false ? 'database unavailable, ' : 'database ok, ') + st.queued + ' queued' });\nreturn null;\n",
+        "outputs": 0,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 760,
+        "y": 130,
+        "wires": []
+    },
+    {
+        "id": "csc14_dbg_tlm",
+        "type": "debug",
+        "z": "csc14_tab",
+        "name": "decoded telemetry",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 750,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "csc14_dbg_evt",
+        "type": "debug",
+        "z": "csc14_tab",
+        "name": "decoded events",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 740,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "csc14_dbg_ack",
+        "type": "debug",
+        "z": "csc14_tab",
+        "name": "decoded ACKs",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 730,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "csc14_dbg_rej",
+        "type": "debug",
+        "z": "csc14_tab",
+        "name": "rejected frames",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 740,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "csc14_c_time",
+        "type": "comment",
+        "z": "csc14_tab",
+        "name": "Time-driven: link state, health, saved state",
+        "info": "",
+        "x": 210,
+        "y": 400,
+        "wires": []
+    },
+    {
+        "id": "csc14_t_link",
+        "type": "inject",
+        "z": "csc14_tab",
+        "name": "every 1 s",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "1",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "2",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 140,
+        "y": 440,
+        "wires": [
+            [
+                "csc14_link"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_link",
+        "type": "function",
+        "z": "csc14_tab",
+        "name": "online / stale / offline",
+        "func": "// Online / stale / offline from the age of the last heartbeat or\n// telemetry frame (CSC14_STALE_AFTER_S, CSC14_OFFLINE_AFTER_S).\nmsg.ops = global.get('csc14').tick(Date.now());\nreturn msg.ops.length ? msg : null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 440,
+        "wires": [
+            [
+                "csc14_store"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_t_health",
+        "type": "inject",
+        "z": "csc14_tab",
+        "name": "every 10 s",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "10",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "2",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 140,
+        "y": 500,
+        "wires": [
+            [
+                "csc14_health"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_health",
+        "type": "function",
+        "z": "csc14_tab",
+        "name": "pipeline health",
+        "func": "// Pipeline health (backend, not robot): buffer, database, broker,\n// write latency, memory.  Stored every 10 s in csc14.ingest_health.\nmsg.ops = global.get('csc14').healthOps();\nconst h = msg.ops[0].row;\nnode.status({ fill: (h.db_connected === false || h.broker_connected === false) ? 'red' : 'green',\n\tshape: 'dot', text: 'p95 ' + (h.latency_p95_ms === null ? '-' : h.latency_p95_ms) + ' ms, ' +\n\t(h.queue_bulk + h.queue_priority) + ' queued, ' + h.rss_mb + ' MB' });\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 380,
+        "y": 500,
+        "wires": [
+            [
+                "csc14_store"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_t_save",
+        "type": "inject",
+        "z": "csc14_tab",
+        "name": "every 5 s",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "5",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "2",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 140,
+        "y": 560,
+        "wires": [
+            [
+                "csc14_save"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_save",
+        "type": "function",
+        "z": "csc14_tab",
+        "name": "save ingest state",
+        "func": "// Boot-session and sequence bookkeeping survives a Node-RED restart.\nglobal.get('csc14').saveState();\nreturn null;\n",
+        "outputs": 0,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 380,
+        "y": 560,
+        "wires": []
+    },
+    {
+        "id": "csc14_status",
+        "type": "status",
+        "z": "csc14_tab",
+        "name": "broker connection",
+        "scope": [
+            "csc14_in_live",
+            "csc14_in_sim"
+        ],
+        "x": 150,
+        "y": 620,
+        "wires": [
+            [
+                "csc14_broker_fn"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_broker_fn",
+        "type": "function",
+        "z": "csc14_tab",
+        "name": "backend <-> broker",
+        "func": "// The mqtt in nodes report node-red:common.status.connected /\n// .disconnected / .connecting.  Losing the broker makes the robot's link\n// state UNKNOWN (a backend problem), not OFFLINE.\nconst text = (msg.status && msg.status.text) || '';\nif (!/\\.(connected|disconnected)$/.test(text)) {\n\treturn null;\n}\nmsg.ops = global.get('csc14').brokerStatus(/\\.connected$/.test(text));\nreturn msg.ops.length ? msg : null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 390,
+        "y": 620,
+        "wires": [
+            [
+                "csc14_store"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_c_http",
+        "type": "comment",
+        "z": "csc14_tab",
+        "name": "GET /csc14/health (used by bin/csc14 status)",
+        "info": "",
+        "x": 220,
+        "y": 680,
+        "wires": []
+    },
+    {
+        "id": "csc14_http_in",
+        "type": "http in",
+        "z": "csc14_tab",
+        "name": "",
+        "url": "/csc14/health",
+        "method": "get",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 160,
+        "y": 720,
+        "wires": [
+            [
+                "csc14_http_fn"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_http_fn",
+        "type": "function",
+        "z": "csc14_tab",
+        "name": "health JSON",
+        "func": "// GET /csc14/health -> 200 when broker and database are reachable, else 503\nconst h = global.get('csc14').health();\nmsg.payload = h;\nmsg.statusCode = h.ok ? 200 : 503;\nmsg.headers = { 'content-type': 'application/json' };\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 390,
+        "y": 720,
+        "wires": [
+            [
+                "csc14_http_out"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_http_out",
+        "type": "http response",
+        "z": "csc14_tab",
+        "name": "",
+        "statusCode": "",
+        "headers": {},
+        "x": 590,
+        "y": 720,
+        "wires": []
+    },
+    {
+        "id": "csc14_catch",
+        "type": "catch",
+        "z": "csc14_tab",
+        "name": "flow errors",
+        "scope": null,
+        "uncaught": false,
+        "x": 150,
+        "y": 780,
+        "wires": [
+            [
+                "csc14_err_fn"
+            ]
+        ]
+    },
+    {
+        "id": "csc14_err_fn",
+        "type": "function",
+        "z": "csc14_tab",
+        "name": "count + log",
+        "func": "global.get('csc14').flowError();\nnode.warn('csc14 flow error: ' + ((msg.error && msg.error.message) || 'unknown'));\nreturn null;\n",
+        "outputs": 0,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 780,
+        "wires": []
+    }
+]

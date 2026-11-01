@@ -49,6 +49,13 @@
 #define S1_CONSOLE_TELEMETRY	0
 #endif
 
+/* Measurement builds: every N seconds print the existing TASK_STAT
+   counters of the periodic tasks and the fill level of the telemetry
+   queues on the console (telemetry/docs/MEASUREMENTS.md); 0 = off */
+#ifndef S1_STAT_REPORT_S
+#define S1_STAT_REPORT_S	0
+#endif
+
 /* flg_comm bits */
 #define COMM_EV_TICK		0x01U
 #define COMM_EV_RX		0x02U

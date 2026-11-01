@@ -1,0 +1,43 @@
+# backend unit tests, 2026-10-30 13:56 +08
+✔ flows.json and the dashboard JSON are generated from the current sources (9.29ms)
+✔ flow: subscribes as Buffer, never publishes, every Function node compiles (3.610542ms)
+✔ dashboard: provisioned data source, known variables, allowed refresh (2.538375ms)
+✔ topics: live, simulated and foreign topics (12.156291ms)
+✔ first frame opens a session; telemetry rows carry columns, frame and decoded record (1.439833ms)
+✔ uptime wrap (16-bit, 6553.6 s) stays in one session and is unwrapped (4.585625ms)
+✔ a reboot (uptime restarts) opens a new session; a backend restart with saved state does not (1.727708ms)
+✔ frames queued during an outage arrive late without starting a new session (1.942292ms)
+✔ sequence numbers: gaps, wrap, duplicates and ambiguous long gaps (1.631459ms)
+✔ humps: baseline at first sight, increments, several between snapshots, saturation (3.348042ms)
+✔ derived events: faults per bit, tilt, line state, avoidance failure, comm state (0.84325ms)
+✔ the first FAULTS event of a boot is labelled as the since-boot union (0.524042ms)
+✔ link: online -> stale -> offline -> online, and UNKNOWN when the broker is lost (9.591959ms)
+✔ malformed frames are rejected (and their storage rate-limited); nothing reaches telemetry (0.838208ms)
+✔ a command frame seen on an observed topic is logged as a bus event; ACKs are routed (1.55025ms)
+✔ virtual robot scenario end to end through the ingestor (130 s, outage, collision) (59.844042ms)
+✔ golden frames decode to the documented values and re-encode byte for byte (7.115667ms)
+✔ random records survive encode -> decode with every field intact (signed fields included) (66.8985ms)
+✔ scaling and units (1.611208ms)
+✔ invalid codes become NULL in the typed columns, with their status kept (1.618958ms)
+✔ structural errors reject the whole frame (1.717ms)
+✔ values v1 never produces are reported as issues (1.718625ms)
+✔ fault severity follows sys_state_logic.c and its policy flags (1.609166ms)
+✔ IR sensors and line position use the car's real sides (1.956209ms)
+✔ ultrasonic meaning depends on the avoidance phase; zero profile words mean no profile (1.845291ms)
+✔ event and heartbeat interpretation (1.118042ms)
+✔ rows are written in arrival order with parameterized multi-row INSERTs and JSONB casts (47.503791ms)
+✔ database outage: rows are buffered, retried, and all written after recovery (191.082833ms)
+✔ a full buffer drops the oldest bulk rows, keeps priority rows, and reports the loss (14.19375ms)
+✔ a row the database refuses as bad data is isolated and dropped; the rest is written (25.782458ms)
+✔ missing table or permission is not "bad data": rows are kept and retried (115.991583ms)
+✔ keyed upserts (link state) coalesce while queued (25.5835ms)
+✔ rows left at shutdown are spilled to disk and queued again on the next start (17.972708ms)
+✔ deque keeps order through shift and unshiftAll (1.231375ms)
+ℹ tests 34
+ℹ suites 0
+ℹ pass 34
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1745.397916
