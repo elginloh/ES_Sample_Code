@@ -1,0 +1,19 @@
+# CSC14 telemetry dashboard (Grafana, pinned build downloaded by
+# bin/csc14 setup).  Installed by install-services.sh.
+[Unit]
+Description=CSC14 telemetry dashboard (Grafana)
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@TELEMETRY@
+ExecStart=@TELEMETRY@/bin/csc14 serve grafana
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

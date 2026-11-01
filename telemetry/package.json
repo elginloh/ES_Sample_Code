@@ -1,0 +1,19 @@
+{
+  "name": "csc14-telemetry",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CSC14 robot telemetry backend: Pico W -> Mosquitto -> Node-RED -> PostgreSQL -> Grafana",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.9"
+  },
+  "scripts": {
+    "test": "node --test \"test/unit/*.test.js\"",
+    "test:integration": "node --test --test-concurrency=1 --test-timeout=900000 \"test/integration/*.test.js\""
+  },
+  "dependencies": {
+    "mqtt": "5.15.2",
+    "node-red": "5.0.9",
+    "pg": "8.23.1"
+  }
+}

@@ -1,0 +1,130 @@
+# BEFORE: commit d81f8b9, unmodified (git archive), run 2026-10-30 13:56 +08
+## node app_program/subsystem1/docs/nodered_decoder.js
+PASS heartbeat
+PASS command encode
+PASS ack
+PASS event
+PASS telemetry
+PASS crc rejected
+PASS short rejected
+exit=0
+## make -C app_program/subsystem2/host_test SUITES="s1 int" run
+[TEST] S1-U01 PASS  CRC-16/CCITT-FALSE: catalogue check value 0x29B1; empty input 0xFFFF
+[TEST] S1-U02 PASS  LSB-first bit order (known bytes FD BC DA), signed fields, overflow/underflow flagged
+[TEST] s1 bits SUMMARY 2 passed, 0 failed
+[TEST] S1-U03 PASS  heartbeat = golden bytes 12 2A 04 34 12 EC 3D 60 E5; decodes; reconnects saturate at 15
+[TEST] S1-U04 PASS  command frame = golden bytes; decoded and validated (SET_SPEED 250, id 0x5A)
+[TEST] S1-U05 PASS  acknowledgement and event frames = golden bytes; both decode
+[TEST] S1-U06 PASS  telemetry: 279 bits -> 40-byte frame = golden frame; decodes field by field
+[TEST] S1-U07 PASS  telemetry round trip with every field at its maximum and at its minimum
+[TEST] s1 frames SUMMARY 5 passed, 0 failed
+[TEST] S1-U08 PASS  rejected: bad CRC, truncated, version, unknown type, length byte, wrong type, schema size
+[TEST] S1-U09 PASS  command fields: reserved bits / codes 6-7 rejected; SET_SPEED 50..400 only; no stray args
+[TEST] S1-U10 PASS  decoder errors map to distinct acknowledgement codes
+[TEST] S1-U11 PASS  commands map to supervisory requests only; Buddy 2's refusal is acknowledged with its reason
+[TEST] s1 validation SUMMARY 4 passed, 0 failed
+[TEST] S1-U12 PASS  every encoder refuses a buffer one byte too small (no overrun)
+[TEST]   telemetry size: binary frame 40 bytes, same fields as JSON 697 bytes
+[TEST] S1-U13 PASS  binary telemetry frame (40 B) at least 10x smaller than the JSON text form
+[TEST] s1 sizes SUMMARY 2 passed, 0 failed
+[TEST] S1-U14 PASS  no network stack in the image: DISABLED without faults; starts once configured
+[TEST] S1-U15 PASS  connect sequence WIFI -> MQTT -> SUBSCRIBE -> ONLINE
+[TEST] S1-U16 PASS  WiFi lost while online: WIFI_LOSS (degraded) and RECOVERING reported
+[TEST] S1-U17 PASS  retries wait 1, 2, 4, 8, 16, 16 s (capped, non-blocking); every 3rd restarts the client
+[TEST] S1-U18 PASS  automatic reconnection: ONLINE again, counted, back-off reset, faults cleared
+[TEST] S1-U19 PASS  broker lost with WiFi up: MQTT_LOSS only; each wait for the broker bounded to 10 s
+[TEST] s1 comm fsm SUMMARY 6 passed, 0 failed
+[TEST] S1-U20 PASS  communication status word: 17 bits, counters saturate at 15
+[TEST] s1 status word SUMMARY 1 passed, 0 failed
+[TEST] INT-10a PASS  box 150 mm wide at 300 mm: packed profile -> plan; obstacle event -> OBSTACLE
+[TEST]   bypass: closest 190 mm beside the box, end heading 788 mdeg, end offset 0 mm, travelled 962 mm
+[TEST] INT-10b PASS  every planned step crosses the interface packed and completes; search stops on the line
+[TEST] INT-10c PASS  car centre kept >= 150 mm right of the box edge; back on the line, heading within 10 deg
+[TEST] INT-10d PASS  AVOID_DONE -> NORMAL: line steering drives the car again
+[TEST] int avoidance SUMMARY 4 passed, 0 failed
+[TEST] INT-11a PASS  valid barcode with the default (empty) map: decoded and reported, no motion
+[TEST]   barcode 'A' -> RIGHT: heading change 89066 mdeg
+[TEST]   barcode 'F' -> LEFT: heading change -89246 mdeg
+[TEST]   barcode 'W' -> U-TURN: heading change 179416 mdeg
+[TEST]   barcode 'X' -> STRAIGHT: heading change -205 mdeg
+[TEST] INT-11b PASS  RIGHT/LEFT/U-TURN/STRAIGHT barcodes -> BARCODE commands -> NAV_ACTION -> DONE -> NORMAL
+[TEST] INT-11c PASS  barcode status word carries symbol, command and motion result
+[TEST] int barcode nav SUMMARY 3 passed, 0 failed
+[TEST] INT-12a PASS  obstacle during a barcode turn: OBSTACLE wins, turn ABORTED, motors off, line loss kept
+[TEST] INT-12b PASS  then: stale command, barcode command and speed change refused; Buddy 5's command accepted
+[TEST] int simultaneous SUMMARY 2 passed, 0 failed
+[TEST] INT-13a PASS  degraded faults from Buddies 1, 3, 5 are reported; the car keeps driving
+[TEST] INT-13b PASS  IMU fault -> SAFE_STOP in one cycle, motors held off; RESUME refused while it persists
+[TEST] INT-13c PASS  condition gone: RESUME -> INIT; both recalibrations required before NORMAL
+[TEST] INT-13d PASS  collision latched until CLEAR; CLEAR alone never leaves SAFE_STOP, RESUME does
+[TEST] INT-13e PASS  jammed wheels: 3 local motion faults, then escalation to SAFE_STOP (no endless cycling)
+[TEST] int faults SUMMARY 5 passed, 0 failed
+[TEST] INT-14a PASS  during avoidance Buddy 3 reports the loss once and neither steers nor searches
+[TEST] INT-14b PASS  line under the sensors again: FOUND event; AVOID_DONE -> NORMAL
+[TEST] INT-14c PASS  line steering resumes driving only after the hand-back to NORMAL
+[TEST] INT-14d PASS  line never found: avoidance recovery gives up -> SAFE_STOP; Buddy 3's own search keeps turning left in NORMAL (no SAFE_STOP)
+[TEST] int line reacquisition SUMMARY 4 passed, 0 failed
+[TEST] INT-17a PASS  WiFi lost for 9 s while driving: WIFI_LOSS + RECOVERING reported, not critical; car keeps going
+[TEST] INT-17b PASS  link back: automatic reconnection clears the network faults; driving never interrupted
+[TEST] int network loss SUMMARY 2 passed, 0 failed
+[TEST] INT-18a PASS  critical fault in the same cycle as AVOID_DONE: SAFE_STOP wins, manoeuvre ABORTED
+[TEST] INT-18b PASS  in SAFE_STOP no event leaves it and only supervisory requests are accepted
+[TEST] INT-18c PASS  remote STOP: zero output in the next period, held as SAFE_STOP until RESUME
+[TEST] int safe stop SUMMARY 3 passed, 0 failed
+[TEST] INT-19a PASS  motion queue full: the 6th command is refused (QUEUE); the 5 accepted run in order
+[TEST] INT-19b PASS  barcode edge buffer full: capture rejected as INVALID (never a command), decoder idle
+[TEST] int queue full SUMMARY 2 passed, 0 failed
+[TEST] INT-20a PASS  MQTT SET_SPEED 300 -> validated -> supervisory request -> applied, ACK OK
+[TEST] INT-20b PASS  same request during avoidance: refused by Buddy 2, ACK carries the reason (MODE)
+[TEST] INT-20c PASS  out-of-range or corrupted MQTT commands are rejected by Buddy 1, never reach Buddy 2
+[TEST] INT-20d PASS  remote STOP accepted in all 5 modes; RESUME refused outside SAFE_STOP
+[TEST] int remote command SUMMARY 4 passed, 0 failed
+[TEST] INT-15a PASS  Buddies 1-5 at their limits and invalid codes: all 48 fields reach the server unchanged
+[TEST] INT-15b PASS  engineering values arrive within their step: 2 deg, 10 mm/s, 1 deg, 5 mm, 10 mm
+[TEST] int binary interfaces SUMMARY 2 passed, 0 failed
+[TEST] INT-16a PASS  30 mm hump measured by Buddy 4 arrives at the server within +-4 mm
+[TEST] INT-16b PASS  after humps of 30, 20, 45 mm: count 3, highest 45 mm within +-4 mm
+[TEST] INT-16c PASS  one EVT_HUMP frame carries last, highest and count
+[TEST] INT-16d PASS  mode, barcode, obstacle and collision events decode to their fields; no change, no event
+[TEST] int hump telemetry SUMMARY 4 passed, 0 failed
+[TEST] HOST TOTAL: 0 failed check(s)
+## all suites
+[TEST] s1 bits SUMMARY 2 passed, 0 failed
+[TEST] s1 frames SUMMARY 5 passed, 0 failed
+[TEST] s1 validation SUMMARY 4 passed, 0 failed
+[TEST] s1 sizes SUMMARY 2 passed, 0 failed
+[TEST] s1 comm fsm SUMMARY 6 passed, 0 failed
+[TEST] s1 status word SUMMARY 1 passed, 0 failed
+[TEST] s2 formats SUMMARY 6 passed, 0 failed
+[TEST] s2 pid SUMMARY 2 passed, 0 failed
+[TEST] s2 execution SUMMARY 5 passed, 0 failed
+[TEST] s2 arbitration SUMMARY 7 passed, 0 failed
+[TEST] s2 faults SUMMARY 4 passed, 0 failed
+[TEST] s2 steering SUMMARY 6 passed, 0 failed
+[TEST] s2 vehicle fsm SUMMARY 12 passed, 0 failed
+[TEST] s3 code39 SUMMARY 9 passed, 0 failed
+[TEST] s3 capture SUMMARY 6 passed, 0 failed
+[TEST] s3 nav map SUMMARY 3 passed, 0 failed
+[TEST] s3 line SUMMARY 18 passed, 0 failed
+[TEST] s3 status words SUMMARY 2 passed, 0 failed
+[TEST] s4 math SUMMARY 3 passed, 0 failed
+[TEST] s4 calibration SUMMARY 4 passed, 0 failed
+[TEST] s4 monitoring SUMMARY 11 passed, 0 failed
+[TEST] s4 no gyro SUMMARY 11 passed, 0 failed
+[TEST] s4 hump SUMMARY 7 passed, 0 failed
+[TEST] s4 packing SUMMARY 4 passed, 0 failed
+[TEST] s5 codes SUMMARY 6 passed, 0 failed
+[TEST] s5 profile SUMMARY 8 passed, 0 failed
+[TEST] s5 plan SUMMARY 7 passed, 0 failed
+[TEST] int avoidance SUMMARY 4 passed, 0 failed
+[TEST] int barcode nav SUMMARY 3 passed, 0 failed
+[TEST] int simultaneous SUMMARY 2 passed, 0 failed
+[TEST] int faults SUMMARY 5 passed, 0 failed
+[TEST] int line reacquisition SUMMARY 4 passed, 0 failed
+[TEST] int network loss SUMMARY 2 passed, 0 failed
+[TEST] int safe stop SUMMARY 3 passed, 0 failed
+[TEST] int queue full SUMMARY 2 passed, 0 failed
+[TEST] int remote command SUMMARY 4 passed, 0 failed
+[TEST] int binary interfaces SUMMARY 2 passed, 0 failed
+[TEST] int hump telemetry SUMMARY 4 passed, 0 failed
+[TEST] HOST TOTAL: 0 failed check(s)

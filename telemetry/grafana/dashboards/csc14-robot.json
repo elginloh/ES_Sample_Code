@@ -1,0 +1,2943 @@
+{
+  "uid": "csc14-robot",
+  "title": "CSC14 robot telemetry",
+  "description": "Live and historical telemetry of the CSC14 robot car (Pico W -> Mosquitto -> Node-RED -> PostgreSQL).",
+  "tags": [
+    "csc14"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m"
+    ]
+  },
+  "schemaVersion": 41,
+  "version": 1,
+  "links": [],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "robot",
+        "label": "Robot",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "csc14-pg"
+        },
+        "refresh": 1,
+        "sort": 1,
+        "query": "SELECT robot_id FROM csc14.robot_link UNION SELECT robot_id FROM csc14.run ORDER BY 1",
+        "definition": "robot ids seen by the backend",
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": []
+      },
+      {
+        "name": "source",
+        "label": "Source",
+        "type": "custom",
+        "query": "live,simulated",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "live",
+          "value": "live"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "live",
+            "value": "live"
+          },
+          {
+            "selected": false,
+            "text": "simulated",
+            "value": "simulated"
+          }
+        ]
+      },
+      {
+        "name": "run",
+        "label": "Run",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "csc14-pg"
+        },
+        "refresh": 2,
+        "sort": 0,
+        "query": "SELECT __value, __text FROM (SELECT 'all' AS __value, 'All data in the time range' AS __text, 1 AS o, now() AS s UNION ALL SELECT run_id::text, name || ' (' || to_char(started_at, 'YYYY-MM-DD HH24:MI') || CASE WHEN ended_at IS NULL THEN ', active' ELSE '' END || ')', 2, started_at FROM csc14.run WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring}) x ORDER BY o, s DESC",
+        "definition": "runs of the robot",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "All data in the time range",
+          "value": "all"
+        },
+        "options": []
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Overview",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Robot link (backend view)",
+      "description": "From the age of the newest heartbeat or telemetry: ONLINE <= 3 s, STALE <= 10 s, OFFLINE beyond (CSC14_STALE_AFTER_S / CSC14_OFFLINE_AFTER_S). UNKNOWN = the backend lost its broker connection, a backend problem rather than a robot fault. BACKEND NOT UPDATING = Node-RED stopped writing.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN updated_at IS NULL THEN 'NO DATA'\n\t  WHEN now() - updated_at > interval '15 seconds' THEN 'BACKEND NOT UPDATING'\n\t  ELSE state END AS \"link\",\n\t  round(extract(epoch FROM now() - last_rx_at)::numeric, 1) AS \"last frame (s ago)\"\n\tFROM (SELECT 1) one LEFT JOIN csc14.robot_link ON robot_id = ${robot:sqlstring} AND source = ${source:sqlstring}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "ONLINE": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "ONLINE"
+                },
+                "STALE": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "STALE"
+                },
+                "OFFLINE": {
+                  "color": "red",
+                  "index": 2,
+                  "text": "OFFLINE"
+                },
+                "UNKNOWN": {
+                  "color": "purple",
+                  "index": 3,
+                  "text": "UNKNOWN"
+                },
+                "NO DATA": {
+                  "color": "text",
+                  "index": 4,
+                  "text": "NO DATA"
+                },
+                "NEVER_SEEN": {
+                  "color": "text",
+                  "index": 5,
+                  "text": "NEVER_SEEN"
+                },
+                "BACKEND NOT UPDATING": {
+                  "color": "purple",
+                  "index": 6,
+                  "text": "BACKEND NOT UPDATING"
+                }
+              }
+            }
+          ],
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Operating mode",
+      "description": "Newest telemetry snapshot (500 ms). STALE = older than 5 s: not live.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 6,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN now() - received_at > interval '5 seconds' THEN 'STALE ' || round(extract(epoch FROM now() - received_at)) || ' s: ' || coalesce((mode_label)::text, '-') ELSE coalesce((mode_label)::text, '-') END AS \"mode\" FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "INIT": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "INIT"
+                },
+                "NORMAL": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "NORMAL"
+                },
+                "NAV_ACTION": {
+                  "color": "purple",
+                  "index": 2,
+                  "text": "NAV_ACTION"
+                },
+                "OBSTACLE": {
+                  "color": "orange",
+                  "index": 3,
+                  "text": "OBSTACLE"
+                },
+                "SAFE_STOP": {
+                  "color": "red",
+                  "index": 4,
+                  "text": "SAFE_STOP"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Critical fault active",
+      "description": "Newest snapshot: any active fault classed critical under the firmware policy flags (CSC14_SYS_*). LINE_RECOVERY is degraded, as in sys_state_logic.c.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 11,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN now() - received_at > interval '5 seconds' THEN 'STALE ' || round(extract(epoch FROM now() - received_at)) || ' s: ' || coalesce((CASE WHEN critical THEN 'YES' ELSE 'no' END)::text, '-') ELSE coalesce((CASE WHEN critical THEN 'YES' ELSE 'no' END)::text, '-') END AS \"critical\" FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "YES": {
+                  "color": "red",
+                  "index": 0,
+                  "text": "YES"
+                },
+                "no": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "no"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Backend pipeline",
+      "description": "Node-RED -> PostgreSQL health (csc14.ingest_health, every 10 s). Separate from robot faults.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 15,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN at IS NULL THEN 'NO DATA'\n\t  WHEN now() - at > interval '30 seconds' THEN 'NOT REPORTING'\n\t  WHEN broker_connected IS FALSE THEN 'BROKER DISCONNECTED'\n\t  WHEN queue_bulk + queue_priority > 100 THEN 'BUFFERING ' || (queue_bulk + queue_priority)\n\t  ELSE 'OK' END AS \"backend\", latency_p95_ms AS \"write p95 (ms)\"\n\tFROM (SELECT 1) one LEFT JOIN LATERAL (SELECT * FROM csc14.ingest_health ORDER BY at DESC LIMIT 1) h ON true"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "OK": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "OK"
+                },
+                "NOT REPORTING": {
+                  "color": "red",
+                  "index": 1,
+                  "text": "NOT REPORTING"
+                },
+                "BROKER DISCONNECTED": {
+                  "color": "red",
+                  "index": 2,
+                  "text": "BROKER DISCONNECTED"
+                },
+                "NO DATA": {
+                  "color": "text",
+                  "index": 3,
+                  "text": "NO DATA"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Robot-reported link",
+      "description": "comm_state in the newest telemetry and the reconnect count in the newest heartbeat (4 bits, saturates at 15). Frames queued during an outage arrive later and show the outage states.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT t.\"robot comm\", h.reconnects AS \"reconnects\"\n\tFROM (SELECT CASE WHEN now() - received_at > interval '5 seconds' THEN 'STALE ' || round(extract(epoch FROM now() - received_at)) || ' s: ' || coalesce((comm_state_label)::text, '-') ELSE coalesce((comm_state_label)::text, '-') END AS \"robot comm\" FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1) t\n\tLEFT JOIN (SELECT reconnects FROM csc14.heartbeat WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1) h ON true"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "ONLINE": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "ONLINE"
+                },
+                "RETRY_WAIT": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "RETRY_WAIT"
+                },
+                "RECOVERY": {
+                  "color": "orange",
+                  "index": 2,
+                  "text": "RECOVERY"
+                },
+                "DISABLED": {
+                  "color": "red",
+                  "index": 3,
+                  "text": "DISABLED"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto",
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Active faults (newest snapshot)",
+      "description": "Active fault bits from the newest telemetry snapshot. The first FAULTS event after the robot connects lists faults since boot, not active ones, so it is not used here.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH t AS (SELECT fault_mask, received_at,\n\t    CASE WHEN now() - received_at > interval '5 seconds' THEN 'STALE snapshot' ELSE 'live' END AS freshness\n\t  FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1)\n\tSELECT fb.bit, fb.name AS fault, fb.severity, fb.owner, t.freshness\n\tFROM t JOIN csc14.fault_bit fb ON (t.fault_mask >> fb.bit) & 1 = 1\n\tUNION ALL SELECT NULL, 'none active', '-', '-', t.freshness FROM t WHERE t.fault_mask = 0\n\tORDER BY 1 NULLS FIRST"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "severity"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "CRITICAL_CONDITION": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "CRITICAL_CONDITION"
+                      },
+                      "CRITICAL_EVENT": {
+                        "color": "red",
+                        "index": 1,
+                        "text": "CRITICAL_EVENT"
+                      },
+                      "DEGRADED": {
+                        "color": "orange",
+                        "index": 2,
+                        "text": "DEGRADED"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "state-timeline",
+      "title": "Mode over time",
+      "description": "Operating mode from each telemetry snapshot (last value per bucket).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, (array_agg(mode_label ORDER BY received_at DESC))[1] AS \"mode\", (array_agg(motion_state_label ORDER BY received_at DESC))[1] AS \"motion\"\n\t  FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"mode\", d.\"motion\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "INIT": {
+                  "color": "blue",
+                  "index": 0,
+                  "text": "INIT"
+                },
+                "NORMAL": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "NORMAL"
+                },
+                "NAV_ACTION": {
+                  "color": "purple",
+                  "index": 2,
+                  "text": "NAV_ACTION"
+                },
+                "OBSTACLE": {
+                  "color": "orange",
+                  "index": 3,
+                  "text": "OBSTACLE"
+                },
+                "SAFE_STOP": {
+                  "color": "red",
+                  "index": 4,
+                  "text": "SAFE_STOP"
+                },
+                "IDLE": {
+                  "color": "text",
+                  "index": 5,
+                  "text": "IDLE"
+                },
+                "STRAIGHT": {
+                  "color": "green",
+                  "index": 6,
+                  "text": "STRAIGHT"
+                },
+                "TURNING": {
+                  "color": "blue",
+                  "index": 7,
+                  "text": "TURNING"
+                },
+                "FAULT": {
+                  "color": "red",
+                  "index": 8,
+                  "text": "FAULT"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 75,
+            "spanNulls": false,
+            "insertNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "left",
+        "rowHeight": 0.85,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "row",
+      "title": "Motion",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "panels": []
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Wheel speed (measured) and cruise setting",
+      "description": "Measured left/right wheel speeds from the encoders (mm/s). The cruise SETTING is quantised to 10 mm/s and is not a per-wheel target. NULL (gap) = no encoder data.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, avg(speed_l_mms) AS \"left wheel\", avg(speed_r_mms) AS \"right wheel\", (array_agg(cruise_set_mms ORDER BY received_at DESC))[1] AS \"cruise setting\"\n\t  FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"left wheel\", d.\"right wheel\", d.\"cruise setting\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: mm/s",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cruise setting"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Distance since boot (odometer)",
+      "description": "Newest odometer (cm, saturates at 65535 = 655 m).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 16,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT round(odometer_cm / 100.0, 2) AS \"metres\" FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "unit": "lengthm",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Commands",
+      "description": "Source of the running motion command and whether one is active.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 20,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN now() - received_at > interval '5 seconds' THEN 'STALE ' || round(extract(epoch FROM now() - received_at)) || ' s: ' || coalesce((motion_source_label)::text, '-') ELSE coalesce((motion_source_label)::text, '-') END AS \"source\", CASE WHEN cmd_active THEN 'active' ELSE 'none' END AS \"command\" FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto",
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "row",
+      "title": "Line following and barcodes",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "panels": []
+    },
+    {
+      "id": 14,
+      "type": "state-timeline",
+      "title": "IR sensors (car's real sides; BLACK = over the line)",
+      "description": "Physical left/right with IR_SIDES_MIRRORED = 1 (drv_ir.h): left = GP27 (also the barcode sensor), centre = GP6, right = GP2. CSC14_IR_SIDES_MIRRORED must match the flashed firmware.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, (array_agg(CASE WHEN ir_left THEN 'BLACK' ELSE 'white' END ORDER BY received_at DESC))[1] AS \"left (GP27)\", (array_agg(CASE WHEN ir_centre THEN 'BLACK' ELSE 'white' END ORDER BY received_at DESC))[1] AS \"centre (GP6)\", (array_agg(CASE WHEN ir_right THEN 'BLACK' ELSE 'white' END ORDER BY received_at DESC))[1] AS \"right (GP2)\"\n\t  FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"left (GP27)\", d.\"centre (GP6)\", d.\"right (GP2)\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "BLACK": {
+                  "color": "dark-gray",
+                  "index": 0,
+                  "text": "BLACK"
+                },
+                "white": {
+                  "color": "super-light-yellow",
+                  "index": 1,
+                  "text": "white"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 75,
+            "spanNulls": false,
+            "insertNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "left",
+        "rowHeight": 0.85,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "state-timeline",
+      "title": "Tracking state and line position",
+      "description": "Line state (ON_LINE / SEARCHING / LOST / UNKNOWN = not calibrated) and line position named after the car's real sides.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, (array_agg(line_state_label ORDER BY received_at DESC))[1] AS \"state\", (array_agg(line_pos_label ORDER BY received_at DESC))[1] AS \"position\"\n\t  FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"state\", d.\"position\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "ON_LINE": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "ON_LINE"
+                },
+                "SEARCHING": {
+                  "color": "orange",
+                  "index": 1,
+                  "text": "SEARCHING"
+                },
+                "LOST": {
+                  "color": "red",
+                  "index": 2,
+                  "text": "LOST"
+                },
+                "UNKNOWN": {
+                  "color": "purple",
+                  "index": 3,
+                  "text": "UNKNOWN"
+                },
+                "CENTRE": {
+                  "color": "green",
+                  "index": 4,
+                  "text": "CENTRE"
+                },
+                "JUNCTION": {
+                  "color": "blue",
+                  "index": 5,
+                  "text": "JUNCTION"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 75,
+            "spanNulls": false,
+            "insertNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "left",
+        "rowHeight": 0.85,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Steering request (+ = turn right)",
+      "description": "Steering the line follower asks Motion Control for (-63..63, motor convention: + = clockwise). 0 while not steering.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, avg(steer) AS \"steer\"\n\t  FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"steer\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "axisPlacement": "auto"
+          },
+          "min": -63,
+          "max": 63
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Last barcode",
+      "description": "Newest snapshot. \"mapped to\" is the navigation MAPPING of the symbol; telemetry v1 does not report whether the turn was executed. The default map is empty (nav_map.c).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 5,
+        "x": 12,
+        "y": 26
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN now() - received_at > interval '5 seconds' THEN 'STALE ' || round(extract(epoch FROM now() - received_at)) || ' s: ' || coalesce((coalesce(bc_symbol, '(none)') || ' ' || bc_result_label)::text, '-') ELSE coalesce((coalesce(bc_symbol, '(none)') || ' ' || bc_result_label)::text, '-') END AS \"symbol / result\",\n\t  coalesce(nav_label, 'no mapping') AS \"mapped to\", bc_state_label AS \"decoder\" FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto",
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": "table",
+      "title": "Barcode reads (robot events)",
+      "description": "One row per BARCODE event; counters in telemetry are modulo 64.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 7,
+        "x": 17,
+        "y": 26
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT received_at AS \"received\", message FROM csc14.event\n\tWHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) AND kind = 'BARCODE' ORDER BY received_at DESC LIMIT 200"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 19,
+      "type": "row",
+      "title": "IMU and terrain",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "panels": []
+    },
+    {
+      "id": 20,
+      "type": "stat",
+      "title": "IMU",
+      "description": "IMU status and motion class (LSM303DLHC: accelerometer + magnetometer, no gyroscope).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 33
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN now() - received_at > interval '5 seconds' THEN 'STALE ' || round(extract(epoch FROM now() - received_at)) || ' s: ' || coalesce((imu_status_label)::text, '-') ELSE coalesce((imu_status_label)::text, '-') END AS \"status\", motion_class_label AS \"motion\", CASE WHEN tilt THEN 'TILT' ELSE 'level' END AS \"tilt\", CASE WHEN collision THEN 'COLLISION' ELSE 'none' END AS \"collision\" FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "OK": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "OK"
+                },
+                "CALIBRATING": {
+                  "color": "blue",
+                  "index": 1,
+                  "text": "CALIBRATING"
+                },
+                "INIT": {
+                  "color": "blue",
+                  "index": 2,
+                  "text": "INIT"
+                },
+                "FAULT": {
+                  "color": "red",
+                  "index": 3,
+                  "text": "FAULT"
+                },
+                "TILT": {
+                  "color": "orange",
+                  "index": 4,
+                  "text": "TILT"
+                },
+                "COLLISION": {
+                  "color": "red",
+                  "index": 5,
+                  "text": "COLLISION"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto",
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
+      }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Pitch and roll",
+      "description": "Degrees; pitch nose-up +, roll right-side-down +. Gap = invalid sample.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 6,
+        "y": 33
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, avg(pitch_deg) AS \"pitch\", avg(roll_deg) AS \"roll\"\n\t  FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"pitch\", d.\"roll\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "degree",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Turn rate (IMU, + = left / counter-clockwise)",
+      "description": "Change of the magnetometer heading over 200 ms (no gyroscope on the LSM303DLHC). Invalid while the magnetometer overflows. Motor magnets disturb it.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 15,
+        "y": 33
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, avg(yaw_rate_ccw_dps) AS \"turn rate CCW+\"\n\t  FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"turn rate CCW+\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: °/s",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Heading: encoder (+ clockwise) vs IMU magnetometer (+ counter-clockwise)",
+      "description": "Two independent estimates with OPPOSITE sign conventions, both relative to their own start: encoder heading from wheel travel (2 deg steps), IMU heading from the magnetometer relative to calibration. They are not expected to agree in sign.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 39
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, (array_agg(heading_enc_cw_deg ORDER BY received_at DESC))[1] AS \"encoder (CW+)\", (array_agg(heading_imu_ccw_deg ORDER BY received_at DESC))[1] AS \"IMU (CCW+)\"\n\t  FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"encoder (CW+)\", d.\"IMU (CCW+)\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "degree",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "axisPlacement": "auto"
+          },
+          "min": 0,
+          "max": 360
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "encoder (CW+)"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "points"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "IMU (CCW+)"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "points"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "state-timeline",
+      "title": "Tilt, collision, motion class",
+      "description": "From each snapshot.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 39
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, (array_agg(motion_class_label ORDER BY received_at DESC))[1] AS \"motion class\", (array_agg(CASE WHEN tilt THEN 'TILT' ELSE 'level' END ORDER BY received_at DESC))[1] AS \"tilt\", (array_agg(CASE WHEN collision THEN 'COLLISION' ELSE 'none' END ORDER BY received_at DESC))[1] AS \"collision\"\n\t  FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"motion class\", d.\"tilt\", d.\"collision\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "STATIONARY": {
+                  "color": "text",
+                  "index": 0,
+                  "text": "STATIONARY"
+                },
+                "MOVING": {
+                  "color": "green",
+                  "index": 1,
+                  "text": "MOVING"
+                },
+                "TURN_LEFT": {
+                  "color": "blue",
+                  "index": 2,
+                  "text": "TURN_LEFT"
+                },
+                "TURN_RIGHT": {
+                  "color": "purple",
+                  "index": 3,
+                  "text": "TURN_RIGHT"
+                },
+                "TILT": {
+                  "color": "orange",
+                  "index": 4,
+                  "text": "TILT"
+                },
+                "level": {
+                  "color": "green",
+                  "index": 5,
+                  "text": "level"
+                },
+                "COLLISION": {
+                  "color": "red",
+                  "index": 6,
+                  "text": "COLLISION"
+                },
+                "none": {
+                  "color": "green",
+                  "index": 7,
+                  "text": "none"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 75,
+            "spanNulls": false,
+            "insertNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "left",
+        "rowHeight": 0.85,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 25,
+      "type": "stat",
+      "title": "Highest hump (selected run / time range)",
+      "description": "Maximum of the individual humps received in the selection (FR6). Not the robot's since-boot maximum, which can include humps from before the run.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 46
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT max(height_mm) AS \"highest hump\", count(*) AS \"humps\",\n\t  count(*) FILTER (WHERE height_mm IS NULL) AS \"without height\"\n\tFROM csc14.hump WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "unit": "lengthmm"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(humps|without height)$"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 26,
+      "type": "stat",
+      "title": "Robot hump counters (newest snapshot)",
+      "description": "Since ROBOT BOOT, 2 mm steps: last height, highest, count (4 bits, saturates at 15: after that the robot sends no HUMP events).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 46
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT hump_last_mm AS \"last (mm)\", hump_max_boot_mm AS \"highest since boot (mm)\",\n\t  hump_count || CASE WHEN hump_count = 15 THEN ' (saturated)' ELSE '' END AS \"count\",\n\t  CASE WHEN hump_active THEN 'measuring' ELSE 'idle' END AS \"hump\" FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto",
+        "text": {
+          "titleSize": 12,
+          "valueSize": 22
+        }
+      }
+    },
+    {
+      "id": 27,
+      "type": "table",
+      "title": "Individual humps",
+      "description": "detected_by: robot_event / telemetry (count change) / max_increase or last_change (after the counter saturated); \"+\" joins two sources of the same hump.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 46
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT received_at AS \"received\", height_mm AS \"height (mm)\", count_after AS \"robot count\",\n\t  max_boot_mm AS \"highest since boot (mm)\", detected_by FROM csc14.hump WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid)\n\tORDER BY received_at DESC LIMIT 200"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 28,
+      "type": "row",
+      "title": "Obstacles",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "panels": []
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "Ultrasonic range",
+      "description": "\"No echo\" (nothing within 4 m) is drawn as a dashed line at 4 m. Forward range only while the servo is centred and ranging (avoidance IDLE, STOPPING, EXECUTING, SEARCHING, ALIGNING, FAILED). During COARSE/FINE scans the value is a sample at an unknown servo angle (not transmitted); during PLANNING it is held.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 53
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, avg(us_forward_mm) AS \"forward range\", max(CASE WHEN us_no_echo AND us_context = 'forward' THEN 4000 END) AS \"no echo: clear beyond 4 m\", avg(us_dist_mm) FILTER (WHERE us_context = 'scan_sweep') AS \"scan sample (angle unknown)\"\n\t  FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"forward range\", d.\"no echo: clear beyond 4 m\", d.\"scan sample (angle unknown)\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthmm",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scan sample (angle unknown)"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "points"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 4
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "no echo: clear beyond 4 m"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    4,
+                    6
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 30,
+      "type": "state-timeline",
+      "title": "Avoidance phase and outcome",
+      "description": "avoid_state and the outcome of the last avoidance.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 53
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / $__interval_ms)::bigint AS k, (array_agg(avoid_state_label ORDER BY received_at DESC))[1] AS \"phase\", (array_agg(avoid_outcome_label ORDER BY received_at DESC))[1] AS \"last outcome\"\n\t  FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / $__interval_ms)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / $__interval_ms)::bigint) AS k)\n\tSELECT to_timestamp(s.k * $__interval_ms / 1000.0) AS time, d.\"phase\", d.\"last outcome\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "IDLE": {
+                  "color": "green",
+                  "index": 0,
+                  "text": "IDLE"
+                },
+                "FAILED": {
+                  "color": "red",
+                  "index": 1,
+                  "text": "FAILED"
+                },
+                "SUCCESS": {
+                  "color": "green",
+                  "index": 2,
+                  "text": "SUCCESS"
+                },
+                "CLEARED": {
+                  "color": "blue",
+                  "index": 3,
+                  "text": "CLEARED"
+                },
+                "NONE": {
+                  "color": "text",
+                  "index": 4,
+                  "text": "NONE"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "lineWidth": 0,
+            "fillOpacity": 75,
+            "spanNulls": false,
+            "insertNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "left",
+        "rowHeight": 0.85,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 31,
+      "type": "stat",
+      "title": "Latest range",
+      "description": "Newest snapshot with what the value means right now.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 60
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT CASE WHEN now() - received_at > interval '5 seconds' THEN 'STALE ' || round(extract(epoch FROM now() - received_at)) || ' s: ' || coalesce((CASE WHEN us_no_echo THEN 'clear (> 4 m)' WHEN us_dist_mm IS NULL THEN us_result_label ELSE us_dist_mm || ' mm' END)::text, '-') ELSE coalesce((CASE WHEN us_no_echo THEN 'clear (> 4 m)' WHEN us_dist_mm IS NULL THEN us_result_label ELSE us_dist_mm || ' mm' END)::text, '-') END AS \"range\", us_context AS \"meaning\", avoid_state_label AS \"phase\" FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto",
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
+      }
+    },
+    {
+      "id": 32,
+      "type": "table",
+      "title": "Last obstacle profile",
+      "description": "Newest snapshot that carries a profile. \"none since boot\" = the profile words are still zero. Clearance \"at least\" = beyond the 2.54 m range of the field.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 6,
+        "y": 60
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT received_at AS \"received\", obst_width_mm AS \"width (mm)\", obst_bearing_deg AS \"bearing (deg, + right)\",\n\t  clear_left_mm || CASE WHEN clear_left_at_least THEN '+' ELSE '' END AS \"clear left (mm)\",\n\t  clear_right_mm || CASE WHEN clear_right_at_least THEN '+' ELSE '' END AS \"clear right (mm)\",\n\t  avoid_side_label AS \"side chosen\"\n\tFROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND profile_reported ORDER BY received_at DESC LIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 33,
+      "type": "table",
+      "title": "Avoidance outcomes",
+      "description": "Robot OBSTACLE events (success, cleared, failure with reason) and failures the backend saw in telemetry (the v1 firmware sends no event for a failure).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 15,
+        "y": 60
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT received_at AS \"received\", origin, severity, message FROM csc14.event\n\tWHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) AND kind IN ('OBSTACLE', 'AVOID_FAILED') ORDER BY received_at DESC LIMIT 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "severity"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "critical": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "critical"
+                      },
+                      "warning": {
+                        "color": "orange",
+                        "index": 1,
+                        "text": "warning"
+                      },
+                      "info": {
+                        "color": "text",
+                        "index": 2,
+                        "text": "info"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 34,
+      "type": "row",
+      "title": "Communication and backend",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 66
+      },
+      "panels": []
+    },
+    {
+      "id": 35,
+      "type": "timeseries",
+      "title": "Frames received per second (10 s average)",
+      "description": "Telemetry should be 2/s and heartbeats 1/s while the robot is online; 0 = nothing received (outage or robot off).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 67
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / 10000)::bigint AS k, count(*) / 10.0 AS \"telemetry\"\n\t  FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / 10000)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / 10000)::bigint) AS k)\n\tSELECT to_timestamp(s.k * 10000 / 1000.0) AS time, coalesce(d.\"telemetry\", 0) AS \"telemetry\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM received_at) * 1000 / 10000)::bigint AS k, count(*) / 10.0 AS \"heartbeat\"\n\t  FROM csc14.heartbeat WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / 10000)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / 10000)::bigint) AS k)\n\tSELECT to_timestamp(s.k * 10000 / 1000.0) AS time, coalesce(d.\"heartbeat\", 0) AS \"heartbeat\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: /s",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "axisPlacement": "auto"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 36,
+      "type": "stat",
+      "title": "Lost frames and robot counters",
+      "description": "Telemetry frames missing by sequence number in the selection (unknown = gaps too long to count), and the robot's own saturating counters in the newest snapshot.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 67
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (SELECT coalesce(sum(seq_gap), 0) FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid)) AS \"missing telemetry\",\n\t  (SELECT count(*) FROM csc14.event WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) AND kind = 'TELEMETRY_GAP' AND data->>'exact' = 'false') AS \"unknown-length gaps\",\n\t  t.tlm_dropped AS \"robot queue drops (sat. 255)\", t.rx_rejected AS \"commands rejected (sat. 255)\"\n\tFROM (SELECT 1) one LEFT JOIN (SELECT tlm_dropped, rx_rejected FROM csc14.telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring}\n\t  ORDER BY received_at DESC LIMIT 1) t ON true"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto",
+        "text": {
+          "titleSize": 12,
+          "valueSize": 32
+        }
+      }
+    },
+    {
+      "id": 37,
+      "type": "timeseries",
+      "title": "Backend: buffer and write latency",
+      "description": "Rows waiting for PostgreSQL and the 95th percentile of frame-received -> row-committed latency, from csc14.ingest_health.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 67
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH d AS (SELECT floor(extract(epoch FROM at) * 1000 / 10000)::bigint AS k, max(queue_bulk + queue_priority) AS \"buffered rows\", max(latency_p95_ms) AS \"write p95 (ms)\"\n\t  FROM csc14.ingest_health WHERE $__timeFilter(at) GROUP BY 1),\n\ts AS (SELECT generate_series(floor(extract(epoch FROM $__timeFrom()::timestamptz) * 1000 / 10000)::bigint,\n\t  floor(extract(epoch FROM $__timeTo()::timestamptz) * 1000 / 10000)::bigint) AS k)\n\tSELECT to_timestamp(s.k * 10000 / 1000.0) AS time, d.\"buffered rows\", d.\"write p95 (ms)\"\n\tFROM s LEFT JOIN d USING (k) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": false,
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "write p95 (ms)"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "buffered rows"
+            },
+            "properties": [
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "custom.axisSoftMax",
+                "value": 10
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 38,
+      "type": "table",
+      "title": "Rejected frames",
+      "description": "Frames that failed validation (length, CRC, version, type, field range). They never reach the measurement tables.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 73
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT received_at AS \"received\", topic, reason, detail, length, encode(frame, 'hex') AS frame\n\tFROM csc14.rejected_frame WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) ORDER BY received_at DESC LIMIT 100"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 39,
+      "type": "row",
+      "title": "Events",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 78
+      },
+      "panels": []
+    },
+    {
+      "id": 40,
+      "type": "table",
+      "title": "Events (newest first; time = backend receive time, not the physical event time)",
+      "description": "origin robot = event frame from the robot; server = derived by the backend from telemetry or time; bus = command seen on the broker. Events are derived from 500 ms snapshots on the robot, so very short changes can be missing.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 79
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT received_at AS \"received\", origin, severity, kind, message FROM csc14.event\n\tWHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) ORDER BY received_at DESC, id DESC LIMIT 500"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "severity"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "critical": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "critical"
+                      },
+                      "warning": {
+                        "color": "orange",
+                        "index": 1,
+                        "text": "warning"
+                      },
+                      "info": {
+                        "color": "text",
+                        "index": 2,
+                        "text": "info"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "message"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 720
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 41,
+      "type": "row",
+      "title": "Runs",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 89
+      },
+      "panels": []
+    },
+    {
+      "id": 42,
+      "type": "table",
+      "title": "Runs (click a name to show that run)",
+      "description": "Summary from what the backend received during each run; \"notes\" says why a figure may be incomplete.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "csc14-pg"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 90
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "csc14-pg"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT name, run_id::text AS run_id, started_at AS \"started\", ended_at AS \"ended\", duration_s AS \"duration (s)\",\n\t  tlm_frames AS \"frames\", tlm_missing_known AS \"missing\", humps, hump_max_mm AS \"highest hump (mm)\",\n\t  distance_m AS \"distance (m)\", avoid_success AS \"avoid ok\", avoid_failed AS \"avoid failed\",\n\t  collisions, array_to_string(notes, '; ') AS notes,\n\t  (extract(epoch FROM started_at) * 1000)::bigint AS from_ms,\n\t  (extract(epoch FROM coalesce(ended_at, now())) * 1000 + 5000)::bigint AS to_ms\n\tFROM (SELECT run_id AS rid FROM csc14.run WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY started_at DESC LIMIT 50) r\n\tCROSS JOIN LATERAL csc14.run_summary(r.rid) ORDER BY started_at DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "name"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Show this run",
+                    "url": "/d/csc14-robot?var-robot=${robot}&var-source=${source}&var-run=${__data.fields.run_id}&from=${__data.fields.from_ms}&to=${__data.fields.to_ms}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(run_id|from_ms|to_ms)$"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "notes"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 520
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    }
+  ]
+}
