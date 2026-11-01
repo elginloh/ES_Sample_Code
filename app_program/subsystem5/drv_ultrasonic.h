@@ -33,7 +33,9 @@
 #define US_RISE_TIMEOUT_US	10000	/* echo starts ~0.5 ms after trigger */
 #define US_WAIT_MS		40	/* covers the 38 ms "no echo" pulse */
 #define US_MIN_INTERVAL_MS	60	/* datasheet measurement cycle */
-#define US_DEBUG		1	/* raw echo timing diagnostics      */
+#define US_DEBUG		1	/* event-based echo diagnostics     */
+#define US_DEBUG_CHANGE_MM	25	/* nearby change needed for update */
+#define US_DEBUG_HYST_MM	50	/* avoid chatter at detect boundary */
 
 /* Speed of sound [CAL]: 343.2 m/s at 20 C -> 0.1716 mm/us round trip/2 */
 #define US_MM_PER_US_X10000	1716

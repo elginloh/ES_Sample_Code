@@ -21,7 +21,7 @@
  *	    bits  0..7   servo angle, deg signed   (8)  + = right
  *	    bits  8..17  distance code             (10)
  *	    bits 18..20  scan id                   (3)
- *	    bit  21      phase  0 coarse / 1 fine  (1)
+ *	    bit  21      phase  0 reserved / 1 full fine scan  (1)
  *	    bit  22      last sample of the scan   (1)
  *	    bits 23..24  status SS_*               (2)
  *	Obstacle profile (Profile -> Avoidance), 2 words

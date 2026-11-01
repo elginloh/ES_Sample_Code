@@ -66,7 +66,7 @@ EXPORT UW servo_set(INT deg)
 
 	/*
 	 * An SG90 always moves to a newly commanded position at its own maximum
-	 * speed.  Ramp the command in small increments so a coarse 15-degree scan
+	 * speed.  Ramp the command in small increments so scan steps
 	 * step does not become one fast mechanical jump.
 	 */
 	while (cur_deg != deg) {

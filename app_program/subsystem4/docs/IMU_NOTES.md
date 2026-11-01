@@ -2,7 +2,7 @@
 
 Code: `drv_i2c0.c`, `drv_imu.c` (hardware); `imu_proc.c`, `hump.c`,
 `s4_status.c` (pure logic); `task_imu.c`, `task_hump.c` (tasks). Tests:
-`s4_unit_tests.c` S4-U01..U29 and S4-U33..U43 (no-gyro path), on-target
+`s4_unit_tests.c` S4-U01..U29 and S4-U33..U45 (including the no-gyro path), on-target
 S4-U30..U32, integration INT-16.
 
 ## 1. The IMU chip: LSM303DLHC (GY-511), no gyroscope
@@ -60,7 +60,11 @@ not read** (on-target check S4-U31). At boot the console prints
   queue of 24-bit packed samples (pitch 0.1°, distance step 0.1 mm, valid
   bit, 4-bit sequence). A sequence gap (dropped sample) or an invalid sample
   discards the hump in progress rather than measuring across missing data
-  (Tribunal 1: "consumers ignore invalid or stale samples").
+  (Tribunal 1: "consumers ignore invalid or stale samples"). Distance comes
+  from the change in Buddy 2's cumulative encoder odometry, not speed times
+  an assumed 10 ms; missed/coalesced IMU wakes therefore do not shorten a
+  hump. Reverse motion and recalibration explicitly discard an active
+  candidate.
 
 ## 3. Processing (`imu_proc.c`, integer only: no FPU, no libm)
 
@@ -126,8 +130,9 @@ puts the vehicle in Safe Stop, latched until a supervisory CLEAR/RESUME
 * **Method (Tribunal 1, Buddy 4):** height = Σ ds · sin(pitch), with ds the
   encoder distance step from Buddy 2 and pitch from the filter.
   Double-integrated acceleration was rejected by the team (drift).
-* **Detection:** pitch ≥ 3° for 2 samples starts a climb (the elevation
-  already gained is kept). A pitch ≤ −3° marks the descent. Level within
+* **Detection:** pitch ≥ 3° for 2 consecutive samples starts a climb (only
+  those qualifying start samples are kept; a long shallow road grade is
+  not accumulated). A pitch ≤ −3° marks the descent. Level within
   1.5° for 3 samples completes it. Heights < 3 mm are rejected as noise, and
   anything longer than 1 m is a ramp, not a hump.
 * **Representation (Tribunal 1 Version B change log):** stored/sent as

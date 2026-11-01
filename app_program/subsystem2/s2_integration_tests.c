@@ -45,7 +45,7 @@
 #include "../subsystem5/avoid_plan.h"
 #include "../subsystem5/s5_tests.h"
 
-#define AVOID_SPEED_LVL		6U	/* S5_AVOID_SPEED_LVL (subsystem5.h) */
+#define AVOID_SPEED_LVL		2U	/* mirrors production S5_AVOID_SPEED_LVL */
 #define RUN_LIMIT_MS		30000U	/* longest simulated manoeuvre */
 #define TURN_TOL_MDEG		10000	/* NFR8: turn within +-10 deg */
 
@@ -74,6 +74,8 @@ typedef struct {
 	D		x_um;		/* + = right of the line */
 	D		y_um;		/* along the line */
 	D		min_x_um;	/* closest approach beside the obstacle */
+	D		obstacle_y0_um;	/* axle positions with longitudinal overlap */
+	D		obstacle_y1_um;
 } CAR;
 
 LOCAL CAR		car;		/* static: small test task stack */
@@ -119,7 +121,9 @@ LOCAL void car_pose(CAR *c)
 	deg = (INT)((c->th_mdeg >= 0) ? (c->th_mdeg + 500) / 1000 : (c->th_mdeg - 500) / 1000);
 	c->x_um += ((D)ds * op_sin_q15(deg)) / 32768;
 	c->y_um += ((D)ds * op_cos_q15(deg)) / 32768;
-	if (c->y_um >= 200000 && c->y_um <= 600000 && c->x_um < c->min_x_um) {
+	if (c->obstacle_y1_um > c->obstacle_y0_um
+	    && c->y_um >= c->obstacle_y0_um && c->y_um <= c->obstacle_y1_um
+	    && c->x_um < c->min_x_um) {
 		c->min_x_um = c->x_um;
 	}
 }
@@ -201,6 +205,8 @@ LOCAL void car_start(CAR *c)
 	c->x_um = 0;
 	c->y_um = 0;
 	c->min_x_um = 0x7FFFFFFF;
+	c->obstacle_y0_um = 0;
+	c->obstacle_y1_um = 0;
 	c->events = SYS_EV_IR_CAL_OK | SYS_EV_IMU_CAL_OK;
 	car_cycle(c);
 }
@@ -310,6 +316,16 @@ LOCAL INT int_avoidance(void)
 	s5_profile_pack(&p, pw);		/* Profile -> Avoidance queue */
 	s5_profile_unpack(pw, &q);
 	rc = av_plan(&q, &plan);
+	tm_printf((UB*)"[TEST]   plan: offset %d mm, approach %d mm, turn %d deg, "
+		  "forward before pass %d mm, required front %d mm\n",
+		  (INT)plan.offset_mm, (INT)plan.approach_mm, (INT)plan.turn_deg,
+		  (INT)plan.forward_before_pass_mm, (INT)plan.required_front_mm);
+	/* The ultrasonic is at the front bumper.  The car first overlaps the
+	   obstacle when that bumper reaches the front face, and stops overlapping
+	   after the rear bumper passes the 200 mm synthetic far edge. */
+	c->obstacle_y0_um = (D)(q.dist_mm - AV_SENSOR_BEHIND_FRONT_MM) * 1000;
+	c->obstacle_y1_um = (D)(q.dist_mm - AV_SENSOR_BEHIND_FRONT_MM + 200
+				 + AV_ROBOT_LENGTH_MM) * 1000;
 	c->events = SYS_EV_OBSTACLE;		/* Buddy 5 -> Buddy 2 */
 	car_cycle(c);
 	TEST_CHECK("INT-10a", rc == AVP_OK && plan.side == AV_SIDE_RIGHT
@@ -326,11 +342,12 @@ LOCAL INT int_avoidance(void)
 		UW		r;
 
 		/* The target implementation terminates PASS when the side sensor
-		   crosses the far edge, then advances AV_RETURN_APPROACH_MM. The plant
+		   crosses the far edge, then advances the calculated return approach. The plant
 		   has a 200 mm-deep synthetic box, so model that detected distance
-		   instead of executing the 1 m safety bound. */
+		   instead of executing the 2 m motion-command safety bound. */
 		if (st->kind == AVS_PASS) {
-			arg = q.dist_mm + 200 - plan.offset_mm + AV_RETURN_APPROACH_MM;
+			arg = q.dist_mm + 200 - plan.forward_before_pass_mm
+			    + plan.return_approach_mm;
 		}
 		cmd = car_cmd(c, type, MSRC_AVOID, arg, spd);
 
@@ -368,11 +385,12 @@ LOCAL INT int_avoidance(void)
 	tm_printf((UB*)"[TEST]   bypass: closest %d mm beside the box, end heading %d mdeg, "
 		  "end offset %d mm, travelled %d mm\n", (INT)closest, (INT)end_th,
 		  (INT)end_x, (INT)(c->y_um / 1000));
-	TEST_CHECK("INT-10b", packed_ok && steps_ok && plan.n == 7U,
+	TEST_CHECK("INT-10b", packed_ok && steps_ok && plan.n >= 7U && plan.n <= 8U,
 		   "every planned step crosses the interface packed and completes; search stops on the line");
-	TEST_CHECK("INT-10c", closest >= 75 + AV_ROBOT_WIDTH_MM / 2 && iabs(end_th) <= TURN_TOL_MDEG
+	TEST_CHECK("INT-10c", closest >= 75 + AV_ROBOT_WIDTH_MM / 2 + AV_SIDE_GAP_MM
+		   && iabs(end_th) <= TURN_TOL_MDEG
 		   && iabs(end_x) <= 50,
-		   "car centre kept >= 150 mm right of the box edge; back on the line, heading within 10 deg");
+		   "car edge keeps the configured gap; back on line, heading within 10 deg");
 
 	c->events = SYS_EV_AVOID_DONE;		/* Buddy 5: resume mission */
 	car_cycle(c);

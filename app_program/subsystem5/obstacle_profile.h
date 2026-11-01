@@ -28,6 +28,7 @@
 
 #define OP_MAX_SAMPLES		64
 #define OP_FORWARD_CONE_DEG	30	/* nearest face searched in +-30 deg */
+#define OP_FRONT_ESTIMATE_DEG	3	/* median of central -3/0/+3 rays   */
 #define OP_DETECT_RANGE_MM	700	/* farther = no obstacle to avoid    */
 #define OP_DEPTH_TOL_MM		50	/* measured front-face band; rejects
 					   high-angle near reflections */
@@ -40,6 +41,7 @@
 #define OP_FROZEN_SPAN_DEG	60	/* ... over this sweep = servo stuck  */
 #define OP_CLEAR_CAP_MM		2540
 #define S5_BEAM_COMP_DEG	24	/* [CAL] 525 mm apparent vs ~200 mm object */
+#define OP_EDGE_RESOLUTION_DEG	3	/* one measured fine-scan cell      */
 #ifndef US_BEAM_COMP_DEG
 #define US_BEAM_COMP_DEG	0	/* [CAL] beam half-width allowance   */
 #endif
@@ -57,8 +59,9 @@ typedef struct {
 IMPORT void op_build(const OP_SAMPLE *s, UINT n, INT scan_limit_deg,
 		     S5_PROFILE *out);
 
-/* Shrink both known angular edges by a measured ultrasonic beam/reflection
-   allowance.  Clearance grows by the same removed apparent width. */
+/* Shrink both known angular edges by a calibrated ultrasonic beam/reflection
+   allowance.  The minimum is one angular scan cell, so the resulting width
+   remains distance-dependent rather than a hardcoded object size. */
 IMPORT void op_beam_compensate(S5_PROFILE *p, INT half_angle_deg);
 
 IMPORT W    op_sin_q15(INT deg);	/* integer sine, Q15 */

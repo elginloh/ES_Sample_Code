@@ -38,7 +38,9 @@ LOCAL UB		chip;
 LOCAL BOOL		collision_latched;
 LOCAL UB		sample_seq;
 LOCAL UB		hump_seq;
-LOCAL W			ds_rem_um;	/* distance not yet sent to the hump task */
+LOCAL W			last_odom_mm;
+LOCAL W			ds_pending_100um;
+LOCAL BOOL		odom_primed;
 
 EXPORT void imu_cyclic_handler(void *exinf)
 {
@@ -138,25 +140,35 @@ LOCAL void mag_log(const IMU_IN *in)
 }
 #endif
 
-/* Feed the Hump & Terrain task: pitch + distance step (0.1 mm units) */
+/* Feed the Hump & Terrain task: pitch + actual encoder displacement.
+   Reading the cumulative odometer avoids assuming that every IMU wake was
+   exactly 10 ms apart.  A delayed/coalesced cyclic tick therefore does not
+   make a hump artificially short. */
 LOCAL void send_hump_sample(BOOL valid)
 {
 	S4_HUMP_SAMPLE	hs;
-	W		spd = 0;
-	W		ds;
+	W		odom_mm = last_odom_mm;
+	W		delta_mm = 0;
+	W		ds = 0;
 	UW		w;
 
-	motion_get_odometry(NULL, &spd);
-	/* mm/s * 10 ms = um; send whole 0.1 mm steps and carry the rest, so
-	   slow driving (0.3 mm per sample at 30 mm/s) loses no distance */
-	ds_rem_um += (spd > 0) ? spd * S4_PERIOD_MS : 0;
-	ds = ds_rem_um / 100;
-	if (ds > 255) {
-		ds = 255;
+	motion_get_odometry(&odom_mm, NULL);
+	if (!odom_primed) {
+		last_odom_mm = odom_mm;
+		odom_primed = TRUE;
+	} else {
+		delta_mm = odom_mm - last_odom_mm;
+		last_odom_mm = odom_mm;
 	}
-	ds_rem_um -= ds * 100;
-	if (ds_rem_um >= 100) {
-		ds_rem_um = 0;			/* clamped: do not bank the excess */
+	if (!valid || delta_mm < 0) {
+		/* Invalid attitude or reverse motion invalidates the forward height
+		   integral.  Do not bank distance for a later valid sample. */
+		valid = FALSE;
+		ds_pending_100um = 0;
+	} else {
+		ds_pending_100um += delta_mm * 10;	/* mm -> 0.1 mm */
+		ds = (ds_pending_100um > 255) ? 255 : ds_pending_100um;
+		ds_pending_100um -= ds;
 	}
 	hs.pitch_ddeg = (H)(proc.pitch_cdeg / 10);
 	hs.ds_100um = (UB)ds;
@@ -207,6 +219,8 @@ EXPORT void imu_task(INT stacd, void *exinf)
 	}
 	imu_cal_reset(&cal_acc);
 	cal.valid = FALSE;
+	odom_primed = FALSE;
+	ds_pending_100um = 0;
 
 	for (;;) {
 		UW	vsw, mode, start;
@@ -223,10 +237,14 @@ EXPORT void imu_task(INT stacd, void *exinf)
 
 		switch (state) {
 		case IMU_ST_INIT:
+			if (recover_tries < 255U) {
+				recover_tries++;	/* count each real bring-up attempt once */
+			}
 			if (bring_up()) {
 				state = IMU_ST_CALIBRATING;
+				cal.valid = FALSE;
 				imu_cal_reset(&cal_acc);
-			} else if (++recover_tries >= S4_RECOVERY_TRIES) {
+			} else if (recover_tries >= S4_RECOVERY_TRIES) {
 				state = IMU_ST_FAULT;
 				sys_fault_set(SYS_FLT_IMU);
 				sys_post_event(SYS_EV_IMU_CAL_FAIL);
@@ -234,11 +252,13 @@ EXPORT void imu_task(INT stacd, void *exinf)
 				wait_ms = 0;
 				state = IMU_ST_FAULT;	/* retry after the interval */
 			}
+			publish(FALSE);
 			break;
 
 		case IMU_ST_CALIBRATING:
 			if (!still) {
 				imu_cal_reset(&cal_acc);	/* wait for a stationary phase */
+				publish(FALSE);
 				break;
 			}
 			if (read_sample(&in)) {
@@ -250,6 +270,8 @@ EXPORT void imu_task(INT stacd, void *exinf)
 				imu_cal_reset(&cal_acc);
 				if (r == IMU_CAL_OK) {
 					imu_proc_init(&proc, &cal);
+					odom_primed = FALSE;
+					ds_pending_100um = 0;
 					state = IMU_ST_OK;
 					cal_epoch = vsw_epoch(vsw);
 					cal_tries = 0;
@@ -278,14 +300,22 @@ EXPORT void imu_task(INT stacd, void *exinf)
 					tm_printf((UB*)"imu: calibration failed (%d)\n", r);
 				}
 			}
+			publish(FALSE);
 			break;
 
 		case IMU_ST_OK:
 			/* every new INIT epoch re-calibrates (statechart: Initialising
 			   -> Calibrate IMU) */
 			if (mode == VM_INIT && vsw_epoch(vsw) != cal_epoch) {
+				/* Terminate any terrain candidate before the one-second
+				   recalibration gap; it must never join two separate runs. */
+				send_hump_sample(FALSE);
+				odom_primed = FALSE;
+				ds_pending_100um = 0;
 				state = IMU_ST_CALIBRATING;
+				cal.valid = FALSE;
 				imu_cal_reset(&cal_acc);
+				publish(FALSE);
 				break;
 			}
 			if (!read_sample(&in)) {
@@ -329,7 +359,6 @@ EXPORT void imu_task(INT stacd, void *exinf)
 			if (wait_ms >= S4_RECOVERY_MS && still
 			    && recover_tries < S4_RECOVERY_TRIES) {
 				wait_ms = 0;
-				recover_tries++;
 				state = IMU_ST_INIT;
 			}
 			break;

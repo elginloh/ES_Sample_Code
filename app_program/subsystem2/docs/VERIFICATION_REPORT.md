@@ -112,7 +112,8 @@ in all profiles but **has not been run on a Pico**.
 
 * HC-SR04 echo timing via the shared interrupt; results OK / NO_ECHO /
   NO_RESPONSE / INVALID.
-* SG90 sweeps: coarse ±60° at 15°, then fine 3° steps around the edges.
+* SG90 performs one full −75°..+75° sweep in 3° steps, with three filtered
+  ultrasonic pings at every angle.
 * Three tasks (Scan / Profile / Avoidance) exchanging packed messages with
   scan ids.
 * Profile from forward-distance geometry: width, bearing, edges, and known /
@@ -348,13 +349,13 @@ Every subsystem `.c` file also compiles with the firmware flags plus
 | S2 | 41 | formats, PID anti-windup, MOVE/TURN on a wheel model, creep chaining, arbitration, stop, stall/encoder faults, escalation, steering, mode machine, severity policy |
 | S3 | 32 | Code 39 table; **all 11 supplied samples decode**; reversed; scale; invalid patterns; drive simulation 45/45 at 100/200/300 mm/s; duplicates; line following, search, junction; status words |
 | S4 | 29 | integer maths, calibration acceptance, filter, tilt, collision, motion class, stuck/saturated data, hump height ±4 mm, highest hump, quantisation, packing |
-| S5 | 21 | distance code, messages, profile accuracy (width within 10 %), clear path, far object, wall (unknown edges), frozen servo, planning, no invented bypass |
+| S5 | 35 | distance code, messages, profile accuracy, narrow/background echoes, clear path, wall, frozen servo, calculated planning and no invented bypass |
 | INT | 35 | INT-10..INT-20 (see `TEST_CASES.md` §6) |
 
 Figures printed by the simulation runs:
 
-* bypass of a 150 mm box: closest 201 mm beside it, back on the line,
-  heading −8.0°;
+* bypass of a 150 mm box: closest 274 mm from the line-side origin (a 123 mm
+  robot-edge gap beside the box), back on the line, heading +0.3°;
 * barcode navigation turns: +91.1° (RIGHT), −83.5° (LEFT),
   +173.4° (U-turn), +3.2° drift on STRAIGHT 120 mm.
 

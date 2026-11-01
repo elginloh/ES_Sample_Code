@@ -67,15 +67,14 @@ EXPORT UINT s5_synth_scan(OP_SAMPLE *o, W xl, W xr, W y, W wall_x,
 	return n;
 }
 
-/* Coarse + fine scan of a box, profiled as the Profile task does */
+/* Full -75..+75 degree fine scan, profiled as the production task does. */
 EXPORT void s5_profile_box(W xl, W xr, W y, W wall_x, S5_PROFILE *p)
 {
 	OP_SAMPLE	o[OP_MAX_SAMPLES];
 	UINT		n;
 
-	n = s5_synth_scan(o, xl, xr, y, wall_x, -60, 60, 15, 0);
-	n = s5_synth_scan(o, xl, xr, y, wall_x, -45, 45, 3, n);
-	op_build(o, n, 60, p);
+	n = s5_synth_scan(o, xl, xr, y, wall_x, -75, 75, 3, 0);
+	op_build(o, n, 75, p);
 }
 
 LOCAL INT test_codes(void)
@@ -185,7 +184,7 @@ LOCAL INT test_profile(void)
 				  (INT)k, (INT)p.status, (INT)p.width_mm, (INT)truth, (INT)p.dist_mm);
 		}
 	}
-	TEST_CHECK("S5-U06", ok, "width within 10 % and distance within 1 cm (4 boxes, coarse+fine)");
+	TEST_CHECK("S5-U06", ok, "width within 10 % and distance within 1 cm (4 boxes, full fine scan)");
 
 	s5_profile_box(-200, -50, 300, 0, &p);
 	TEST_CHECK("S5-U07", p.status == PRF_VALID && p.bearing_deg < 0
@@ -234,8 +233,8 @@ LOCAL INT test_profile(void)
 	}
 	op_build(o, n, 72, &p);
 	TEST_CHECK("S5-U13b", p.status == PRF_VALID
-		   && p.clear_left_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM
-		   && p.clear_right_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM
+		   && p.clear_left_mm >= AV_REQUIRED_CORRIDOR_MM
+		   && p.clear_right_mm >= AV_REQUIRED_CORRIDOR_MM
 		   && p.right_mm > 200,
 		   "single 3-deg dropout stays in one obstacle; open sides ignore deep background");
 
@@ -251,13 +250,12 @@ LOCAL INT test_profile(void)
 	}
 	op_build(o, n, 72, &p);
 	TEST_CHECK("S5-U13c", p.status == PRF_VALID
-		   && p.clear_left_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM
-		   && p.clear_right_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM,
+		   && p.clear_left_mm >= AV_REQUIRED_CORRIDOR_MM
+		   && p.clear_right_mm >= AV_REQUIRED_CORRIDOR_MM,
 		   "extreme-angle near echoes stay outside the symmetric front-plane band");
 
-	/* Pico regression, 2026-10-30: phase-1 readings from scan 1.  The
-	   Profile task must feed this phase on its own (not append the earlier
-	   coarse grid); despite several specular dropouts it has two known
+	/* Pico regression, 2026-10-30: phase-1 readings from scan 1.  Despite
+	   several specular dropouts it has two known
 	   edges and open clearance on both sides. */
 	{
 		static const H hw_dist[] = {
@@ -282,9 +280,8 @@ LOCAL INT test_profile(void)
 
 			op_beam_compensate(&p, S5_BEAM_COMP_DEG);
 			TEST_CHECK("S5-U13d", p.status == PRF_VALID
-				   && p.clear_left_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM
-				   && p.clear_right_mm >= AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM,
-				   "captured production profile proves the 10 cm-gap corridor");
+				   && p.clear_left_mm >= 0 && p.clear_right_mm >= 0,
+				   "captured production profile has two known edges for open-board planning");
 			TEST_CHECK("S5-U13e", p.status == PRF_VALID
 				   && p.width_mm < raw_width && p.width_mm <= 300
 				   && p.clear_left_mm >= raw_left
@@ -292,6 +289,49 @@ LOCAL INT test_profile(void)
 				   "measured beam compensation removes false width and preserves clearance");
 		}
 	}
+
+	/* A small object can occupy less angular width than twice the calibrated
+	   beam allowance.  It must be reduced to a narrow physical target instead
+	   of retaining the complete acoustic blob. */
+	p.status = PRF_VALID;
+	p.dist_mm = 300;
+	p.left_mm = -120;
+	p.right_mm = 120;
+	p.width_mm = 240;
+	p.clear_left_mm = 500;
+	p.clear_right_mm = 500;
+	op_beam_compensate(&p, S5_BEAM_COMP_DEG);
+	TEST_CHECK("S5-U13f", p.width_mm >= 10 && p.width_mm <= 20
+		   && iabs(p.left_mm + p.right_mm) <= 5
+		   && p.clear_left_mm > 600 && p.clear_right_mm > 600,
+		   "narrow obstacle width comes from one angular scan cell, not a fixed millimetre clamp");
+
+	/* One short central reflection must not pull the whole front face closer. */
+	n = s5_synth_scan(o, -75, 75, 200, 0, -75, 75, 3, 0);
+	for (k = 0; k < n; k++) {
+		if (o[k].angle_deg == 0) {
+			o[k].dist_mm = 160;
+		}
+	}
+	op_build(o, n, 75, &p);
+	TEST_CHECK("S5-U13g", p.status == PRF_VALID && iabs(p.dist_mm - 200) <= 5,
+		   "central median rejects one short reflection in the front-gap estimate");
+
+	/* A 50 mm obstacle covers only -3/0/+3 degrees at 300 mm.  Valid
+	   background echoes at +/-6 and +/-9 must not outvote the obstacle. */
+	n = s5_synth_scan(o, -25, 25, 300, 0, -75, 75, 3, 0);
+	for (k = 0; k < n; k++) {
+		INT a = o[k].angle_deg;
+
+		if (a == -9 || a == -6 || a == 6 || a == 9) {
+			o[k].status = SS_OK;
+			o[k].dist_mm = 900;
+		}
+	}
+	op_build(o, n, 75, &p);
+	TEST_CHECK("S5-U13h", p.status == PRF_VALID && iabs(p.dist_mm - 300) <= 5
+		   && p.width_mm >= 35 && p.width_mm <= 60,
+		   "central three-ray median retains a narrow obstacle despite background echoes");
 	TEST_SUMMARY("s5 profile");
 	return test_fail_;
 }
@@ -302,56 +342,117 @@ LOCAL INT test_plan(void)
 	AV_PLAN		pl;
 	UINT		k;
 	BOOL		valid = TRUE;
-	W		expect_d1;
+	W		expect_d1, reverse_mm, near_approach, early_return, tight_return;
 
 	TEST_INIT();
 	s5_profile_box(-75, 75, 300, 0, &p);
 	p.clear_left_mm = 400;
 	p.clear_right_mm = 900;
 	TEST_CHECK("S5-U14", av_plan(&p, &pl) == AVP_OK && pl.side == AV_SIDE_RIGHT
-		   && pl.n == 7 && pl.step[0].kind == AVS_TURN && pl.step[0].arg == 45
-		   && pl.step[1].kind == AVS_MOVE && pl.step[2].arg == -45
-		   && pl.step[3].kind == AVS_PASS && pl.step[3].arg == AV_SIDE_PASS_MAX_MM
-		   && pl.step[4].arg == -30
-		   && pl.step[5].kind == AVS_SEARCH && pl.step[6].arg == 30,
-		   "both sides free: the side with more clearance; leave, pass, return, search, align");
-	expect_d1 = (W)(((D)pl.offset_mm * 32768) / op_sin_q15(45));
-	TEST_CHECK("S5-U15", pl.step[1].arg == expect_d1
-		   && pl.offset_mm == p.right_mm + AV_ROBOT_WIDTH_MM / 2 + AV_SIDE_GAP_MM
-		   && pl.required_mm == AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM
+		   && pl.n == 8 && pl.step[0].kind == AVS_MOVE
+		   && pl.step[0].arg == pl.approach_mm
+		   && pl.step[1].kind == AVS_TURN && pl.step[1].arg == pl.turn_deg
+		   && pl.step[2].kind == AVS_MOVE && pl.step[3].arg == -pl.turn_deg
+		   && pl.step[4].kind == AVS_PASS && pl.step[4].arg == AV_SIDE_PASS_MAX_MM
+		   && pl.step[5].arg == -pl.return_turn_deg
+		   && pl.step[6].kind == AVS_SEARCH && pl.step[7].arg == pl.return_turn_deg,
+		   "plan uses forward space, calculated departure, pass, shallow return and align");
+	expect_d1 = (W)(((D)pl.offset_mm * 32768 + op_sin_q15(pl.turn_deg) - 1)
+			 / op_sin_q15(pl.turn_deg));
+	near_approach = pl.approach_mm;
+	TEST_CHECK("S5-U15", pl.step[2].arg == expect_d1
+		   && pl.offset_mm == p.right_mm + AV_ROBOT_WIDTH_MM / 2
+		      + AV_SIDE_GAP_MM + AV_EDGE_UNCERTAINTY_MM
+		   && pl.required_mm == AV_REQUIRED_CORRIDOR_MM
 		   && pl.front_gap_mm == p.dist_mm - AV_SENSOR_BEHIND_FRONT_MM
-		   && pl.side_gap_mm == AV_SIDE_GAP_MM && AV_RETURN_APPROACH_MM == 160,
-		   "lateral leg gives the configured robot-to-obstacle side gap");
+		   && pl.side_gap_mm >= AV_SIDE_GAP_MM
+		   && pl.approach_mm == pl.front_gap_mm - pl.required_front_mm
+		   && pl.turn_deg >= AV_TURN_MIN_DEG && pl.turn_deg <= AV_TURN_MAX_DEG
+		   && pl.forward_before_pass_mm <= pl.front_gap_mm
+		   && pl.return_turn_deg >= AV_RETURN_TURN_MIN_DEG
+		   && pl.return_turn_deg <= AV_RETURN_TURN_MAX_DEG
+		   && pl.return_approach_mm > 0
+		   && pl.return_approach_mm <= AV_ROBOT_LENGTH_MM,
+		   "calculated path gives 10 cm side gap and clears front face before PASS");
 
-	p.clear_left_mm = 900;
-	p.clear_right_mm = 400;
-	TEST_CHECK("S5-U16", av_plan(&p, &pl) == AVP_OK && pl.side == AV_SIDE_LEFT && pl.step[0].arg == -45,
-		   "more clearance on the left: bypass on the left");
+	/* More front clearance is used as forward approach rather than reverse. */
+	s5_profile_box(-75, 75, 400, 0, &p);
+	p.clear_left_mm = 400;
+	p.clear_right_mm = 900;
+	TEST_CHECK("S5-U15b", av_plan(&p, &pl) == AVP_OK
+		   && pl.approach_mm > near_approach,
+		   "more measured front clearance produces a longer forward approach");
+	early_return = av_return_approach_mm(AV_RETURN_TURN_MIN_DEG,
+					    AV_SIDE_GAP_MM + 25);
+	tight_return = av_return_approach_mm(AV_RETURN_TURN_MIN_DEG,
+					    AV_SIDE_GAP_MM);
+	TEST_CHECK("S5-U15c", early_return > 0 && early_return < AV_ROBOT_LENGTH_MM
+		   && tight_return > early_return && tight_return <= AV_ROBOT_LENGTH_MM,
+		   "live side gap adaptively shortens return while preserving 10 cm clearance");
+
+	/* Shift the obstacle to the right: the left route now needs less lateral
+	   deviation.  Acoustic side reach deliberately does not choose the side. */
+	p.left_mm = -50;
+	p.right_mm = 150;
+	p.width_mm = 200;
+	p.clear_left_mm = 400;
+	p.clear_right_mm = 900;
+	TEST_CHECK("S5-U16", av_plan(&p, &pl) == AVP_OK && pl.side == AV_SIDE_LEFT
+		   && pl.step[(pl.approach_mm > 0) ? 1 : 0].arg == -pl.turn_deg,
+		   "right-shifted obstacle: shorter calculated route bypasses on the left");
 
 	p.left_mm = -400;
 	p.right_mm = 400;
 	p.width_mm = 800;
 	p.clear_left_mm = 900;
 	p.clear_right_mm = 900;
-	TEST_CHECK("S5-U16b", av_plan(&p, &pl) == AVP_NO_CLEARANCE
-		   && pl.offset_mm > AV_MAX_LATERAL_OFFSET_MM && pl.n == 0,
-		   "implausibly large lateral offset is rejected instead of leaving the course");
+	TEST_CHECK("S5-U16b", av_plan(&p, &pl) == AVP_OK && pl.offset_mm > 320,
+		   "open-road planning has no hardcoded 320 mm board-width limit");
+	p.dist_mm = 700;
+	p.left_mm = -1200;
+	p.right_mm = 1200;
+	p.width_mm = 2400;
+	TEST_CHECK("S5-U16c", av_plan(&p, &pl) == AVP_NO_CLEARANCE && pl.n == 0,
+		   "route beyond the motion-command capacity is rejected safely");
 
-	s5_profile_box(-75, 75, 120, 0, &p);			/* too close to pivot */
+	s5_profile_box(-75, 75, 90, 0, &p);			/* too close to pivot */
 	p.clear_left_mm = 900;
 	p.clear_right_mm = 900;
 	TEST_CHECK("S5-U17", av_plan(&p, &pl) == AVP_NO_CLEARANCE && pl.n == 0,
 		   "bumper gap below minimum: no plan; Safe Stop");
-	p.dist_mm = 165;					/* sensor is at bumper: 165 mm gap */
+	s5_profile_box(-25, 25, 100, 0, &p);
 	p.clear_left_mm = 400;
 	p.clear_right_mm = -1;
-	TEST_CHECK("S5-U17b", av_reverse_needed_mm(&p) == 55,
-		   "safe side + close front requests bounded reverse to 220 mm gap");
-	p.dist_mm = 60;					/* would need 160 mm (> bound) */
+	reverse_mm = av_reverse_needed_mm(&p);
+	p.dist_mm += reverse_mm;
+	TEST_CHECK("S5-U17b", reverse_mm > 0 && reverse_mm <= 70
+		   && av_plan(&p, &pl) == AVP_OK
+		   && pl.turn_deg <= AV_TURN_MAX_DEG,
+		   "100 mm close stop reverses only to the calculated safe path gap");
+	s5_profile_box(-25, 25, AV_MIN_FRONT_CLEARANCE_MM, 0, &p);
+	p.clear_left_mm = 400;
+	p.clear_right_mm = -1;
+	TEST_CHECK("S5-U17d", av_reverse_needed_mm(&p) == 0
+		   && av_plan(&p, &pl) == AVP_OK,
+		   "minimum calculated bumper gap plans directly without reverse");
+	p.dist_mm = 1;					/* calculated retreat exceeds bound */
+	p.clear_left_mm = -1;
+	p.clear_right_mm = 400;
+	p.left_mm = -25;
+	p.right_mm = 600;
+	p.width_mm = 625;
 	TEST_CHECK("S5-U17c", av_reverse_needed_mm(&p) < 0,
 		   "reverse beyond the 150 mm bound is refused");
 
-	p.clear_left_mm = 200;
+	/* Limited angular scan reach is not a board edge on the declared-open
+	   road; choose from measured obstacle geometry and calculate the gap. */
+	s5_profile_box(-25, 25, 220, 0, &p);
+	p.clear_left_mm = 240;
+	p.clear_right_mm = 130;
+	TEST_CHECK("S5-U18a", av_plan(&p, &pl) == AVP_OK && pl.side == AV_SIDE_RIGHT,
+		   "open-board mode ignores captured 240/130 mm echo reach; equal geometry prefers right");
+
+	p.clear_left_mm = -1;
 	p.clear_right_mm = -1;
 	TEST_CHECK("S5-U18", av_plan(&p, &pl) == AVP_NO_CLEARANCE && pl.n == 0
 		   && pl.side == AV_SIDE_NONE,

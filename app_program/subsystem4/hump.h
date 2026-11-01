@@ -46,7 +46,7 @@ typedef struct {
 	UB	state;
 	UB	rise_count;
 	UB	level_count;
-	W	pre_elev_um;	/* elevation gained while pitch > 0 in IDLE */
+	W	pre_elev_um;	/* elevation in consecutive start samples */
 	W	elev_um;
 	W	peak_um;
 	W	travel_um;
@@ -64,7 +64,9 @@ typedef struct {
 } HUMP_EVT;
 
 IMPORT void hump_init(HUMP *h);
-/* One sample: filtered pitch, distance travelled since the last sample */
+/* One sample: filtered pitch and signed encoder displacement since the
+   previous sample.  Reverse motion rejects an active candidate because
+   its forward height integral is no longer valid. */
 IMPORT void hump_step(HUMP *h, W pitch_cdeg, W ds_um, BOOL valid, HUMP_EVT *ev);
 IMPORT BOOL hump_active(const HUMP *h);
 

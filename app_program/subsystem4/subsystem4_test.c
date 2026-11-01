@@ -3,7 +3,7 @@
  *	On-target tests for subsystem 4.  Built only with: make TEST=1
  *
  *	Runs in a test task with its own stack (subsystem2/app_test.h):
- *	  S4-U01..U29  unit tests of the pure logic (s4_unit_tests.c)
+ *	  S4-U01..U29, U33..U45  pure-logic tests (s4_unit_tests.c)
  *	  S4-U30..U32  checks of the running subsystem on the Pico (below)
  *	Each TEST_CHECK prints a PASS/FAIL line on the console.  Save the
  *	console output to testing/subsystem4/logs/ and record the result in

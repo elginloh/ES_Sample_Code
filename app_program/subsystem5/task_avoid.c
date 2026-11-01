@@ -4,8 +4,8 @@
  *	statechart (6.5):
  *
  *	  IDLE/MONITORING -obstacle detected-> STOP/REDUCE SPEED (event to
- *	  Buddy 2, wait until stopped, hold) -> COARSE SCAN -region found->
- *	  FINE SCAN -> GENERATE PROFILE -> PLAN AVOIDANCE -> EXECUTE AVOIDANCE
+ *	  Buddy 2, wait until stopped, hold) -> FULL FINE SCAN ->
+ *	  GENERATE PROFILE -> PLAN AVOIDANCE -> EXECUTE AVOIDANCE
  *	  -> SEARCH FOR ORIGINAL LINE -line found-> REACQUIRE LINE (align)
  *	  -> RESUME MISSION (SYS_EV_AVOID_DONE)
  *	  scan failure / invalid profile / no clearance / failed manoeuvre /
@@ -140,7 +140,16 @@ LOCAL BOOL search_line(INT dist)
 		}
 		res = motion_last_result(MSRC_AVOID);
 		if ((res & MRES_VALID) != 0U && mres_seq(res) == mcmd_seq(cmd)) {
-			return line_centered();		/* search distance used up */
+			UW grace = app_now_ms();
+
+			/* The 20 ms IR task can publish just after the motion result.
+			   Hold still briefly instead of declaring failure one sample early. */
+			do {
+				if (line_centered()) return TRUE;
+				(void)tk_dly_tsk(S3_PERIOD_MS);
+			} while (mres_status(res) == MRES_DONE
+				 && (UW)(app_now_ms() - grace) < S5_LINE_END_GRACE_MS);
+			return FALSE;			/* search distance used up */
 		}
 		if (expired()) {
 			motion_stop(MSRC_AVOID);
@@ -190,49 +199,23 @@ LOCAL BOOL wait_stopped(void)
 	return FALSE;
 }
 
-/* Coarse then fine scan; returns FALSE after reporting the failure */
+/* One full-resolution scan; returns FALSE after reporting the failure. */
 LOCAL BOOL profile_obstacle(S5_PROFILE *p, BOOL *cleared)
 {
-	INT	from, to, clear_from, clear_to;
 	W	front_gap;
-	W	face;
-	W	required = AV_ROBOT_WIDTH_MM + 2 * AV_SIDE_GAP_MM;
 
 	*cleared = FALSE;
 	scan_id = (UB)((scan_id + 1U) & 0x7U);
-	set_state(AVST_COARSE);
-	request_scan(SREQ_COARSE, -S5_COARSE_DEG, S5_COARSE_DEG, S5_COARSE_STEP);
-	if (!wait_profile(0, p) || p->status == PRF_INVALID) {
-		fail(AVF_PROFILE, SYS_FLT_PROFILE_INVALID);
-		return FALSE;
-	}
-	if (p->status == PRF_NO_OBSTACLE) {
-		*cleared = TRUE;
-		return FALSE;
-	}
-
-	/* fine scan around the coarse edges (Briefing: "fine scan around obstacles") */
-	face = (p->dist_mm > 0) ? p->dist_mm : 1;
-	from = op_atan_deg(p->left_mm, face) - S5_FINE_MARGIN;
-	to = op_atan_deg(p->right_mm, face) + S5_FINE_MARGIN;
-
-	/* The fine sweep must also look far enough beyond each edge to prove
-	   that the complete robot corridor is free.  A fixed angular margin can
-	   be much less than the required robot corridor at this distance (the hardware
-	   run scanned only -33..33 deg and could see just 80/30 mm).  Add one
-	   fine step so the stepped sweep reaches or passes the target bearing. */
-	clear_from = op_atan_deg(p->left_mm - required, face) - S5_FINE_STEP;
-	clear_to = op_atan_deg(p->right_mm + required, face) + S5_FINE_STEP;
-	if (clear_from < from) {
-		from = clear_from;
-	}
-	if (clear_to > to) {
-		to = clear_to;
-	}
-	from = (from < -S5_SCAN_LIMIT_DEG) ? -S5_SCAN_LIMIT_DEG : from;
-	to = (to > S5_SCAN_LIMIT_DEG) ? S5_SCAN_LIMIT_DEG : to;
+	/* A complete 3-degree sweep already contains the information supplied
+	   by the old 15-degree coarse pass, while avoiding a second left-to-right
+	   servo movement.  The full limits also prove as much side clearance as
+	   this sensor can observe without deriving a second scan window. */
 	set_state(AVST_FINE);
-	request_scan(SREQ_FINE, from, to, S5_FINE_STEP);
+	tm_printf((UB*)"avoid: full scan %d, %d..%d deg step %d, timeout %d ms\n",
+		  (INT)scan_id, -S5_SCAN_LIMIT_DEG, S5_SCAN_LIMIT_DEG,
+		  S5_FINE_STEP, S5_SCAN_TIMEOUT_MS);
+	request_scan(SREQ_FINE, -S5_SCAN_LIMIT_DEG, S5_SCAN_LIMIT_DEG,
+		     S5_FINE_STEP);
 	if (!wait_profile(1, p)) {
 		fail(AVF_PROFILE, SYS_FLT_PROFILE_INVALID);
 		return FALSE;
@@ -264,8 +247,8 @@ LOCAL BOOL profile_obstacle(S5_PROFILE *p, BOOL *cleared)
 /* Drive parallel to the obstacle while the ultrasonic looks toward it.
    The obstacle must first be seen reliably; only then can consecutive clear
    readings mark its far edge.  Use the 10 cm lateral gap to begin a shallow
-   30-degree return after a bounded 160 mm forward approach, instead of
-   waiting for the complete body length to pass while still parallel. */
+   30-degree return after a geometry-derived corner-clearance move, instead
+   of waiting for the complete body length to pass while still parallel. */
 LOCAL INT pass_obstacle(const AV_PLAN *plan)
 {
 	S5_SCAN_STATUS	ss;
@@ -275,6 +258,12 @@ LOCAL INT pass_obstacle(const AV_PLAN *plan)
 	INT		look = (plan->side == AV_SIDE_RIGHT) ? -S5_SIDE_LOOK_DEG
 							 : S5_SIDE_LOOK_DEG;
 	W		odo0 = 0, odo = 0, travelled, depth;
+	W		clear_start_mm = -1;
+	W		closest_side_mm = 0;
+	W		lateral_mm = AV_ROBOT_WIDTH_MM / 2 + plan->side_gap_mm;
+	W		side_sin = op_sin_q15(S5_SIDE_LOOK_DEG);
+	W		side_limit = (W)(((D)lateral_mm * 32768 + side_sin - 1) / side_sin)
+			   + S5_SIDE_ECHO_ALLOWANCE_MM;
 
 	s5_get_scan_status(&ss);
 	last_seq = ss.seq;
@@ -296,7 +285,9 @@ LOCAL INT pass_obstacle(const AV_PLAN *plan)
 	}
 
 	tm_printf((UB*)"avoid: passing obstacle, ultrasonic looking %d deg; "
-		  "far edge needs %d clear readings\n", look, S5_SIDE_CLEAR_CONFIRM);
+		  "expected side %d mm, present limit %d mm, far edge needs %d clears\n",
+		  look, (INT)((D)lateral_mm * 32768 / side_sin), (INT)side_limit,
+		  S5_SIDE_CLEAR_CONFIRM);
 	motion_get_odometry(&odo0, NULL);
 	if (motion_command(MCMD_MOVE, MSRC_AVOID, AV_SIDE_PASS_MAX_MM,
 			   S5_AVOID_SPEED_LVL, &cmd) != E_OK) {
@@ -328,16 +319,21 @@ LOCAL INT pass_obstacle(const AV_PLAN *plan)
 			last_seq = ss.seq;
 			side_mm = s5_dist_mm(ss.dist_code);
 			if (ss.us_result == US_OK && side_mm > 0
-			    && side_mm <= S5_SIDE_PRESENT_MAX_MM) {
+			    && side_mm <= side_limit) {
+				if (closest_side_mm == 0 || side_mm < closest_side_mm) {
+					closest_side_mm = side_mm;
+				}
 				if (seen_run < S5_SIDE_SEEN_CONFIRM) seen_run++;
 				if (seen_run >= S5_SIDE_SEEN_CONFIRM) seen = TRUE;
 				clear_run = 0;
+				clear_start_mm = -1;
 				bad_run = 0;
 			} else if (ss.us_result == US_NO_ECHO
 				   || (ss.us_result == US_OK
-				       && side_mm > S5_SIDE_PRESENT_MAX_MM)) {
+				       && side_mm > side_limit)) {
 				bad_run = 0;
 				if (seen) {
+					if (clear_run == 0U) clear_start_mm = travelled;
 					if (clear_run < S5_SIDE_CLEAR_CONFIRM) clear_run++;
 				} else {
 					seen_run = 0;
@@ -358,6 +354,22 @@ LOCAL INT pass_obstacle(const AV_PLAN *plan)
 		}
 		if (seen && clear_run >= S5_SIDE_CLEAR_CONFIRM
 		    && travelled >= S5_SIDE_MIN_TRAVEL_MM) {
+			W clear_travel = (clear_start_mm >= 0)
+				       ? travelled - clear_start_mm : 0;
+			W edge_ahead = (W)(((D)side_limit
+						 * op_cos_q15(S5_SIDE_LOOK_DEG)) / 32768)
+				       - clear_travel + S5_FAR_EDGE_ALLOWANCE_MM;
+			W measured_gap = (W)(((D)closest_side_mm * side_sin) / 32768)
+					 - AV_ROBOT_WIDTH_MM / 2
+					 - S5_SIDE_GAP_MEAS_MARGIN_MM;
+			W body_path;
+			W return_move;
+
+			if (edge_ahead < 0) edge_ahead = 0;
+			if (measured_gap < 0) measured_gap = 0;
+			body_path = av_return_approach_mm(plan->return_turn_deg, measured_gap);
+			return_move = body_path + edge_ahead;
+			if (return_move > MCMD_MOVE_MAX_MM) return_move = MCMD_MOVE_MAX_MM;
 			motion_stop(MSRC_AVOID);
 			if (motion_wait_result(cmd, 1000, &res) != E_OK
 			    || (mres_status(res) != MRES_ABORTED
@@ -366,17 +378,19 @@ LOCAL INT pass_obstacle(const AV_PLAN *plan)
 				fail(AVF_MOTION, SYS_FLT_AVOID_FAILED);
 				return EXEC_FAILED;
 			}
-			depth = plan->offset_mm + travelled
+			depth = plan->forward_before_pass_mm + travelled
 			      - (plan->front_gap_mm + AV_SENSOR_BEHIND_FRONT_MM);
 			if (depth < 0) depth = 0;
 			tm_printf((UB*)"avoid: far edge found after %d mm parallel travel; "
-				  "estimated obstacle length %d mm; advancing %d mm, "
-				  "then returning at %d deg\n",
-				  (INT)travelled, (INT)depth, AV_RETURN_APPROACH_MM,
-				  AV_RETURN_TURN_DEG);
+				  "estimated obstacle length %d mm; measured side gap %d mm; "
+				  "edge allowance %d mm + body path %d mm = advance %d mm, "
+				  "then return at %d deg\n",
+				  (INT)travelled, (INT)depth, (INT)measured_gap,
+				  (INT)edge_ahead, (INT)body_path, (INT)return_move,
+				  (INT)plan->return_turn_deg);
 			request_scan(SREQ_MONITOR, 0, 0, 0);
 			(void)tk_dly_tsk(S5_SIDE_CENTER_MS);
-			res = move(MCMD_MOVE, AV_RETURN_APPROACH_MM);
+			res = move(MCMD_MOVE, return_move);
 			if (res == MRES_DONE) {
 				return EXEC_DONE;
 			}
@@ -415,8 +429,14 @@ LOCAL INT execute_plan(const AV_PLAN *plan)
 	for (i = 0; i < plan->n; i++) {
 		const AV_STEP	*st = &plan->step[i];
 		UW		r;
+		UB		*step_name = (st->kind == AVS_TURN) ? (UB*)"turn"
+				    : (st->kind == AVS_MOVE) ? (UB*)"move"
+				    : (st->kind == AVS_PASS) ? (UB*)"pass"
+				    : (UB*)"search";
 
 		ast.step = (UB)i;
+		tm_printf((UB*)"avoid: step %d/%d %s %d\n", (INT)(i + 1U),
+			  (INT)plan->n, step_name, (INT)st->arg);
 		if (sys_mode() != VM_OBSTACLE) {
 			return EXEC_ABANDONED;		/* Safe Stop or operator stop */
 		}
@@ -536,8 +556,10 @@ LOCAL void handle_obstacle(void)
 			pr = av_plan(&prof, &plan);
 			reverse_mm = av_reverse_needed_mm(&prof);
 			if (pr == AVP_NO_CLEARANCE && !reverse_used && reverse_mm > 0) {
-				tm_printf((UB*)"avoid: front too close; reversing %d mm at creep, "
-					  "then rescanning\n", (INT)reverse_mm);
+				tm_printf((UB*)"avoid: front gap %d mm, calculated need %d mm; "
+					  "reversing only %d mm at creep, then rescanning\n",
+					  (INT)plan.front_gap_mm, (INT)plan.required_front_mm,
+					  (INT)reverse_mm);
 				if (move_at_speed(MCMD_MOVE, -(INT)reverse_mm,
 						  S5_REVERSE_SPEED_LVL) != MRES_DONE) {
 					fail(AVF_MOTION, SYS_FLT_AVOID_FAILED);
@@ -548,20 +570,17 @@ LOCAL void handle_obstacle(void)
 					fail(AVF_MOTION, SYS_FLT_AVOID_FAILED);
 					return;
 				}
-				continue;		/* full coarse + fine rescan */
+				tm_printf((UB*)"avoid: reverse complete; starting one full rescan\n");
+				continue;		/* repeat the full fine scan */
 			}
 			break;
 		}
 		if (pr == AVP_NO_CLEARANCE) {
-			if (plan.offset_mm > AV_MAX_LATERAL_OFFSET_MM) {
-				tm_printf((UB*)"avoid: rejected centre offset %d mm; limit %d mm "
-					  "(obstacle width/edge may be noisy)\n",
-					  (INT)plan.offset_mm, AV_MAX_LATERAL_OFFSET_MM);
-			}
 			tm_printf((UB*)"avoid: no safe path (have %d mm bumper gap; "
-				  "need %d mm side, %d mm front)\n",
+				  "need %d mm side, %d mm front for calculated turn)\n",
 				  (INT)plan.front_gap_mm, (INT)plan.required_mm,
-				  AV_MIN_FRONT_CLEARANCE_MM);
+				  (INT)((plan.required_front_mm > 0)
+					? plan.required_front_mm : AV_MIN_FRONT_CLEARANCE_MM));
 			fail(AVF_CLEARANCE, SYS_FLT_OBSTACLE_UNAVOIDABLE);
 			return;
 		}
@@ -570,11 +589,13 @@ LOCAL void handle_obstacle(void)
 			return;
 		}
 		tm_printf((UB*)"avoid: plan %s, edge %d + half robot %d + gap %d "
-			  "= centre offset %d mm, %d steps\n",
+			  "+ allowance %d "
+			  "= centre offset %d mm; approach %d mm, turn %d deg, %d steps\n",
 			  (plan.side == AV_SIDE_RIGHT) ? "right" : "left",
 			  (INT)((plan.side == AV_SIDE_RIGHT) ? prof.right_mm : -prof.left_mm),
-			  AV_ROBOT_WIDTH_MM / 2, (INT)plan.side_gap_mm,
-			  (INT)plan.offset_mm, (INT)plan.n);
+			  AV_ROBOT_WIDTH_MM / 2, AV_SIDE_GAP_MM, AV_EDGE_UNCERTAINTY_MM,
+			  (INT)plan.offset_mm, (INT)plan.approach_mm,
+			  (INT)plan.turn_deg, (INT)plan.n);
 		switch (execute_plan(&plan)) {
 		case EXEC_DONE:
 			finish(AVO_SUCCESS);

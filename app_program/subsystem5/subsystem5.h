@@ -35,7 +35,7 @@
 #define S5_PING_PERIOD_MS	60	/* HC-SR04 measurement cycle        */
 #define S5_STOPPING_ALLOWANCE_MM 60	/* at 100 mm/s caution speed: scan closer */
 #define S5_DETECT_MM		(AV_SENSOR_BEHIND_FRONT_MM \
-				 + AV_MIN_FRONT_CLEARANCE_MM + S5_STOPPING_ALLOWANCE_MM)
+				 + AV_DETECT_FRONT_GAP_MM + S5_STOPPING_ALLOWANCE_MM)
 #define S5_DETECT_CONFIRM	2	/* consecutive readings             */
 #define S5_CAUTION_MM		(S5_DETECT_MM + 150)	/* slow before detect range */
 #define S5_CAUTION_MMS		100	/* ... to this cap                  */
@@ -44,15 +44,14 @@
 #define S5_US_FAIL_COUNT	5	/* silent pings before a fault      */
 
 /* Scanning */
-#define S5_COARSE_DEG		60	/* coarse sweep -60..+60 ...        */
-#define S5_COARSE_STEP		15	/* ... every 15 deg                 */
-#define S5_FINE_STEP		3	/* fine sweep every 3 deg ...       */
-#define S5_FINE_MARGIN		12	/* ... 12 deg beyond the coarse edges */
-#define S5_SCAN_LIMIT_DEG	75
+#define S5_FINE_STEP		3	/* one full-resolution sweep        */
+#define S5_SCAN_LIMIT_DEG	75	/* -75..+75 degrees, 51 samples     */
 #define S5_SCAN_PINGS		3	/* majority + median at every angle */
 #define S5_SCAN_AGREE_MM	80	/* two-return maximum disagreement */
-#define S5_SIDE_LOOK_DEG	75	/* near-perpendicular view of obstacle side */
-#define S5_SIDE_PRESENT_MAX_MM 230	/* 176 mm nominal at 10 cm edge gap + tolerance */
+#define S5_SIDE_LOOK_DEG	80	/* near-perpendicular view of obstacle side */
+#define S5_SIDE_ECHO_ALLOWANCE_MM 40	/* [CAL] range/pose tolerance around plan */
+#define S5_FAR_EDGE_ALLOWANCE_MM 10	/* residual beam/edge uncertainty */
+#define S5_SIDE_GAP_MEAS_MARGIN_MM 10	/* subtract live-range error before return */
 #define S5_SIDE_SEEN_CONFIRM	2	/* establish the obstacle before looking for edge */
 #define S5_SIDE_CLEAR_CONFIRM	5	/* consecutive clear side readings */
 #define S5_SIDE_BAD_MAX	10	/* unusable side readings before failure */
@@ -63,8 +62,8 @@
 /* Avoidance and recovery (bounded) [CAL] */
 #define S5_HOLD_MS		300	/* "hold position briefly"          */
 #define S5_STOP_WAIT_MS		1500
-#define S5_SCAN_TIMEOUT_MS	15000	/* three pings/angle fine scan is ~10 s;
-					   leave margin for serial/Wi-Fi scheduling */
+#define S5_SCAN_TIMEOUT_MS	22000	/* full 51-angle scan can approach 18 s
+					   when many pings wait for no echo */
 #define S5_AVOID_SPEED_LVL	2	/* 2 * 25 = 50 mm/s (was 6 = 150, then
 					   4 = 100: turns spun the car ~90 deg/s.
 					   The ~1.8 m plan must still finish inside
@@ -76,6 +75,7 @@
 #define S5_REVERSE_SPEED_LVL	1	/* bounded recovery reverse at 25 mm/s */
 #define S5_SEARCH_RETRIES	1
 #define S5_SEARCH_RETRY_DEG	20
+#define S5_LINE_END_GRACE_MS	300	/* let final IR sample publish */
 #define S5_REPLANS		1	/* after an emergency stop          */
 
 /* flg_avoid bits */

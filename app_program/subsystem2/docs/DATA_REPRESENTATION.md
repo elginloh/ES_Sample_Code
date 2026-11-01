@@ -117,7 +117,7 @@ compacted for storage or transmission (Tribunal 1: "No change").
 | Distance | 0..4000 mm + no echo + invalid | **5 mm** (sensor ≈ 3 mm resolution, ≈ 1 cm accuracy) | 803 | 10 | codes 0..800, 1022, 1023 | `W` mm |
 | Servo angle | −80..80° (+ right) | 1° | 161 | 8 | sample 0–7, scan status 10–17 | `INT` |
 | Scan id | 0..7, wraps | 1 | 8 | 3 | request 2–4, sample 18–20, profile 0–2 | `UB` |
-| Sample phase, last flag | coarse/fine, flag | — | 2 / 2 | 1 / 1 | sample 21, 22 | `UB` |
+| Sample phase, last flag | phase (production full-fine = 1), flag | — | 2 / 2 | 1 / 1 | sample 21, 22 | `UB` |
 | Sample status | OK, NO_ECHO, INVALID, ABORTED | — | 4 | 2 | sample 23–24 | `UB` |
 | Request type / step | 4 types / 1..15° | 1° | 4 / 16 | 2 / 4 | request 0–1 / 21–24 | `UB` |
 | Profile status | VALID, NO_OBSTACLE, INVALID, INSUFFICIENT | — | 4 | 2 | profile w0 3–4 | `UB` |

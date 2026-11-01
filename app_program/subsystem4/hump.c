@@ -37,6 +37,9 @@ LOCAL void restart(HUMP *h)
 	h->rise_count = 0;
 	h->level_count = 0;
 	h->pre_elev_um = 0;
+	h->elev_um = 0;
+	h->peak_um = 0;
+	h->travel_um = 0;
 }
 
 LOCAL void complete(HUMP *h, HUMP_EVT *ev)
@@ -78,23 +81,33 @@ EXPORT void hump_step(HUMP *h, W pitch_cdeg, W ds_um, BOOL valid, HUMP_EVT *ev)
 		return;
 	}
 	if (ds_um < 0) {
-		ds_um = 0;				/* reversing: no hump progress */
+		if (h->state != HS_IDLE) {
+			ev->rejected = TRUE;		/* forward integral is no longer valid */
+		}
+		restart(h);
+		return;
 	}
 	dz = (W)(((D)ds_um * imath_sin_q15(pitch_cdeg)) / 32768);
 
 	switch (h->state) {
 	case HS_IDLE:
-		h->pre_elev_um = (pitch_cdeg > 0) ? (h->pre_elev_um + dz) : 0;
 		if (pitch_cdeg >= HUMP_START_CDEG && ds_um > 0) {
+			/* Keep only the consecutive samples that satisfy the start
+			   condition.  Accumulating every small positive road slope here
+			   can otherwise turn a long 1-2 degree incline into a false hump
+			   when a later vibration briefly crosses the threshold. */
+			h->pre_elev_um += dz;
+			h->travel_um += ds_um;
 			if (++h->rise_count >= 2U) {
 				h->state = HS_CLIMB;
 				h->elev_um = h->pre_elev_um;	/* include the start of the climb */
 				h->peak_um = h->elev_um;
-				h->travel_um = 0;
 				h->level_count = 0;
 			}
 		} else {
 			h->rise_count = 0;
+			h->pre_elev_um = 0;
+			h->travel_um = 0;
 		}
 		break;
 

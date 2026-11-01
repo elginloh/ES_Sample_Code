@@ -24,10 +24,20 @@ EXPORT ER subsystem4_init(void)
 	T_CFLG	cflg = {0};
 	T_CMBF	cmbf = {0};
 	T_CCYC	ccyc = {0};
+	S4_IMU_STATUS initial = {0};
 
 	s4_imu_seq.seq = 0;
-	s4_imu_words[0] = 0;
-	s4_imu_words[1] = S4_HEADING_INVALID;
+	/* Never expose zero-degree sensor values before calibration.  The
+	   validity bit is authoritative, but using the reserved invalid codes
+	   also keeps telemetry consumers from mistaking startup for a real
+	   level/stationary measurement. */
+	initial.pitch_deg = (B)S4_ANGLE_INVALID;
+	initial.roll_deg = (B)S4_ANGLE_INVALID;
+	initial.yaw_rate_dps = (H)S4_RATE_INVALID;
+	initial.motion_class = MCLS_STATIONARY;
+	initial.status = IMU_ST_INIT;
+	initial.heading_deg = (UH)S4_HEADING_INVALID;
+	s4_imu_pack(&initial, s4_imu_words);
 	s4_imu_time = 0;
 	s4_dropped = 0;
 

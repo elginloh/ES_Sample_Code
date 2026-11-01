@@ -481,6 +481,23 @@ LOCAL INT test_hump(void)
 		sat = FALSE;
 	}
 	TEST_CHECK("S4-U25", !sat, "quantisation error <= 1 mm over 0..100 mm");
+
+	/* A shallow positive road grade before a candidate must not be added
+	   to that candidate's height. */
+	hump_init(&h);
+	for (s = 0; s < 1000; s += 2) {
+		hump_step(&h, 200, 2000, TRUE, &ev);	/* 2 deg for one metre */
+	}
+	hump_step(&h, 300, 2000, TRUE, &ev);
+	hump_step(&h, 300, 2000, TRUE, &ev);
+	TEST_CHECK("S4-U44", h.state == HS_CLIMB && h.elev_um < 1000 && h.travel_um == 4000,
+		   "shallow road grade is not accumulated into a later hump candidate");
+
+	/* Reversing changes the traversal path, so a partly integrated hump
+	   must be discarded instead of being resumed later. */
+	hump_step(&h, 300, -1000, TRUE, &ev);
+	TEST_CHECK("S4-U45", ev.rejected && !hump_active(&h),
+		   "reverse motion rejects an active forward hump measurement");
 	TEST_SUMMARY("s4 hump");
 	return test_fail_;
 }

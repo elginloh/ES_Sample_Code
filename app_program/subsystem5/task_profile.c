@@ -2,10 +2,8 @@
  *	task_profile.c
  *	Obstacle Profile task (Week 6: Medium, queue-driven).  Collects the
  *	packed samples of one scan phase, builds the profile when the last
- *	sample arrives and sends it to the Avoidance & Recovery task.  Coarse
- *	and fine use the same scan id, so a phase change must also clear the
- *	buffer; otherwise the two angular grids are mixed into one profile.
- *	Samples of another scan id likewise start over, so a late sample can
+ *	sample arrives and sends it to the Avoidance & Recovery task.  A phase
+ *	or scan-id change clears the buffer, so a late sample can
  *	never mix two obstacles (Tribunal 1: "scan identifiers, validity
  *	checks").
  */

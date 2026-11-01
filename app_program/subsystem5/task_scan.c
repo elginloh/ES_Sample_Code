@@ -317,8 +317,8 @@ EXPORT void scan_task(INT stacd, void *exinf)
 			mode = SREQ_IDLE;	/* avoidance decides when to monitor again */
 		} else if (rq.type == SREQ_SIDE && rq.start_deg != 0) {
 			side_angle = rq.start_deg;
-			if (side_angle < -S5_SCAN_LIMIT_DEG) side_angle = -S5_SCAN_LIMIT_DEG;
-			if (side_angle > S5_SCAN_LIMIT_DEG) side_angle = S5_SCAN_LIMIT_DEG;
+			if (side_angle < -SERVO_LIMIT_DEG) side_angle = -SERVO_LIMIT_DEG;
+			if (side_angle > SERVO_LIMIT_DEG) side_angle = SERVO_LIMIT_DEG;
 			side_active = TRUE;
 			mode = SREQ_SIDE;
 		} else {

@@ -59,7 +59,7 @@ LOCAL W lateral(W d, INT deg)
 
 LOCAL W forward(W d, INT deg)
 {
-	return (W)(((D)d * op_cos_q15(deg)) / 32768);
+	return (W)(((D)d * op_cos_q15(deg) + 16384) / 32768);
 }
 
 /* Sort a copy by angle (insertion sort, n <= OP_MAX_SAMPLES) */
@@ -124,7 +124,7 @@ LOCAL W planar(W y, INT deg)
 
 EXPORT void op_beam_compensate(S5_PROFILE *p, INT half_angle_deg)
 {
-	INT	left_a, right_a;
+	INT	left_a, right_a, centre_a, raw_span, corrected_span, min_span;
 	W	old_left, old_right;
 	W	gain;
 
@@ -136,17 +136,27 @@ EXPORT void op_beam_compensate(S5_PROFILE *p, INT half_angle_deg)
 	}
 	left_a = op_atan_deg(p->left_mm, p->dist_mm);
 	right_a = op_atan_deg(p->right_mm, p->dist_mm);
-	if (right_a - left_a <= 2 * half_angle_deg) {
-		return;				/* allowance would erase the object */
-	}
 	old_left = p->left_mm;
 	old_right = p->right_mm;
-	left_a += half_angle_deg;
-	right_a -= half_angle_deg;
+	raw_span = right_a - left_a;
+	if (raw_span <= 0) {
+		return;
+	}
+	/* Remove the calibrated beam footprint, but retain one observed angular
+	   cell.  Unlike the former 50 mm clamp, this residual width scales with
+	   range and therefore remains an ultrasonic-derived estimate. */
+	min_span = (raw_span < OP_EDGE_RESOLUTION_DEG)
+		   ? raw_span : OP_EDGE_RESOLUTION_DEG;
+	corrected_span = raw_span - 2 * half_angle_deg;
+	if (corrected_span < min_span) corrected_span = min_span;
+	centre_a = (left_a + right_a) / 2;
+	left_a = centre_a - corrected_span / 2;
+	right_a = left_a + corrected_span;
 	p->left_mm = planar(p->dist_mm, left_a);
 	p->right_mm = planar(p->dist_mm, right_a);
 	p->width_mm = p->right_mm - p->left_mm;
-	p->bearing_deg = (left_a + right_a) / 2;
+	p->bearing_deg = op_atan_deg((p->left_mm + p->right_mm) / 2,
+				     p->dist_mm);
 
 	/* Moving an apparent edge inward exposes the same amount of additional
 	   free corridor; retain any nearer side object already found. */
@@ -227,7 +237,8 @@ EXPORT void op_build(const OP_SAMPLE *s, UINT n, INT scan_limit_deg,
 {
 	OP_SAMPLE	o[OP_MAX_SAMPLES];
 	H		y[OP_MAX_SAMPLES];	/* forward distance of each echo, mm */
-	UINT		i, readings = 0, hits = 0;
+	H		front_y[OP_MAX_SAMPLES];
+	UINT		i, j, readings = 0, hits = 0, front_n = 0;
 	INT		near_i = -1, li, ri, k;
 	W		y_near = 0x7FFFFFFF;
 	INT		edge_l, edge_r;
@@ -246,6 +257,9 @@ EXPORT void op_build(const OP_SAMPLE *s, UINT n, INT scan_limit_deg,
 		}
 		readings++;
 		y[i] = (H)forward(o[i].dist_mm, o[i].angle_deg);	/* <= 4000 */
+		if (iabs(o[i].angle_deg) <= OP_FRONT_ESTIMATE_DEG) {
+			front_y[front_n++] = y[i];
+		}
 		if (iabs(o[i].angle_deg) <= OP_FORWARD_CONE_DEG && y[i] < y_near) {
 			y_near = y[i];
 			near_i = (INT)i;
@@ -256,6 +270,39 @@ EXPORT void op_build(const OP_SAMPLE *s, UINT n, INT scan_limit_deg,
 	}
 	if (looks_frozen(o, n)) {
 		return;					/* PRF_INVALID: servo suspect */
+	}
+	/* The old minimum-of-+-30-deg estimate let one short/specular return
+	   make the obstacle appear tens of millimetres closer after a reverse.
+	   The robot was triggered by its centre ray, so use the median of the
+	   filtered samples around that ray and retain the minimum as fallback. */
+	if (front_n > 0U) {
+		W	best_delta = 0x7FFFFFFF;
+
+		for (i = 1; i < front_n; i++) {
+			H v = front_y[i];
+
+			j = i;
+			while (j > 0U && front_y[j - 1U] > v) {
+				front_y[j] = front_y[j - 1U];
+				j--;
+			}
+			front_y[j] = v;
+		}
+		y_near = (front_n & 1U) ? front_y[front_n / 2U]
+			 : ((W)front_y[front_n / 2U - 1U] + front_y[front_n / 2U]) / 2;
+		near_i = -1;
+		for (i = 0; i < n; i++) {
+			W delta;
+
+			if (y[i] < 0 || iabs(o[i].angle_deg) > OP_FRONT_ESTIMATE_DEG) {
+				continue;
+			}
+			delta = iabs((W)y[i] - y_near);
+			if (delta < best_delta) {
+				best_delta = delta;
+				near_i = (INT)i;
+			}
+		}
 	}
 	if (near_i < 0 || y_near > OP_DETECT_RANGE_MM) {
 		init_out(out, PRF_NO_OBSTACLE);		/* path is clear */

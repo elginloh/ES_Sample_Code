@@ -17,16 +17,50 @@ LOCAL volatile UW	echo_seen;
 LOCAL ID		done_flgid;
 LOCAL UINT		done_ptn;
 LOCAL UW		us_seq;
+#if US_DEBUG
+LOCAL BOOL		us_debug_near;
+LOCAL INT		us_debug_last_result;
+LOCAL UW		us_debug_last_mm;
+#endif
 
 LOCAL INT report_measurement(INT result, UW seen, UW rise_delay, UW pulse,
 			     UW distance, UINT echo_level)
 {
 #if US_DEBUG
+	BOOL	near;
+	BOOL	fault = (result == US_NO_RESPONSE || result == US_INVALID) ? TRUE : FALSE;
+	BOOL	was_fault = (us_debug_last_result == US_NO_RESPONSE
+			     || us_debug_last_result == US_INVALID) ? TRUE : FALSE;
+	UW	delta = (distance > us_debug_last_mm)
+		      ? distance - us_debug_last_mm : us_debug_last_mm - distance;
+	UB	*event = NULL;
+
 	us_seq = (us_seq + 1U) & 0xFFFFU;
-	tm_printf((UB*)"us: seq %d result %d echo %d edges %d rise %d us "
-		  "pulse %d us distance %d mm\n",
-		  (INT)us_seq, result, (INT)echo_level, (INT)seen,
-		  (INT)rise_delay, (INT)pulse, (INT)distance);
+	/* Enter at the real obstacle-trigger threshold.  Once inside, retain a
+	   small hysteresis band so normal ultrasonic jitter does not print an
+	   obstacle/clear pair every 60 ms. */
+	near = (result == US_OK
+		&& distance <= S5_DETECT_MM + (us_debug_near ? US_DEBUG_HYST_MM : 0U))
+	       ? TRUE : FALSE;
+	if (near && (!us_debug_near
+		     || (distance <= S5_DETECT_MM && delta >= US_DEBUG_CHANGE_MM))) {
+		event = (UB*)"obstacle";
+		us_debug_last_mm = distance;
+	} else if (!near && us_debug_near) {
+		event = fault ? (UB*)"fault" : (UB*)"clear";
+	} else if (fault && result != us_debug_last_result) {
+		event = (UB*)"fault";
+	} else if (!fault && was_fault) {
+		event = (UB*)"recovered";
+	}
+	if (event != NULL) {
+		tm_printf((UB*)"us: %s seq %d result %d echo %d edges %d rise %d us "
+			  "pulse %d us distance %d mm (threshold %d mm)\n",
+			  event, (INT)us_seq, result, (INT)echo_level, (INT)seen,
+			  (INT)rise_delay, (INT)pulse, (INT)distance, S5_DETECT_MM);
+	}
+	us_debug_near = near;
+	us_debug_last_result = result;
 #else
 	(void)seen;
 	(void)rise_delay;
@@ -65,6 +99,11 @@ EXPORT ER us_init(ID done_flg, UINT done_bit)
 	done_ptn = done_bit;
 	echo_seen = 0;
 	us_seq = 0;
+#if US_DEBUG
+	us_debug_near = FALSE;
+	us_debug_last_result = US_OK;
+	us_debug_last_mm = 0;
+#endif
 	(void)gpio_set_pin(US_TRIG_PIN, GPIO_MODE_OUT);		/* libbsp */
 	(void)gpio_set_val(US_TRIG_PIN, 0);
 	gpio_input_config(US_ECHO_PIN, GPIO_PULL_DOWN);
