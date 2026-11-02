@@ -16,12 +16,12 @@
  *	    C=1 L=1      line drifting to IR_L   error -1
  *	    C=0 L=1      line under IR_L only    error -2: pivot towards IR_L
  *	                 until the centre has it (held through all-white)
- *	    C=0 L=0      line lost: turn towards IR_R (the car's left) at once
+	 *	    C=0 L=0      a short dropout is ignored; if it persists, turn
+	 *	                 towards IR_R (the car's left)
  *	                 until C or L sees black again.  First an arc while moving on
  *	                 (a curve), after LF_LOST_ARC_MM / _MS a pivot on the
- *	                 spot (a sharp corner).  Found after a long turn: keep
- *	                 turning that way gently for LF_REALIGN_MS, the curve
- *	                 goes on (not after a short one: weaves on a straight).
+	 *	                 spot (a sharp corner).  As soon as the centre sensor
+	 *	                 sees black again, command straight ahead.
  *	    L=C=R=1      junction (crossing line)
  *	Steering = PD on the error, + = turn right (motion_msg.h convention).
  *
@@ -70,18 +70,21 @@
 #define LF_CAL_UNSTABLE		(-2)	/* readings flickered while still   */
 
 /* Tuning [CAL] */
-#define LF_KP			18	/* steer units per error step (was 12:
-					   too gentle for the ~20 cm curves) */
-#define LF_KD			6	/* (was 8: smaller kick at turn start) */
+#define LF_KP			10	/* centre-first correction; the old 18
+					   changed wheel speed too abruptly */
+#define LF_KD			2	/* small damping kick at turn start */
+#define LF_CENTER_GAP_MS	60	/* ignore up to two isolated 20 ms
+					   centre/side white samples */
 #define LF_LOST_CONFIRM_MM	40	/* lost after this much travel ... (was 25) */
 #define LF_LOST_CONFIRM_MS	250	/* ... or this long without line (was 300, 400) */
 #define LF_JUNCTION_MM		8	/* all-black run to call a junction */
 #define LF_LOST_DIR		1	/* centre and IR_L white: turn towards
 					   IR_R (+1), the car's left with
 					   IR_SIDES_MIRRORED */
-#define LF_LOST_ARC_STEER	20	/* ... first arcing at this steer ... */
-#define LF_LOST_ARC_SPEED	8	/* ... and 8/15 of cruise (inner wheel
-					   ~28 %, outer ~78 % of cruise) ... */
+#define LF_LOST_ARC_STEER	12	/* ... first use a gentle corrective arc */
+#define LF_LOST_ARC_SPEED	12	/* ... at 12/15 cruise; at 160 mm/s this
+					   requests about 104/152 mm/s, rather
+					   than the old abrupt 45/125 mm/s ... */
 #define LF_LOST_ARC_MM		40	/* ... for this much travel ... */
 #define LF_LOST_ARC_MS		400	/* ... or this long, then ... */
 #define LF_LOST_PIVOT_STEER	20	/* ... pivoting on the spot at this
@@ -90,10 +93,10 @@
 					   curve or corner, not a small slip off
 					   a straight): keep turning the same way
 					   for LF_REALIGN_MS ... */
-#define LF_REALIGN_MS		400	/* ... this long ... */
-#define LF_REALIGN_STEER	14	/* ... this hard, while the centre alone
-					   has the line ... */
-#define LF_REALIGN_SPEED	8	/* ... at 8/15 of cruise */
+#define LF_REALIGN_MS		0	/* centre sensor wins immediately: once
+					   it sees black, command straight */
+#define LF_REALIGN_STEER	0
+#define LF_REALIGN_SPEED	15
 #define LF_SIDE_PIVOT_STEER	20	/* only IR_L on the line: stop and pivot
 					   towards it at this steer (40 mm/s
 					   per wheel at the 160 mm/s cruise)
@@ -119,6 +122,7 @@ typedef struct {
 	UW	lost_ms;	/* time without the line */
 	W	lost_start_mm;
 	BOOL	lost_pending;
+	UW	center_gap_ms;	/* short all-white dropout suppression */
 	UW	settle_ms;	/* half-speed time left after a pivot */
 	BOOL	turning;	/* lost-line turn under way ... */
 	W	turn_start_mm;	/* ... since this odometer reading ... */

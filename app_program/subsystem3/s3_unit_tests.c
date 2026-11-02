@@ -323,7 +323,7 @@ LOCAL INT test_line(void)
 	W		odo = 0;
 	BOOL		lost = FALSE, found = FALSE, fail = FALSE, junction = FALSE;
 	BOOL		bar_ok = TRUE, held = TRUE, ok1;
-	UINT		junction_events = 0, arcs, pivots;
+	UINT		junction_events = 0, arcs, pivots, grace;
 
 	TEST_INIT();
 	lf_init(&lf);
@@ -377,19 +377,22 @@ LOCAL INT test_line(void)
 		   && o.steer == 0 && o.speed_frac == LF_SETTLE_SPEED,
 		   "side pivot held through all-white until the centre has the line; then half speed, no kick back");
 
-	/* centre and IR_L white: arc towards IR_R at once while moving on,
-	   then pivot on the spot after LF_LOST_ARC_MS; LOST meanwhile */
+	/* Centre and IR_L white: suppress two isolated samples, then arc
+	   gently towards IR_R while moving on, and finally pivot. */
 	lf_reset_tracking(&lf);
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	arcs = 0;
 	pivots = 0;
+	grace = 0;
 	held = TRUE;
 	lost = FALSE;
 	for (t = 0; t < 1000U; t += 20U) {
 		odo += 1;				/* slow: the time limit ends the arc */
 		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		lost = lost || ((o.events & LF_EV_LOST) != 0U);
-		if (o.steer == LF_LOST_DIR * LF_LOST_ARC_STEER
+		if (o.steer == 0 && o.speed_frac == 15) {
+			grace++;
+		} else if (o.steer == LF_LOST_DIR * LF_LOST_ARC_STEER
 			   && o.speed_frac == LF_LOST_ARC_SPEED) {
 			held = held && pivots == 0U;	/* arc only before the pivot */
 			arcs++;
@@ -400,19 +403,28 @@ LOCAL INT test_line(void)
 		}
 	}
 	TEST_CHECK("S3-U25", held && lost && lf.state == LS_SEARCHING && lf.pos == LP_LOST_RIGHT
+		   && grace == (LF_CENTER_GAP_MS - 1U) / 20U
 		   && arcs == LF_LOST_ARC_MS / 20U && pivots > 0U,
-		   "centre and IR_L white: arc towards IR_R (car's left) at once, then pivot; LOST");
+		   "brief white gap ignored; sustained loss uses a gentle arc, then pivot; LOST");
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	found = (o.events & LF_EV_FOUND) != 0U;
-	ok1 = o.steer == LF_LOST_DIR * LF_REALIGN_STEER && o.speed_frac == LF_REALIGN_SPEED;
-	for (t = 20; t < LF_REALIGN_MS; t += 20U) {
-		lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
-		ok1 = ok1 && o.steer == LF_LOST_DIR * LF_REALIGN_STEER && o.speed_frac == LF_REALIGN_SPEED;
-	}
-	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	ok1 = o.steer == 0 && o.speed_frac == 15;
 	TEST_CHECK("S3-U26", found && ok1 && lf.state == LS_ON_LINE && o.steer == 0
 		   && o.speed_frac == 15,
-		   "line reacquired -> FOUND; keeps turning gently towards IR_R for LF_REALIGN_MS, then straight");
+		   "line reacquired on centre -> FOUND and straight immediately");
+
+	/* One or two white samples between centred samples must not alter the
+	   motor command or create a LOST/FOUND event pair. */
+	lf_reset_tracking(&lf);
+	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	lf_step(&lf, 0, odo + 2, 20, TRUE, &o);
+	held = o.steer == 0 && o.speed_frac == 15 && o.events == 0;
+	lf_step(&lf, 0, odo + 4, 20, TRUE, &o);
+	held = held && o.steer == 0 && o.speed_frac == 15 && o.events == 0;
+	lf_step(&lf, IR_BIT(IR_C), odo + 6, 20, TRUE, &o);
+	TEST_CHECK("S3-U58", held && o.steer == 0 && o.speed_frac == 15
+		   && o.events == 0 && lf.state == LS_ON_LINE,
+		   "two-sample centre dropout is filtered without steering or line-loss events");
 
 	/* a short slip off a straight: the arc finds it within
 	   LF_REALIGN_MIN_MS, then straight on (turning on weaved) */
@@ -454,7 +466,7 @@ LOCAL INT test_line(void)
 	for (t = 0; t < 20000U; t += 20U) {
 		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		fail = fail || (o.events & LF_EV_RECOVERY_FAIL) != 0U;
-		if (t > LF_LOST_ARC_MS) {
+		if (t > LF_CENTER_GAP_MS + LF_LOST_ARC_MS) {
 			held = held && o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER && o.speed_frac == 0;
 		}
 	}
@@ -493,7 +505,11 @@ LOCAL INT test_line(void)
 		lf_step(&lf, (k & 1U) ? IR_BIT(IR_R) : 0U, odo, 20, TRUE, &o);
 		lost = lost || (o.events & LF_EV_LOST) != 0U;
 		found = found || (o.events & LF_EV_FOUND) != 0U;
-		held = held && o.steer * LF_LOST_DIR > 0;
+		if (k < (LF_CENTER_GAP_MS - 1U) / 20U) {
+			held = held && o.steer == 0;
+		} else {
+			held = held && o.steer * LF_LOST_DIR > 0;
+		}
 	}
 	TEST_CHECK("S3-U53", held && lost && !found && lf.state == LS_SEARCHING,
 		   "black under IR_R alone is not the line: lost, turning towards IR_R, search not ended");

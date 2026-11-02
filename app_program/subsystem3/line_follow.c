@@ -18,6 +18,7 @@ EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 	lf->lost_ms = 0;
 	lf->lost_start_mm = 0;
 	lf->lost_pending = FALSE;
+	lf->center_gap_ms = 0;
 	lf->settle_ms = 0;
 	lf->turning = FALSE;
 	lf->turn_start_mm = 0;
@@ -133,14 +134,14 @@ LOCAL UB speed_for(INT err)
 	/* Any steer runs at about half cruise (|err| 1 was 11/15) so the car
 	   turns onto the line instead of running over it.  |err| 2 (IR_L
 	   only) pivots on the spot: see LF_SIDE_PIVOT_STEER in lf_step(). */
-	return (UB)((a == 0) ? 15 : (a == 1) ? 8 : 0);
+	return (UB)((a == 0) ? 15 : (a == 1) ? 12 : 0);
 }
 
 EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 		    BOOL navigating, LF_OUT *out)
 {
-	BOOL	c = (black & IR_BIT(IR_C)) != 0U;
-	BOOL	l = (black & IR_BIT(IR_L)) != 0U;
+	BOOL	c;
+	BOOL	l;
 	BOOL	on_line;
 
 	out->steer = 0;
@@ -149,6 +150,24 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 	out->steering = FALSE;
 	if (!lf->calibrated) {
 		return;
+	}
+
+	/* Digital IR modules commonly flicker white for one sample at an edge
+	   or joint.  Previously that single 20 ms sample changed the command
+	   from straight/full speed to a hard arc.  Preserve a centred reading
+	   for two consecutive white samples; a genuine loss still begins its
+	   corrective arc on the third sample (60 ms, about 10 mm at cruise). */
+	c = (black & IR_BIT(IR_C)) != 0U;
+	l = (black & IR_BIT(IR_L)) != 0U;
+	if (!c && !l && lf->pivot_dir == 0 && lf->state == LS_ON_LINE
+	    && !lf->turning) {
+		lf->center_gap_ms += dt_ms;
+		if (lf->center_gap_ms < LF_CENTER_GAP_MS) {
+			black |= (UB)IR_BIT(IR_C);
+			c = TRUE;
+		}
+	} else if (c || l) {
+		lf->center_gap_ms = 0;
 	}
 
 	classify(lf, black, odo_mm, out);
