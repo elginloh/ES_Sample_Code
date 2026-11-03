@@ -37,6 +37,9 @@ IMPORT const char *nav_name(UB nav);
 #define S3_TURN_DEG		90
 #define S3_UTURN_DEG		180
 #define S3_STRAIGHT_MM		120	/* [CAL] distance to clear a junction */
+#define S3_NAV_SPEED_LEVEL	4U	/* 4 x 25 = 100 mm/s for barcode
+					   moves and turns; 0 used the faster
+					   global defaults */
 
 IMPORT void nav_to_motion(UB nav, UW *mcmd_type, INT *arg);
 

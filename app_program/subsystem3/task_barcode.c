@@ -54,7 +54,7 @@ LOCAL void execute(UB nav)
 	bst.state = BCS_EXECUTING;
 	bst.executed = 1;
 	publish();
-	er = motion_command(type, MSRC_BARCODE, arg, 0, &cmd);
+	er = motion_command(type, MSRC_BARCODE, arg, S3_NAV_SPEED_LEVEL, &cmd);
 	if (er == E_OK) {
 		er = motion_wait_result(cmd, S3_NAV_WAIT_MS, &res);
 	}

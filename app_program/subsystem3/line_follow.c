@@ -131,10 +131,10 @@ LOCAL UB speed_for(INT err)
 {
 	INT	a = (err < 0) ? -err : err;
 
-	/* Any steer runs at about half cruise (|err| 1 was 11/15) so the car
+	/* Any steer runs below cruise so the car
 	   turns onto the line instead of running over it.  |err| 2 (IR_L
 	   only) pivots on the spot: see LF_SIDE_PIVOT_STEER in lf_step(). */
-	return (UB)((a == 0) ? 15 : (a == 1) ? 12 : 0);
+	return (UB)((a == 0) ? LF_CRUISE_SPEED : (a == 1) ? LF_NEAR_SPEED : 0);
 }
 
 EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
@@ -145,7 +145,7 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 	BOOL	on_line;
 
 	out->steer = 0;
-	out->speed_frac = 15;
+	out->speed_frac = LF_CRUISE_SPEED;
 	out->events = 0;
 	out->steering = FALSE;
 	if (!lf->calibrated) {

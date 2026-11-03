@@ -70,9 +70,11 @@
 #define LF_CAL_UNSTABLE		(-2)	/* readings flickered while still   */
 
 /* Tuning [CAL] */
-#define LF_KP			10	/* centre-first correction; the old 18
-					   changed wheel speed too abruptly */
-#define LF_KD			2	/* small damping kick at turn start */
+#define LF_CRUISE_SPEED		12	/* 12/15 of Buddy 2 cruise: 128 mm/s
+					   with the current 160 mm/s setting */
+#define LF_NEAR_SPEED		10	/* slow gently while correcting       */
+#define LF_KP			8	/* softer centre-first correction     */
+#define LF_KD			0	/* no opposite kick when C reacquires */
 #define LF_CENTER_GAP_MS	60	/* ignore up to two isolated 20 ms
 					   centre/side white samples */
 #define LF_LOST_CONFIRM_MM	40	/* lost after this much travel ... (was 25) */
@@ -81,13 +83,11 @@
 #define LF_LOST_DIR		1	/* centre and IR_L white: turn towards
 					   IR_R (+1), the car's left with
 					   IR_SIDES_MIRRORED */
-#define LF_LOST_ARC_STEER	12	/* ... first use a gentle corrective arc */
-#define LF_LOST_ARC_SPEED	12	/* ... at 12/15 cruise; at 160 mm/s this
-					   requests about 104/152 mm/s, rather
-					   than the old abrupt 45/125 mm/s ... */
+#define LF_LOST_ARC_STEER	10	/* ... first use a gentle corrective arc */
+#define LF_LOST_ARC_SPEED	10	/* ... at 10/15 cruise while searching */
 #define LF_LOST_ARC_MM		40	/* ... for this much travel ... */
 #define LF_LOST_ARC_MS		400	/* ... or this long, then ... */
-#define LF_LOST_PIVOT_STEER	20	/* ... pivoting on the spot at this
+#define LF_LOST_PIVOT_STEER	16	/* ... pivoting on the spot at this
 					   steer (as LF_SIDE_PIVOT_STEER) */
 #define LF_REALIGN_MIN_MS	300	/* found by a turn at least this long (a
 					   curve or corner, not a small slip off
@@ -96,9 +96,9 @@
 #define LF_REALIGN_MS		0	/* centre sensor wins immediately: once
 					   it sees black, command straight */
 #define LF_REALIGN_STEER	0
-#define LF_REALIGN_SPEED	15
-#define LF_SIDE_PIVOT_STEER	20	/* only IR_L on the line: stop and pivot
-					   towards it at this steer (40 mm/s
+#define LF_REALIGN_SPEED	LF_CRUISE_SPEED
+#define LF_SIDE_PIVOT_STEER	16	/* only IR_L on the line: stop and pivot
+					   towards it at this steer (32 mm/s
 					   per wheel at the 160 mm/s cruise)
 					   until the centre is back on it, so the
 					   car never drives off the path.  The
@@ -110,7 +110,7 @@
 					   centre never finds the line does the
 					   lost-line turn take over (was 1500) */
 #define LF_SETTLE_MS		300	/* after a side pivot: drive on ...   */
-#define LF_SETTLE_SPEED		8	/* ... at 8/15 of cruise this long    */
+#define LF_SETTLE_SPEED		7	/* ... at 7/15 of cruise this long    */
 
 typedef struct {
 	UB	black_level[3];	/* raw level meaning "black", per sensor */

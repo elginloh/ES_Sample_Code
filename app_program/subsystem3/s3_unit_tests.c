@@ -355,8 +355,8 @@ LOCAL INT test_line(void)
 	}
 	(void)lf_calibrate(&lf, cal, 10);
 	lf_step(&lf, IR_BIT(IR_C), 0, 20, TRUE, &o);
-	TEST_CHECK("S3-U22", o.steering && o.steer == 0 && o.speed_frac == 15 && lf.pos == LP_CENTER,
-		   "centred: straight at full cruise fraction");
+	TEST_CHECK("S3-U22", o.steering && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED && lf.pos == LP_CENTER,
+		   "centred: straight at Buddy 3's reduced cruise fraction");
 	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), 2, 20, TRUE, &o);
 	TEST_CHECK("S3-U23", o.steer < 0 && lf.pos == LP_LEFT_NEAR, "line drifting to IR_L: steer towards it");
 	lf_step(&lf, IR_BIT(IR_L), 4, 20, TRUE, &o);
@@ -390,7 +390,7 @@ LOCAL INT test_line(void)
 		odo += 1;				/* slow: the time limit ends the arc */
 		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		lost = lost || ((o.events & LF_EV_LOST) != 0U);
-		if (o.steer == 0 && o.speed_frac == 15) {
+		if (o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED) {
 			grace++;
 		} else if (o.steer == LF_LOST_DIR * LF_LOST_ARC_STEER
 			   && o.speed_frac == LF_LOST_ARC_SPEED) {
@@ -408,9 +408,9 @@ LOCAL INT test_line(void)
 		   "brief white gap ignored; sustained loss uses a gentle arc, then pivot; LOST");
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	found = (o.events & LF_EV_FOUND) != 0U;
-	ok1 = o.steer == 0 && o.speed_frac == 15;
+	ok1 = o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED;
 	TEST_CHECK("S3-U26", found && ok1 && lf.state == LS_ON_LINE && o.steer == 0
-		   && o.speed_frac == 15,
+		   && o.speed_frac == LF_CRUISE_SPEED,
 		   "line reacquired on centre -> FOUND and straight immediately");
 
 	/* One or two white samples between centred samples must not alter the
@@ -418,11 +418,11 @@ LOCAL INT test_line(void)
 	lf_reset_tracking(&lf);
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	lf_step(&lf, 0, odo + 2, 20, TRUE, &o);
-	held = o.steer == 0 && o.speed_frac == 15 && o.events == 0;
+	held = o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED && o.events == 0;
 	lf_step(&lf, 0, odo + 4, 20, TRUE, &o);
-	held = held && o.steer == 0 && o.speed_frac == 15 && o.events == 0;
+	held = held && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED && o.events == 0;
 	lf_step(&lf, IR_BIT(IR_C), odo + 6, 20, TRUE, &o);
-	TEST_CHECK("S3-U58", held && o.steer == 0 && o.speed_frac == 15
+	TEST_CHECK("S3-U58", held && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED
 		   && o.events == 0 && lf.state == LS_ON_LINE,
 		   "two-sample centre dropout is filtered without steering or line-loss events");
 
@@ -436,7 +436,7 @@ LOCAL INT test_line(void)
 	}
 	ok1 = o.steer == LF_LOST_DIR * LF_LOST_ARC_STEER;
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
-	TEST_CHECK("S3-U57", ok1 && lf.realign_ms == 0U && o.steer == 0 && o.speed_frac == 15,
+	TEST_CHECK("S3-U57", ok1 && lf.realign_ms == 0U && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED,
 		   "short lost-line arc (< LF_REALIGN_MIN_MS) finds the line: straight on, no turn-on");
 
 	/* faster travel: the distance limit ends the arc */
@@ -489,7 +489,7 @@ LOCAL INT test_line(void)
 	lf_reset_tracking(&lf);
 	for (k = 0; k <= 100U; k += 2U) {
 		lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo + (W)k, 20, TRUE, &o);
-		bar_ok = bar_ok && lf.pos == LP_CENTER && o.steer == 0 && o.speed_frac == 15;
+		bar_ok = bar_ok && lf.pos == LP_CENTER && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED;
 	}
 	TEST_CHECK("S3-U29", bar_ok,
 		   "black under the barcode sensor (IR_R) beside the line does not disturb steering");
