@@ -90,6 +90,24 @@ LOCAL INT test_code39(void)
 	n = c39_decode(el, 29, data, 4, &rev);
 	TEST_CHECK("S3-U03", n == 1 && c39_char(data[0]) == 'A' && rev,
 		   "barcode read in the opposite direction decodes (reversed flag)");
+	{
+		UW recorded[29] = {
+			75000,129000,307000,48000,343004,84996,64000,344000,73000,119000,
+			287000,140000,84000,318000,73000,140000,72000,145000,295000,149000,
+			72002,145998,293000,158000,275000,615000,111000,124000,241000
+		};
+		n = c39_decode(recorded, 29, data, 4, &rev);
+		TEST_CHECK("S3-U61", n < 0 && rev,
+			   "recorded reverse A with damaged final delimiter rejected as reverse");
+		/* Replace only the damaged final delimiter with a valid reversed
+		   star; preserve the measured first delimiter, A and gaps. */
+		for (k = 0; k < 9U; k++) {
+			recorded[20U + k] = (c39_pattern(C39_STAR) & (1U << k)) ? 300000U : 100000U;
+		}
+		n = c39_decode(recorded, 29, data, 4, &rev);
+		TEST_CHECK("S3-U62", n == 1 && c39_char(data[0]) == 'A' && rev,
+			   "measured reverse A decodes when final delimiter is valid");
+	}
 
 	for (k = 0; k < 29U; k++) {
 		el[k] = bc_vectors[0].el[k] * 7U / 2U;		/* 3.5x bigger print */
@@ -242,8 +260,9 @@ LOCAL INT test_capture(void)
 	t = 1000;
 	x = 0;
 	s3_drive_over(&d, 'Z', 200, 50000, 0, &t, &x, &res);
-	TEST_CHECK("S3-U11a", res.result == BCR_VALID && c39_char(res.data[0]) == 'Z',
-		   "first pass over Z: VALID");
+	TEST_CHECK("S3-U11a", res.result == BCR_VALID && c39_char(res.data[0]) == 'Z'
+		   && res.n_diag == 29U && res.element_um[0] > 0U,
+		   "first pass over Z: VALID, with 29 diagnostic element widths");
 	/* past the 150 mm lockout, inside the 600 mm duplicate window */
 	s3_drive_over(&d, 'Z', 200, x + 200000, 0, &t, &x, &res);
 	TEST_CHECK("S3-U11", res.result == BCR_DUPLICATE,
@@ -253,8 +272,9 @@ LOCAL INT test_capture(void)
 	bc_init(&d);
 	bc_edge(&d, 100000, 1, 200, 100, &res);
 	bc_edge(&d, 400000, 0, 200, 160, &res);
-	TEST_CHECK("S3-U12", res.result == BCR_INVALID && res.err == BC_ERR_LONG && !bc_capturing(&d),
-		   "60 mm black run rejected as not-a-barcode at once");
+	bc_poll(&d, 400000 + BC_IDLE_TIMEOUT_US + 1000U, 0, 160, &res);
+	TEST_CHECK("S3-U12", res.result == BCR_INVALID && !bc_capturing(&d),
+		   "isolated black run times out without a complete symbol");
 
 	/* car stops in the middle of a barcode */
 	bc_init(&d);
@@ -269,8 +289,62 @@ LOCAL INT test_capture(void)
 	bc_edge(&d, 100000, 1, 200, 100, &res);
 	bc_edge(&d, 115000, 0, 200, 103, &res);
 	bc_poll(&d, 120000, 200, 103 + BC_MAX_LENGTH_UM / 1000 + 5, &res);
-	TEST_CHECK("S3-U14", res.result == BCR_INVALID && res.err == BC_ERR_WINDOW,
-		   "capture longer than the 450 mm window: aborted");
+	TEST_CHECK("S3-U14", res.result == BCR_NONE && bc_capturing(&d),
+		   "wheel odometry jump does not affect sensor capture");
+	{
+		UINT symbol, element;
+		UW now = 100000U;
+		UB level = 1U;
+
+		bc_init(&d);
+		bc_edge(&d, now, level, 0, 0, &res);
+		for (symbol = 0; symbol < 3U; symbol++) {
+			UH pattern = c39_pattern(symbol == 1U ? 10U : C39_STAR);
+
+			for (element = 0; element < 9U; element++) {
+				now += (pattern & (1U << (8U - element))) ? 90000U : 30000U;
+				level ^= 1U;
+				bc_edge(&d, now, level, 0, 0, &res);
+			}
+			if (symbol < 2U) {
+				now += 30000U;
+				level ^= 1U;
+				bc_edge(&d, now, level, 0, 0, &res);
+			}
+		}
+		bc_poll(&d, now + 300000U, 0, 0, &res);
+		TEST_CHECK("S3-U60", res.result == BCR_VALID && res.n_diag == 29U
+			   && c39_char(res.data[0]) == 'A',
+			   "stationary wheels: digital transition timing decodes A");
+	}
+	{
+		UW widths[29] = {
+			71000,362000,76000,148000,293000,132000,313000,157000,51000,162000,
+			284000,150000,62000,117012,167988,337000,70000,158000,282000,151000,
+			70000,401000,34000,193000,250000,204000,278000,148000,76002
+		};
+		UW now = 100000U;
+		UINT k;
+		UB level = 1U;
+		BOOL intact = TRUE;
+
+		bc_init(&d);
+		bc_edge(&d, now, level, 0, 0, &res);
+		for (k = 0; k < 29U; k++) {
+			UW elapsed;
+			for (elapsed = 20000U; elapsed < widths[k]; elapsed += 20000U) {
+				bc_poll(&d, now + elapsed, 0, 0, &res);
+				if (res.result != BCR_NONE) intact = FALSE;
+			}
+			now += widths[k];
+			level ^= 1U;
+			bc_edge(&d, now, level, 0, 0, &res);
+		}
+		bc_poll(&d, now + 1100000U, 0, 0, &res);
+		TEST_CHECK("S3-U63", intact && res.result == BCR_VALID
+			   && c39_char(res.data[0]) == 'A' && !res.reversed,
+			   "exact recorded A: wide first white space preserved, biased gaps accepted");
+	}
 	TEST_SUMMARY("s3 capture");
 	return test_fail_;
 }
@@ -284,19 +358,19 @@ LOCAL INT test_nav_map(void)
 
 	TEST_INIT();
 	nav_map_reset();
-	map_ok = nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_LEFT
+	map_ok = nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_RIGHT
 		 && nav_map_lookup((UB)c39_index_of_char('F'), &nav) && nav == NAV_RIGHT
 		 && nav_map_lookup((UB)c39_index_of_char('Z'), &nav) && nav == NAV_UTURN
 		 && nav_map_lookup((UB)c39_index_of_char('X'), &nav) && nav == NAV_STRAIGHT
 		 && !nav_map_lookup((UB)c39_index_of_char('W'), &nav);
 	TEST_CHECK("S3-U15", map_ok,
-		   "default barcode mapping: A=LEFT, F=RIGHT, Z=U-TURN, X=STRAIGHT");
-	t_ok = nav_map_set((UB)c39_index_of_char('A'), NAV_RIGHT) == E_OK
-		   && nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_RIGHT
+		   "default barcode mapping: A=RIGHT, F=RIGHT, Z=U-TURN, X=STRAIGHT");
+	t_ok = nav_map_set((UB)c39_index_of_char('A'), NAV_LEFT) == E_OK
+		   && nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_LEFT
 		   && nav_map_set(C39_STAR, NAV_LEFT) == E_PAR
 		   && nav_map_set(1, 4) == E_PAR;
 	nav_map_reset();
-	t_ok = t_ok && nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_LEFT;
+	t_ok = t_ok && nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_RIGHT;
 	TEST_CHECK("S3-U16", t_ok,
 		   "mapping overrides work; '*' and nav > 3 rejected; reset restores defaults");
 	nav_to_motion(NAV_LEFT, &type, &arg);
@@ -331,18 +405,26 @@ LOCAL INT test_line(void)
 		cal[k] = 0x2U;			/* raw: C high (black), L/R low */
 	}
 	TEST_CHECK("S3-U18", lf_calibrate(&lf, cal, 10) == LF_CAL_OK && lf.black_level[IR_C] == 1,
-		   "calibration on the line: black = high");
+		   "stable centre-on-black start: configured black-high polarity");
 	for (k = 0; k < 10U; k++) {
-		cal[k] = 0x5U;			/* inverted modules: C low = black */
+		cal[k] = 0x0U;			/* all sensors over white */
 	}
-	TEST_CHECK("S3-U19", lf_calibrate(&lf, cal, 10) == LF_CAL_OK && lf.black_level[IR_C] == 0
-		   && lf_black_bits(&lf, 0x5U) == IR_BIT(IR_C),
-		   "inverted sensor polarity is learnt, not assumed");
+	TEST_CHECK("S3-U19", lf_calibrate(&lf, cal, 10) == LF_CAL_OK
+		   && lf.black_level[IR_C] == LF_CONFIGURED_BLACK_LEVEL
+		   && lf_black_bits(&lf, 0x0U) == 0U,
+		   "all-white start is stable and immediately qualifies IR startup");
 	for (k = 0; k < 10U; k++) {
-		cal[k] = 0x3U;			/* L and C equal */
+		cal[k] = 0x7U;			/* all sensors over black */
 	}
-	TEST_CHECK("S3-U20", lf_calibrate(&lf, cal, 10) == LF_CAL_AMBIGUOUS,
-		   "ambiguous start position -> calibration failure");
+	TEST_CHECK("S3-U20", lf_calibrate(&lf, cal, 10) == LF_CAL_OK
+		   && lf_black_bits(&lf, 0x7U) == 0x7U,
+		   "all-black start is stable and immediately qualifies IR startup");
+	for (k = 0; k < 10U; k++) {
+		cal[k] = (UB)IR_BIT(IR_L);	/* physical-right GP2 on black */
+	}
+	TEST_CHECK("S3-U59", lf_calibrate(&lf, cal, 10) == LF_CAL_OK
+		   && lf_black_bits(&lf, IR_BIT(IR_L)) == IR_BIT(IR_L),
+		   "physical-right-only black start qualifies and preserves its position");
 	for (k = 0; k < 10U; k++) {
 		cal[k] = (k & 1U) ? 0x2U : 0x0U;
 	}
@@ -355,42 +437,53 @@ LOCAL INT test_line(void)
 	}
 	(void)lf_calibrate(&lf, cal, 10);
 	lf_step(&lf, IR_BIT(IR_C), 0, 20, TRUE, &o);
-	TEST_CHECK("S3-U22", o.steering && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED && lf.pos == LP_CENTER,
-		   "centred: straight at Buddy 3's reduced cruise fraction");
+	TEST_CHECK("S3-U22", o.steering && o.steer == LF_EDGE_STEER_MIN
+		   && o.speed_frac == LF_NEAR_SPEED && lf.pos == LP_RIGHT_NEAR,
+		   "centre black: gradual physical-left correction through mirrored steering");
 	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), 2, 20, TRUE, &o);
-	TEST_CHECK("S3-U23", o.steer < 0 && lf.pos == LP_LEFT_NEAR, "line drifting to IR_L: steer towards it");
+	TEST_CHECK("S3-U23", o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED
+		   && lf.pos == LP_JUNCTION,
+		   "wide line filling the C-to-IR_L corridor: drive straight");
 	lf_step(&lf, IR_BIT(IR_L), 4, 20, TRUE, &o);
-	TEST_CHECK("S3-U24", o.steer == -LF_SIDE_PIVOT_STEER && o.speed_frac == 0
-		   && lf.pos == LP_LEFT_FAR,
-		   "line under IR_L only: stop and pivot towards it");
+	TEST_CHECK("S3-U24", o.steer == -LF_EDGE_STEER_MIN
+		   && o.speed_frac == LF_NEAR_SPEED
+		   && lf.pos == LP_LEFT_NEAR,
+		   "line on outer boundary: smooth moving correction, never a pivot");
 
-	/* the side pivot holds while all three read white: not lost, and
-	   no lost-line turn the other way */
+	/* Both steering sensors white is the desired corridor, not an
+	   immediate loss or stop-and-pivot. */
 	for (t = 0; t < 400U; t += 20U) {
 		odo += 4;
 		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		lost = lost || ((o.events & LF_EV_LOST) != 0U);
-		held = held && o.steer == -LF_SIDE_PIVOT_STEER && o.speed_frac == 0;
+		held = held && o.steer == 0
+		       && o.speed_frac == LF_NEAR_SPEED;
 	}
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
-	TEST_CHECK("S3-U52", held && !lost && lf.state == LS_ON_LINE && lf.pivot_dir == 0
-		   && o.steer == 0 && o.speed_frac == LF_SETTLE_SPEED,
-		   "side pivot held through all-white until the centre has the line; then half speed, no kick back");
+	TEST_CHECK("S3-U52", held && !lost && lf.state == LS_ON_LINE
+		   && lf.pivot_dir == 0 && o.steer == LF_EDGE_STEER_MIN
+		   && o.speed_frac == LF_NEAR_SPEED,
+		   "white corridor straight; centre black ramps physical-left correction");
 
 	/* Centre and IR_L white: suppress two isolated samples, then arc
 	   gently towards IR_R while moving on, and finally pivot. */
 	lf_reset_tracking(&lf);
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	/* Explicit known-loss setup: normal both-white no longer means loss. */
+	lf.turning = TRUE;
+	lf.turn_start_mm = odo;
+	lf.turn_ms = 0;
 	arcs = 0;
 	pivots = 0;
 	grace = 0;
 	held = TRUE;
 	lost = FALSE;
-	for (t = 0; t < 1000U; t += 20U) {
+	for (t = 0; t < 1400U; t += 20U) {
 		odo += 1;				/* slow: the time limit ends the arc */
 		lf_step(&lf, 0, odo, 20, TRUE, &o);
 		lost = lost || ((o.events & LF_EV_LOST) != 0U);
-		if (o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED) {
+		if (o.steer == 0
+		    && o.speed_frac == LF_NEAR_SPEED && lf.state == LS_ON_LINE) {
 			grace++;
 		} else if (o.steer == LF_LOST_DIR * LF_LOST_ARC_STEER
 			   && o.speed_frac == LF_LOST_ARC_SPEED) {
@@ -402,29 +495,31 @@ LOCAL INT test_line(void)
 			held = FALSE;
 		}
 	}
-	TEST_CHECK("S3-U25", held && lost && lf.state == LS_SEARCHING && lf.pos == LP_LOST_RIGHT
-		   && grace == (LF_CENTER_GAP_MS - 1U) / 20U
+	TEST_CHECK("S3-U25", held && lost && lf.state == LS_SEARCHING && lf.pos == LP_LOST_LEFT
+		   && grace == 0U
 		   && arcs == LF_LOST_ARC_MS / 20U && pivots > 0U,
-		   "brief white gap ignored; sustained loss uses a gentle arc, then pivot; LOST");
+		   "explicit known loss uses an arc, then pivot; normal white corridor does not trigger it");
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	found = (o.events & LF_EV_FOUND) != 0U;
-	ok1 = o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED;
-	TEST_CHECK("S3-U26", found && ok1 && lf.state == LS_ON_LINE && o.steer == 0
-		   && o.speed_frac == LF_CRUISE_SPEED,
-		   "line reacquired on centre -> FOUND and straight immediately");
+	ok1 = o.steer == LF_EDGE_STEER_MIN && o.speed_frac == LF_NEAR_SPEED;
+	TEST_CHECK("S3-U26", found && ok1 && lf.state == LS_ON_LINE,
+		   "line reacquired on centre -> FOUND and gradual physical-left correction");
 
 	/* One or two white samples between centred samples must not alter the
 	   motor command or create a LOST/FOUND event pair. */
 	lf_reset_tracking(&lf);
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	lf_step(&lf, 0, odo + 2, 20, TRUE, &o);
-	held = o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED && o.events == 0;
+	held = o.steer == 0
+	       && o.speed_frac == LF_NEAR_SPEED && o.events == 0;
 	lf_step(&lf, 0, odo + 4, 20, TRUE, &o);
-	held = held && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED && o.events == 0;
+	held = held && o.steer == 0
+	       && o.speed_frac == LF_NEAR_SPEED && o.events == 0;
 	lf_step(&lf, IR_BIT(IR_C), odo + 6, 20, TRUE, &o);
-	TEST_CHECK("S3-U58", held && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED
+	TEST_CHECK("S3-U58", held && o.steer == LF_EDGE_STEER_MIN
+		   && o.speed_frac == LF_NEAR_SPEED
 		   && o.events == 0 && lf.state == LS_ON_LINE,
-		   "two-sample centre dropout is filtered without steering or line-loss events");
+		   "white corridor gradually returns to straight with no loss event");
 
 	/* a short slip off a straight: the arc finds it within
 	   LF_REALIGN_MIN_MS, then straight on (turning on weaved) */
@@ -434,14 +529,20 @@ LOCAL INT test_line(void)
 		odo += 2;
 		lf_step(&lf, 0, odo, 20, TRUE, &o);
 	}
-	ok1 = o.steer == LF_LOST_DIR * LF_LOST_ARC_STEER;
+	ok1 = o.steer == 0;
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
-	TEST_CHECK("S3-U57", ok1 && lf.realign_ms == 0U && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED,
-		   "short lost-line arc (< LF_REALIGN_MIN_MS) finds the line: straight on, no turn-on");
+	TEST_CHECK("S3-U57", ok1 && lf.realign_ms == 0U
+		   && o.steer == LF_EDGE_STEER_MIN
+		   && o.speed_frac == LF_NEAR_SPEED,
+		   "short white corridor remains straight and ramps smoothly at the centre edge");
 
 	/* faster travel: the distance limit ends the arc */
 	lf_reset_tracking(&lf);
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
+	/* Explicit known-loss setup: normal both-white no longer means loss. */
+	lf.turning = TRUE;
+	lf.turn_start_mm = odo;
+	lf.turn_ms = 0;
 	arcs = 0;
 	for (k = 0; k < 20U; k++) {
 		odo += 10;
@@ -450,7 +551,7 @@ LOCAL INT test_line(void)
 			arcs++;
 		}
 	}
-	TEST_CHECK("S3-U55", arcs == (UINT)(LF_LOST_ARC_MM / 10) && o.speed_frac == 0
+	TEST_CHECK("S3-U55", arcs == (UINT)(LF_LOST_ARC_MM / 10 - 1) && o.speed_frac == 0
 		   && o.steer == LF_LOST_DIR * LF_LOST_PIVOT_STEER,
 		   "lost-line arc ends after LF_LOST_ARC_MM of travel, then pivot");
 
@@ -458,10 +559,13 @@ LOCAL INT test_line(void)
 	   towards IR_L wins over the gentle turn-on */
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
 	lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), odo, 20, TRUE, &o);
-	TEST_CHECK("S3-U56", o.steer < 0 && lf.pos == LP_LEFT_NEAR,
-		   "turning on after a find, line drifts to IR_L: steer towards IR_L");
+	TEST_CHECK("S3-U56", o.steer == 0 && lf.pos == LP_JUNCTION,
+		   "line spanning both corridor edges after a find: drive straight");
 
-	/* never found: arcs, then keeps pivoting the same way, never gives up */
+	/* Explicit known loss: continue search without latching safe stop. */
+	lf.turning = TRUE;
+	lf.turn_start_mm = odo;
+	lf.turn_ms = 0;
 	held = TRUE;
 	for (t = 0; t < 20000U; t += 20U) {
 		lf_step(&lf, 0, odo, 20, TRUE, &o);
@@ -476,20 +580,22 @@ LOCAL INT test_line(void)
 	lf_reset_tracking(&lf);
 	for (k = 0; k < 10U; k++) {
 		odo += 2;
-		lf_step(&lf, IR_BIT(IR_L) | IR_BIT(IR_C) | IR_BIT(IR_R), odo, 20, TRUE, &o);
+		lf_step(&lf, IR_BIT(IR_L) | IR_BIT(IR_C), odo, 20, TRUE, &o);
 		if ((o.events & LF_EV_JUNCTION) != 0U) {
 			junction = TRUE;
 			junction_events++;
 		}
 	}
 	TEST_CHECK("S3-U28", junction && junction_events == 1 && lf.pos == LP_JUNCTION,
-		   "all three sensors black for >= 8 mm: one JUNCTION event");
+		   "GP6 + GP2 black for 60 ms, barcode white: one JUNCTION event");
 
 	/* IR_R black beside the centre, however long: never steers */
 	lf_reset_tracking(&lf);
 	for (k = 0; k <= 100U; k += 2U) {
 		lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_R), odo + (W)k, 20, TRUE, &o);
-		bar_ok = bar_ok && lf.pos == LP_CENTER && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED;
+		bar_ok = bar_ok && lf.pos == LP_RIGHT_NEAR && o.steer > 0
+			 && o.steer <= LF_EDGE_STEER_MAX
+			 && o.speed_frac == LF_NEAR_SPEED;
 	}
 	TEST_CHECK("S3-U29", bar_ok,
 		   "black under the barcode sensor (IR_R) beside the line does not disturb steering");
@@ -501,25 +607,164 @@ LOCAL INT test_line(void)
 	lost = FALSE;
 	found = FALSE;
 	lf_step(&lf, IR_BIT(IR_C), odo, 20, TRUE, &o);
-	for (k = 0; k < 30U; k++) {
+	/* Explicit known-loss setup: normal both-white no longer means loss. */
+	lf.turning = TRUE;
+	lf.turn_start_mm = odo;
+	lf.turn_ms = 0;
+	for (k = 0; k < 60U; k++) {
 		lf_step(&lf, (k & 1U) ? IR_BIT(IR_R) : 0U, odo, 20, TRUE, &o);
 		lost = lost || (o.events & LF_EV_LOST) != 0U;
 		found = found || (o.events & LF_EV_FOUND) != 0U;
-		if (k < (LF_CENTER_GAP_MS - 1U) / 20U) {
-			held = held && o.steer == 0;
-		} else {
-			held = held && o.steer * LF_LOST_DIR > 0;
-		}
+		held = held && o.steer * LF_LOST_DIR > 0;
 	}
 	TEST_CHECK("S3-U53", held && lost && !found && lf.state == LS_SEARCHING,
 		   "black under IR_R alone is not the line: lost, turning towards IR_R, search not ended");
 
-	/* turning towards IR_R, then IR_L sees the line: pivot towards IR_L */
+	/* Lost-line search, then IR_L sees the line: resume a moving edge correction. */
 	lf_step(&lf, IR_BIT(IR_L), odo, 20, TRUE, &o);
 	found = (o.events & LF_EV_FOUND) != 0U;
-	TEST_CHECK("S3-U54", found && lf.pivot_dir == -1 && o.steer == -LF_SIDE_PIVOT_STEER
-		   && o.speed_frac == 0,
-		   "lost-line turn, then IR_L has the line: FOUND, pivot towards IR_L");
+	TEST_CHECK("S3-U54", found && lf.pivot_dir == 0
+		   && o.steer == -LF_EDGE_STEER_MIN
+		   && o.speed_frac == LF_NEAR_SPEED,
+		   "lost-line turn, then IR_L has the line: FOUND, smooth moving correction");
+	{
+		LINE_FOLLOW track_a, track_b;
+		LF_OUT a, b;
+		UB samples[10];
+		BOOL independent = TRUE;
+		UINT n;
+
+		for (n = 0; n < 10U; n++) {
+			samples[n] = (UB)(IR_BIT(IR_C) | ((n & 1U) ? IR_BIT(IR_R) : 0U));
+		}
+		lf_init(&track_a);
+		lf_init(&track_b);
+		TEST_CHECK("S3-U64", lf_calibrate(&track_a, samples, 10U) == LF_CAL_OK
+			   && lf_calibrate(&track_b, samples, 10U) == LF_CAL_OK,
+			   "barcode toggles on GP26 do not block stable GP6/GP2 startup");
+		/* Exercise all tracking combinations, both vehicle-ownership
+		   modes and loss/recovery, while the second barcode input toggles. */
+		for (n = 0; n < 400U; n++) {
+			UB tracking = (UB)((n / 50U) & 3U);
+			BOOL navigating = n < 200U;
+			lf_step(&track_a, tracking, (W)n, 20U, navigating, &a);
+			lf_step(&track_b, (UB)(tracking | ((n & 1U) ? IR_BIT(IR_R) : 0U)),
+				(W)n, 20U, navigating, &b);
+			independent = independent && a.steer == b.steer
+				&& a.speed_frac == b.speed_frac && a.events == b.events
+				&& a.steering == b.steering && track_a.state == track_b.state;
+		}
+		TEST_CHECK("S3-U65", independent,
+			   "barcode input cannot change line steering, speed, junction or recovery events");
+	}
+	{
+		BOOL corridor_ok = TRUE;
+		lf_reset_tracking(&lf);
+		for (k = 0; k < 1500U; k++) {
+			lf_step(&lf, (k & 1U) ? IR_BIT(IR_R) : 0U, odo + (W)k, 20U, TRUE, &o);
+			corridor_ok = corridor_ok && o.steer == 0 && o.speed_frac == LF_CRUISE_SPEED
+				&& o.events == 0U && lf.state == LS_ON_LINE;
+		}
+		TEST_CHECK("S3-U66", corridor_ok,
+			   "30 s both-white corridor remains straight; barcode toggling never triggers search");
+	}
+	{
+		BOOL smooth = TRUE;
+		INT previous = 0;
+		lf_reset_tracking(&lf);
+		for (k = 0; k < 40U; k++) {
+			UB bits = k < 10U ? IR_BIT(IR_C) : k < 20U ? IR_BIT(IR_L) : 0U;
+			INT delta;
+			lf_step(&lf, bits, odo + (W)k, 20U, TRUE, &o);
+			delta = o.steer - previous;
+			smooth = smooth && delta >= -LF_STEER_SLEW_STEP
+				&& delta <= LF_STEER_SLEW_STEP && o.speed_frac == LF_CRUISE_SPEED;
+			/* 10 samples on one sensor: grown to MIN + 180 ms / GROW */
+			if (k == 9U) smooth = smooth
+				&& o.steer == LF_EDGE_STEER_MIN + 180 / LF_EDGE_GROW_MS; /* mirrored: LEFT */
+			if (k == 19U) smooth = smooth
+				&& o.steer == -(LF_EDGE_STEER_MIN + 180 / LF_EDGE_GROW_MS); /* mirrored: RIGHT */
+			/* 200 ms contact >= LF_HOLD_MIN_MS: the turn is held */
+			if (k >= 20U && k < 20U + LF_HOLD_MS / 20U) smooth = smooth
+				&& o.steer == -LF_HOLD_STEER;
+			previous = o.steer;
+		}
+		TEST_CHECK("S3-U67", smooth && o.steer == 0,
+			   "centre LEFT -> right sensor RIGHT -> white: hold, then STRAIGHT; fixed speed");
+	}
+	{
+		BOOL responsive;
+		lf_reset_tracking(&lf);
+		lf_step(&lf, IR_BIT(IR_C), odo, 20U, TRUE, &o);
+		responsive = o.steer == LF_EDGE_STEER_MIN && o.speed_frac == LF_CRUISE_SPEED;
+		lf_step(&lf, IR_BIT(IR_C), odo + 1, 20U, TRUE, &o);
+		for (k = 0; k < 2U; k++) {
+			lf_step(&lf, IR_BIT(IR_L), odo + 2 + (W)k, 20U, TRUE, &o);
+		}
+		TEST_CHECK("S3-U68", responsive && o.steer == -LF_EDGE_STEER_MIN
+			   && o.speed_frac == LF_CRUISE_SPEED,
+			   "edge correction in the first 20 ms; reverse correction within 40 ms, wheels keep moving");
+	}
+	{
+		BOOL capped = TRUE;
+		INT peak = 0;
+		lf_reset_tracking(&lf);
+		for (k = 0; k < 50U; k++) {
+			lf_step(&lf, IR_BIT(IR_C), odo + (W)k, 20U, TRUE, &o);
+			capped = capped && o.steer >= LF_EDGE_STEER_MIN
+				 && o.steer <= LF_EDGE_STEER_MAX && o.steer >= peak;
+			peak = o.steer;
+		}
+		TEST_CHECK("S3-U69", capped && peak == LF_EDGE_STEER_MAX
+			   && o.speed_frac == LF_CRUISE_SPEED,
+			   "centre stays black (curve): correction grows to LF_EDGE_STEER_MAX, never beyond");
+	}
+	{
+		BOOL ok_short, ok_hold = TRUE;
+		/* short drift on a straight: straight again at once */
+		lf_reset_tracking(&lf);
+		for (k = 0; k < LF_HOLD_MIN_MS / 20U - 1U; k++) {
+			lf_step(&lf, IR_BIT(IR_C), odo, 20U, TRUE, &o);
+		}
+		lf_step(&lf, 0, odo, 20U, TRUE, &o);
+		ok_short = o.steer >= 0 && o.steer < LF_HOLD_STEER;	/* slewing to 0 */
+		lf_step(&lf, 0, odo, 20U, TRUE, &o);
+		ok_short = ok_short && o.steer == 0;
+		/* sustained contact: hold the turn for LF_HOLD_MS, then straight */
+		lf_reset_tracking(&lf);
+		for (k = 0; k < LF_HOLD_MIN_MS / 20U; k++) {
+			lf_step(&lf, IR_BIT(IR_C), odo, 20U, TRUE, &o);
+		}
+		for (k = 0; k < LF_HOLD_MS / 20U; k++) {
+			lf_step(&lf, 0, odo, 20U, TRUE, &o);
+			ok_hold = ok_hold && o.steer == LF_HOLD_STEER && o.events == 0U;
+		}
+		lf_step(&lf, 0, odo, 20U, TRUE, &o);
+		TEST_CHECK("S3-U70", ok_short && ok_hold && o.steer == 0
+			   && lf.state == LS_ON_LINE,
+			   "short contact -> straight; sustained contact -> turn held LF_HOLD_MS, then straight");
+	}
+	{
+		BOOL ok_opp, ok_jn;
+		lf_reset_tracking(&lf);
+		for (k = 0; k < 10U; k++) {
+			lf_step(&lf, IR_BIT(IR_C), odo, 20U, TRUE, &o);
+		}
+		lf_step(&lf, 0, odo, 20U, TRUE, &o);
+		lf_step(&lf, IR_BIT(IR_L), odo, 20U, TRUE, &o);
+		lf_step(&lf, IR_BIT(IR_L), odo, 20U, TRUE, &o);
+		ok_opp = o.steer == -LF_EDGE_STEER_MIN;
+		lf_reset_tracking(&lf);
+		for (k = 0; k < 10U; k++) {
+			lf_step(&lf, IR_BIT(IR_C), odo, 20U, TRUE, &o);
+		}
+		lf_step(&lf, 0, odo, 20U, TRUE, &o);
+		lf_step(&lf, IR_BIT(IR_C) | IR_BIT(IR_L), odo, 20U, TRUE, &o);
+		lf_step(&lf, 0, odo, 20U, TRUE, &o);
+		ok_jn = o.steer == 0;
+		TEST_CHECK("S3-U71", ok_opp && ok_jn,
+			   "held turn ends at once when the other sensor sees black or at a junction");
+	}
 	TEST_SUMMARY("s3 line");
 	return test_fail_;
 }

@@ -12,6 +12,7 @@
 
 IMPORT volatile UW	s2_result_word[MSRC_COUNT];	/* writer: motion task */
 IMPORT volatile UW	s2_steer_word;			/* writer: line task   */
+IMPORT volatile UW	s2_line_seen_word;		/* writer: line task   */
 IMPORT volatile UW	s2_cap_word;			/* writer: scan task   */
 IMPORT volatile UW	s2_stop_req;			/* atomic OR / xchg    */
 IMPORT volatile UW	s2_armed;			/* writer: tests/init  */

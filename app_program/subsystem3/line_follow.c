@@ -5,9 +5,8 @@
 
 #include "line_follow.h"
 
-/* Common LM393 IR modules pull D0 high over black (no reflection).  Only
-   used until calibration has measured the real polarity. */
-#define LF_DEFAULT_BLACK	1U
+/* This robot's LM393 D0 wiring is high over black (no reflection). */
+#define LF_DEFAULT_BLACK	LF_CONFIGURED_BLACK_LEVEL
 
 EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 {
@@ -15,6 +14,11 @@ EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 	lf->pos = LP_CENTER;
 	lf->err = 0;
 	lf->prev_err = 0;
+	lf->steer_cmd = 0;
+	lf->edge_side = 0;
+	lf->edge_ms = 0;
+	lf->hold_side = 0;
+	lf->hold_ms = 0;
 	lf->lost_ms = 0;
 	lf->lost_start_mm = 0;
 	lf->lost_pending = FALSE;
@@ -28,6 +32,7 @@ EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 	lf->pivot_ms = 0;
 	lf->in_junction = FALSE;
 	lf->junction_start_mm = 0;
+	lf->junction_ms = 0;
 }
 
 EXPORT void lf_init(LINE_FOLLOW *lf)
@@ -44,7 +49,6 @@ EXPORT void lf_init(LINE_FOLLOW *lf)
 EXPORT INT lf_calibrate(LINE_FOLLOW *lf, const UB *raw, UINT n)
 {
 	UINT	ones[3] = {0, 0, 0};
-	UB	major[3];
 	UINT	i, k;
 
 	if (n == 0U) {
@@ -55,21 +59,22 @@ EXPORT INT lf_calibrate(LINE_FOLLOW *lf, const UB *raw, UINT n)
 			ones[i] += (raw[k] >> i) & 1U;
 		}
 	}
-	for (i = 0; i < 3U; i++) {
+	/* GP26 may be crossing barcode bars while GP6/GP2 are stable.
+	   Its transitions must never block qualification of line tracking. */
+	for (i = 0; i < 2U; i++) {
 		UINT	minority;
+		UB	major;
 
-		major[i] = (ones[i] * 2U > n) ? 1U : 0U;
-		minority = major[i] ? (n - ones[i]) : ones[i];
+		major = (ones[i] * 2U > n) ? 1U : 0U;
+		minority = major ? (n - ones[i]) : ones[i];
 		if (minority * 5U > n) {
 			return LF_CAL_UNSTABLE;		/* > 20 % flicker while still */
 		}
 	}
-	if (major[IR_C] == major[IR_L]) {
-		return LF_CAL_AMBIGUOUS;	/* cannot tell black from white */
-	}
-	/* Identical modules: one polarity for all three sensors */
+	/* Starting position is deliberately irrelevant: all-white, all-black,
+	   centre-on-line and right-sensor-on-line must all enter NORMAL. */
 	for (i = 0; i < 3U; i++) {
-		lf->black_level[i] = major[IR_C];
+		lf->black_level[i] = LF_CONFIGURED_BLACK_LEVEL;
 	}
 	lf->calibrated = TRUE;
 	lf_reset_tracking(lf);
@@ -89,19 +94,22 @@ EXPORT UB lf_black_bits(const LINE_FOLLOW *lf, UB raw)
 	return b;
 }
 
-LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, LF_OUT *out)
+LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms, LF_OUT *out)
 {
 	BOOL	l = (black & IR_BIT(IR_L)) != 0U;
 	BOOL	c = (black & IR_BIT(IR_C)) != 0U;
-	BOOL	r = (black & IR_BIT(IR_R)) != 0U;
 
-	if (l && c && r) {
-		/* crossing line under all three sensors */
+	if (l && c) {
+		/* Only the two tracking sensors define a junction. GP26 is
+		   the separate barcode sensor and need not see the crossing. */
 		if (!lf->in_junction) {
 			lf->in_junction = TRUE;
 			lf->junction_start_mm = odo_mm;
-		} else if (lf->junction_start_mm != (W)0x7FFFFFFF
-			   && odo_mm - lf->junction_start_mm >= LF_JUNCTION_MM) {
+			lf->junction_ms = 0;
+		}
+		lf->junction_ms += dt_ms;
+		if (lf->junction_start_mm != (W)0x7FFFFFFF
+		    && lf->junction_ms >= LF_JUNCTION_CONFIRM_MS) {
 			out->events |= LF_EV_JUNCTION;
 			lf->junction_start_mm = (W)0x7FFFFFFF;	/* report once */
 		}
@@ -110,19 +118,20 @@ LOCAL void classify(LINE_FOLLOW *lf, UB black, W odo_mm, LF_OUT *out)
 		return;
 	}
 	lf->in_junction = FALSE;
+	lf->junction_ms = 0;
 	/* Otherwise IR_R is the barcode sensor: whatever it reads, it never
-	   steers */
-	if (c && l) {
+	   steers.  C and L bracket the desired white corridor. */
+	if (c) {
+		lf->pos = LP_RIGHT_NEAR;
+		lf->err = 1;	/* task_line mirrors this to physical LEFT */
+	} else if (l) {
 		lf->pos = LP_LEFT_NEAR;
 		lf->err = -1;
-	} else if (c) {
+	} else if (lf->state == LS_ON_LINE && !lf->turning) {
 		lf->pos = LP_CENTER;
-		lf->err = 0;
-	} else if (l) {
-		lf->pos = LP_LEFT_FAR;
-		lf->err = -2;
+		lf->err = LF_EDGE_GAP_ERR;
 	} else {
-		lf->pos = LP_LOST_RIGHT;		/* turn towards IR_R */
+		lf->pos = LP_LOST_LEFT;	/* search towards the tracking gap */
 		lf->err = 3 * LF_LOST_DIR;
 	}
 }
@@ -131,10 +140,62 @@ LOCAL UB speed_for(INT err)
 {
 	INT	a = (err < 0) ? -err : err;
 
-	/* Any steer runs below cruise so the car
-	   turns onto the line instead of running over it.  |err| 2 (IR_L
-	   only) pivots on the spot: see LF_SIDE_PIVOT_STEER in lf_step(). */
-	return (UB)((a == 0) ? LF_CRUISE_SPEED : (a == 1) ? LF_NEAR_SPEED : 0);
+	/* Edge corrections remain moving arcs; only confirmed line-loss
+	   recovery is allowed to pivot. */
+	return (UB)((a == 0) ? LF_CRUISE_SPEED : LF_NEAR_SPEED);
+}
+
+LOCAL INT steer_slew(INT current, INT target)
+{
+	if (target > current + LF_STEER_SLEW_STEP) {
+		return current + LF_STEER_SLEW_STEP;
+	}
+	if (target < current - LF_STEER_SLEW_STEP) {
+		return current - LF_STEER_SLEW_STEP;
+	}
+	return target;
+}
+
+/* Steering target while on the line.  A sensor on black turns the car
+   towards it (task_line mirrors the sign: C black -> right wheel faster),
+   harder the longer it stays black.  When a sustained contact ends, the
+   line may have slipped past the sensor rather than back into the
+   corridor, so keep turning that way for LF_HOLD_MS instead of driving
+   straight off it. */
+LOCAL INT edge_steer(LINE_FOLLOW *lf, UW dt_ms)
+{
+	INT	mag;
+
+	if (lf->pos == LP_JUNCTION) {
+		lf->edge_side = 0;
+		lf->edge_ms = 0;
+		lf->hold_ms = 0;
+		return 0;			/* crossing line: straight */
+	}
+	if (lf->err != 0) {
+		if (lf->err != lf->edge_side) {
+			lf->edge_side = lf->err;
+			lf->edge_ms = 0;
+		}
+		mag = LF_EDGE_STEER_MIN + (INT)(lf->edge_ms / LF_EDGE_GROW_MS);
+		if (mag > LF_EDGE_STEER_MAX) {
+			mag = LF_EDGE_STEER_MAX;
+		}
+		lf->edge_ms += dt_ms;
+		lf->hold_ms = 0;
+		return lf->err * mag;
+	}
+	if (lf->edge_side != 0 && lf->edge_ms >= LF_HOLD_MIN_MS) {
+		lf->hold_side = lf->edge_side;	/* sustained contact just ended */
+		lf->hold_ms = LF_HOLD_MS;
+	}
+	lf->edge_side = 0;
+	lf->edge_ms = 0;
+	if (lf->hold_ms > 0U) {
+		lf->hold_ms = (lf->hold_ms > dt_ms) ? lf->hold_ms - dt_ms : 0U;
+		return lf->hold_side * LF_HOLD_STEER;
+	}
+	return 0;
 }
 
 EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
@@ -152,51 +213,25 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 		return;
 	}
 
-	/* Digital IR modules commonly flicker white for one sample at an edge
-	   or joint.  Previously that single 20 ms sample changed the command
-	   from straight/full speed to a hard arc.  Preserve a centred reading
-	   for two consecutive white samples; a genuine loss still begins its
-	   corrective arc on the third sample (60 ms, about 10 mm at cruise). */
+	/* Both-white is the intended tracking corridor, not evidence of
+	   losing the line. Elapsed time alone cannot distinguish those cases. */
 	c = (black & IR_BIT(IR_C)) != 0U;
 	l = (black & IR_BIT(IR_L)) != 0U;
-	if (!c && !l && lf->pivot_dir == 0 && lf->state == LS_ON_LINE
-	    && !lf->turning) {
-		lf->center_gap_ms += dt_ms;
-		if (lf->center_gap_ms < LF_CENTER_GAP_MS) {
-			black |= (UB)IR_BIT(IR_C);
-			c = TRUE;
-		}
-	} else if (c || l) {
-		lf->center_gap_ms = 0;
-	}
+	lf->center_gap_ms = 0;	/* legacy timer no longer controls tracking */
 
-	classify(lf, black, odo_mm, out);
-	/* Side pivot: the line under IR_L alone (centre white) commits the
-	   car to pivot that way until the centre has it.  IR_L often goes
-	   white again before the centre reaches the line; the commitment
-	   stops the lost-line turn from turning the car back. */
-	if (c) {
-		if (lf->pivot_dir != 0) {
-			lf->settle_ms = LF_SETTLE_MS;
-			lf->prev_err = lf->err;	/* no D kick back the other way */
-		}
-		lf->pivot_dir = 0;
-		lf->pivot_ms = 0;
-	} else {
-		if (navigating && l && lf->pivot_ms <= LF_SIDE_PIVOT_MAX_MS) {
-			lf->pivot_dir = -1;
-		}
-		if (lf->pivot_dir != 0) {
-			lf->pivot_ms += dt_ms;
-			if (lf->pivot_ms > LF_SIDE_PIVOT_MAX_MS) {
-				lf->pivot_dir = 0;	/* not found: lost-line turn */
-			}
-		}
-	}
-	on_line = c || l || lf->pivot_dir != 0;
+	classify(lf, black, odo_mm, dt_ms, out);
+	/* Ordinary edge contact is always a moving correction. */
+	lf->pivot_dir = 0;
+	lf->pivot_ms = 0;
+	/* During avoidance Buddy 5 needs true sensor-based LOST/FOUND events,
+	   so the virtual white corridor applies only while Buddy 3 owns
+	   steering in Normal Navigation. */
+	on_line = c || l
+		  || (navigating && lf->state == LS_ON_LINE && !lf->turning);
 	if (on_line) {
 		if (lf->turning) {
 			lf->prev_err = lf->err;	/* no D kick from the lost error */
+			lf->steer_cmd = 0;	/* found: ramp from straight, not the pivot */
 			if (lf->pivot_dir == 0 && lf->turn_ms >= LF_REALIGN_MIN_MS) {
 				/* A long lost-line turn found it: the car
 				   still points across the curve, keep turning
@@ -245,12 +280,7 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 
 	if (navigating) {
 		out->steering = TRUE;
-		if (lf->pivot_dir != 0) {
-			/* side pivot: no forward travel until the centre has
-			   the line, then LF_SETTLE_MS at half speed */
-			out->steer = lf->pivot_dir * LF_SIDE_PIVOT_STEER;
-			out->speed_frac = 0;
-		} else if (!on_line && lf->turn_ms <= LF_LOST_ARC_MS
+		if (!on_line && lf->turn_ms <= LF_LOST_ARC_MS
 			   && odo_mm - lf->turn_start_mm < LF_LOST_ARC_MM) {
 			/* centre and IR_L white: arc towards IR_R (the car's
 			   left) at once while moving on, a curve ... */
@@ -267,11 +297,22 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 			out->steer = LF_LOST_DIR * LF_REALIGN_STEER;
 			out->speed_frac = LF_REALIGN_SPEED;
 		} else {
-			out->steer = LF_KP * lf->err + LF_KD * (lf->err - lf->prev_err);
+			INT target = edge_steer(lf, dt_ms);
+
+			out->steer = steer_slew(lf->steer_cmd, target);
+			lf->steer_cmd = out->steer;
 			out->speed_frac = speed_for(lf->err);
 			if (lf->settle_ms > 0U && out->speed_frac > LF_SETTLE_SPEED) {
 				out->speed_frac = LF_SETTLE_SPEED;
 			}
+		}
+		if (!on_line) {
+			/* Recovery has its own bounded arc/pivot values.  Start
+			   normal slew limiting from that value when the line is found. */
+			lf->steer_cmd = out->steer;
+			lf->edge_side = 0;
+			lf->edge_ms = 0;
+			lf->hold_ms = 0;
 		}
 	}
 	lf->prev_err = lf->err;

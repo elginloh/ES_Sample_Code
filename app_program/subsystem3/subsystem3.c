@@ -8,7 +8,7 @@
  *	  cyc_line        cyclic      20 ms, wakes the Line Following task
  *	  line_task       task        priority 14, core 1
  *	  barcode_task    task        priority 17, core 1
- *	Pins: GP2 (IR left), GP6 (IR centre), GP27 (IR right / barcode edges)
+ *	Pins: GP2 (IR left), GP6 (IR centre), GP26 (IR right / barcode edges)
  */
 
 #include "subsystem3.h"

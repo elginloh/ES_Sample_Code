@@ -30,8 +30,9 @@
 				 / ENC_PULSES_PER_REV)
 
 /* ---- Speeds (mm/s) [CAL] ------------------------------------------- */
-#define CRUISE_DEFAULT_MMS	160	/* [CAL] normal line-following speed (was 200, 20, 30, 45, 90, 135,
-					   117 = 135 / 1.15, 176 = 1.5 x 117).
+#define CRUISE_DEFAULT_MMS	158	/* [CAL] normal line-following speed (was 200, 20, 30, 45, 90, 135,
+					   117 = 135 / 1.15, 176 = 1.5 x 117, 160;
+					   158 = 160 - 1 %, rounded to whole mm/s).
 					   Floor: a barcode MOVE/TURN must finish
 					   inside S3_NAV_WAIT_MS (15 s) */
 #define TURN_SPEED_MMS		135	/* [CAL] wheel speed while pivoting (was 120, 20, 30, 45, 90) */
@@ -65,6 +66,44 @@
 					   2.5x too strong: the car over-steered
 					   off the line and kept searching */
 #define HEADING_GAIN		3	/* mm/s correction per mm L/R mismatch */
+
+/* ---- Barcode junction turns (90 deg) [CAL] ----------------------------
+ *  At the junction the IR sensors are on the crossing line, ~80 mm ahead
+ *  of the wheels.  Turning there would leave the crossing line beside
+ *  the car, not under its sensors.  So a 90 deg barcode turn:
+ *    1. drives on until the RIGHT IR sensor leaves the crossing line
+ *       (reference point), then TURN_ADVANCE_x_MM - half a line width
+ *       more, so the turn point is where the turn must happen;
+ *    2. turns: outer wheel forward, inner wheel slowly backward, about a
+ *       point TURN_PIVOT_OFFSET_MM from the axle centre;
+ *    3. ends once the crossing line has passed the right sensor and lies
+ *       between the centre and right sensors (about 90 deg).
+ *  Advance for the line to end up between the centre and right sensors:
+ *    right turn: IR_AHEAD - PIVOT_OFFSET + IR_GAP / 2
+ *    left turn:  IR_AHEAD - PIVOT_OFFSET - IR_GAP / 2
+ *  U-turns turn on the spot with no advance.
+ * --------------------------------------------------------------------- */
+#define TURN_IR_AHEAD_MM	80	/* [CAL] centre IR sensor ahead of the
+					   wheel axle (= AV_LINE_SENSOR_AHEAD_MM) */
+#define TURN_IR_GAP_MM		20	/* [CAL] centre to right IR sensor,
+					   measured sideways                  */
+#define TURN_LINE_WIDTH_MM	18	/* [CAL] black tape width             */
+#define TURN_PIVOT_OFFSET_MM	25	/* turn point this far towards the inner
+					   wheel: inner wheel backward at
+					   (65-25)/(65+25) = 44 % of the outer */
+#define TURN_ADVANCE_TRIM_MM	0	/* [CAL] + if the line ends up nearer the
+					   centre sensor, - if nearer the right */
+#define TURN_ADVANCE_RIGHT_MM	(TURN_IR_AHEAD_MM - TURN_PIVOT_OFFSET_MM \
+				 + TURN_IR_GAP_MM / 2 + TURN_ADVANCE_TRIM_MM)
+#define TURN_ADVANCE_LEFT_MM	(TURN_IR_AHEAD_MM - TURN_PIVOT_OFFSET_MM \
+				 - TURN_IR_GAP_MM / 2 + TURN_ADVANCE_TRIM_MM)
+#define TURN_LINE_SEEK		1	/* 1 = use Buddy 3's line-seen word for
+					   the reference point and the end of
+					   the turn; 0 = distances/encoders only */
+#define TURN_SEEK_EARLY_DEG	20	/* sensors end the turn only from
+					   90 - 20 = 70 deg ...               */
+#define TURN_SEEK_EXTRA_DEG	15	/* ... and at the latest at 105 deg   */
+#define LSEEN_STALE_MS		100	/* line-seen word freshness           */
 
 /* ---- Speed PID + feed-forward [CAL] (duty in permille, -1000..1000) - */
 #define PID_KP_Q8		512	/* 2.0  permille per mm/s            */

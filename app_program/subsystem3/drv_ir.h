@@ -3,7 +3,7 @@
  *	Three digital IR sensors (Buddy 3 owns them):
  *	  IR_LEFT   GP2   (D0; A0 on GP3 is wired but unused)
  *	  IR_CENTER GP6   (D0)
- *	  IR_RIGHT  GP27  (D0) -- also the barcode edge source
+ *	  IR_RIGHT  GP26  (D0) -- also the barcode edge source
  *
  *	Barcode edge capture (Tribunal 1, Version B): the shared GPIO
  *	interrupt timestamps every IR_RIGHT edge into a single-producer /
@@ -26,11 +26,11 @@
 
 #define IR_LEFT_PIN		2
 #define IR_CENTER_PIN		6
-#define IR_RIGHT_PIN		27
+#define IR_RIGHT_PIN		26
 
-/* 1 = this car has the IR_RIGHT (GP27, barcode) sensor on its LEFT side,
+/* 1 = this car has the IR_RIGHT (GP26, barcode) sensor on its LEFT side,
    on the outrigger bracket, and IR_LEFT on its right.  The line follower
-   keeps its own labels (the barcode handling stays on GP27); task_line.c
+   keeps its own labels (the barcode handling stays on GP26); task_line.c
    mirrors its steering and the IMU heading it is given, and the "ir:"
    console line prints the car's real left and right.  Seen on the car:
    the left sensor on the line turned it clockwise. */
@@ -39,7 +39,7 @@
 #endif
 
 #ifndef S3_CAPTURE_POLL_1MS
-#define S3_CAPTURE_POLL_1MS	0
+#define S3_CAPTURE_POLL_1MS	1
 #endif
 
 #define IR_EDGE_RING		64	/* power of two */

@@ -192,6 +192,32 @@ static inline INT steer_value(UW s)
 }
 
 /* ---------------------------------------------------------------------
+ *  Line-seen word (8 bits): single writer = Line Following task, every
+ *  period in every mode.  Which IR sensors see black, on the car's
+ *  PHYSICAL sides.  Barcode turns end on it (motion_cfg.h TURN_LINE_SEEK).
+ *    bit  0     valid
+ *    bits 1..4  seq   (4)  must keep changing (freshness)
+ *    bit  5     left sensor black   (GP26, also the barcode sensor)
+ *    bit  6     centre sensor black (GP6)
+ *    bit  7     right sensor black  (GP2)
+ * --------------------------------------------------------------------- */
+#define LSEEN_VALID		(1UL << 0)
+#define LSEEN_SEQ_SHIFT		1U
+#define LSEEN_SEQ_MASK		0xFUL
+#define LSEEN_L			(1UL << 5)
+#define LSEEN_C			(1UL << 6)
+#define LSEEN_R			(1UL << 7)
+
+static inline UW lseen_pack(UW seq, BOOL l, BOOL c, BOOL r)
+{
+	return LSEEN_VALID
+	     | ((seq & LSEEN_SEQ_MASK) << LSEEN_SEQ_SHIFT)
+	     | (l ? LSEEN_L : 0UL) | (c ? LSEEN_C : 0UL) | (r ? LSEEN_R : 0UL);
+}
+
+static inline UW lseen_seq(UW w)	{ return (w >> LSEEN_SEQ_SHIFT) & LSEEN_SEQ_MASK; }
+
+/* ---------------------------------------------------------------------
  *  Speed cap word (15 bits): single writer = Obstacle Scan task.
  *    bit  0     valid
  *    bits 1..4  seq   (4)  must keep changing (freshness)

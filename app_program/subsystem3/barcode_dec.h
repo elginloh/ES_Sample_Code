@@ -1,24 +1,16 @@
 /*
  *	barcode_dec.h
  *	Barcode capture and decoding state machine (Buddy 3), fed by the edge
- *	timestamps recorded by the IR_RIGHT (GP27) interrupt (Tribunal 1,
+ *	timestamps recorded by the IR_RIGHT (GP26) interrupt (Tribunal 1,
  *	Version B: interrupt edge capture, asynchronous decoding).  Pure
  *	logic, host-testable.
  *
- *	Element widths: the time between two edges multiplied by the wheel
- *	speed from the encoders (Tribunal 1: "consider vehicle speed and
- *	encoder distance").  Encoder ticks (~10 mm) are coarser than a 3 mm
- *	narrow bar, so distance alone cannot measure a bar; time x speed can.
- *	Classification is by ratio within each symbol, so a slow drift of
- *	speed or a different print scale does not matter.
- *
- *	    IDLE --(white->black after a quiet zone)--> CAPTURING
- *	    CAPTURING --(white for > end quiet zone)--> decode -> IDLE
- *	    CAPTURING --(element too long / too many / window or time out)
- *	              --> INVALID -> IDLE
- *	The decode window is a travelled DISTANCE (BC_MAX_LENGTH_UM), so the
- *	time limit automatically adapts to the speed (Week 6 statechart:
- *	"timeout adapts to speed").
+ * Element widths are GPIO transition durations in microseconds. Code 39
+ * uses relative narrow/wide timing within each symbol. Wheel speed and
+ * odometry arguments remain for API compatibility and are ignored.
+ * Start after white, finish after white lasting 2.5 times the longest
+ * element (at least 100 ms). A 3 s edge timeout bounds stalled captures.
+ * Keep relative sensor/print speed reasonably steady within each symbol.
  */
 
 #ifndef BARCODE_DEC_H
@@ -71,6 +63,8 @@ typedef struct {
 	BOOL	reversed;
 	INT	err;			/* when INVALID */
 	UB	n_elements;		/* after glitch merging */
+	UB	n_diag;			/* widths available for serial diagnosis */
+	UW	element_um[BC_MAX_EDGES]; /* legacy name: now durations in us */
 } BC_RESULT;
 
 typedef struct {
@@ -89,13 +83,14 @@ typedef struct {
 	W	last_sym_mm;
 	UW	widest_um;
 	UH	last_speed;		/* last positive speed seen */
+	UW	last_decode_us;		/* time-based duplicate suppression */
 } BC_DEC;
 
 IMPORT void bc_init(BC_DEC *d);
 IMPORT void bc_abort(BC_DEC *d, BC_RESULT *res);
 IMPORT BOOL bc_capturing(const BC_DEC *d);
 
-/* One edge: 'black' is the level AFTER the edge (1 = black) */
+/* One digital edge: black is the level AFTER the edge. Speed/odo ignored. */
 IMPORT void bc_edge(BC_DEC *d, UW t_us, UB black, W speed_mms, W odo_mm,
 		    BC_RESULT *res);
 

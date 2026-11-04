@@ -13,6 +13,7 @@
 
 EXPORT volatile UW	s2_result_word[MSRC_COUNT];
 EXPORT volatile UW	s2_steer_word;
+EXPORT volatile UW	s2_line_seen_word;
 EXPORT volatile UW	s2_cap_word;
 EXPORT volatile UW	s2_stop_req;
 EXPORT volatile UW	s2_armed;
@@ -26,6 +27,7 @@ EXPORT UW		s2_mstat_words[2];
    counter has a single writer. */
 LOCAL UB		src_seq[MSRC_COUNT];
 LOCAL UB		steer_seq_ctr;		/* writer: line task */
+LOCAL UB		lseen_seq_ctr;		/* writer: line task */
 LOCAL UB		cap_seq_ctr;		/* writer: scan task */
 
 EXPORT void motion_api_init(void)
@@ -37,6 +39,7 @@ EXPORT void motion_api_init(void)
 		src_seq[i] = 0;
 	}
 	s2_steer_word = 0;
+	s2_line_seen_word = 0;
 	s2_cap_word = 0;
 	s2_stop_req = 0;
 #if APP_TEST
@@ -50,6 +53,7 @@ EXPORT void motion_api_init(void)
 	s2_mstat_words[0] = 0;
 	s2_mstat_words[1] = 0;
 	steer_seq_ctr = 0;
+	lseen_seq_ctr = 0;
 	cap_seq_ctr = 0;
 }
 
@@ -148,6 +152,12 @@ EXPORT void motion_set_steer_reverse(UW speed_frac)
 EXPORT void motion_clear_steer(void)
 {
 	app_store(&s2_steer_word, 0U);
+}
+
+EXPORT void motion_set_line_seen(BOOL left, BOOL centre, BOOL right)
+{
+	lseen_seq_ctr = (UB)((lseen_seq_ctr + 1U) & LSEEN_SEQ_MASK);
+	app_store(&s2_line_seen_word, lseen_pack(lseen_seq_ctr, left, centre, right));
 }
 
 EXPORT void motion_set_speed_cap(UW cap_mms)

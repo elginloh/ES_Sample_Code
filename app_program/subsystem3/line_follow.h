@@ -2,34 +2,21 @@
  *	line_follow.h
  *	IR line following (Buddy 3).  Pure logic, host-testable.
  *
- *	Hardware (Week 6 pin table, Project Briefing p.6): three DIGITAL IR
- *	sensors (D0 outputs; A0 unused): IR_L GP2, IR_C GP6 and IR_R GP27.
- *	Only IR_C and IR_L steer.  IR_R reads the barcodes beside the line
- *	and is ignored here, except that a crossing line covering all three
- *	sensors is a junction (the barcode task counts them).  With
- *	IR_SIDES_MIRRORED (drv_ir.h) IR_R is on the car's LEFT and IR_L on
- *	its right; these labels and the steering sign are the line
- *	follower's own, task_line.c mirrors them for the motors.
- *
- *	Line position (black = 1, IR_R not used):
- *	    C=1 L=0      centred                 error  0
- *	    C=1 L=1      line drifting to IR_L   error -1
- *	    C=0 L=1      line under IR_L only    error -2: pivot towards IR_L
- *	                 until the centre has it (held through all-white)
-	 *	    C=0 L=0      a short dropout is ignored; if it persists, turn
-	 *	                 towards IR_R (the car's left)
- *	                 until C or L sees black again.  First an arc while moving on
- *	                 (a curve), after LF_LOST_ARC_MM / _MS a pivot on the
-	 *	                 spot (a sharp corner).  As soon as the centre sensor
-	 *	                 sees black again, command straight ahead.
- *	    L=C=R=1      junction (crossing line)
- *	Steering = PD on the error, + = turn right (motion_msg.h convention).
- *
- *	Week 6 statechart 6.3 "Error / recover": the turn towards IR_R starts
- *	at once; after LF_LOST_CONFIRM_MM / _MS without the line LF_EV_LOST
- *	is raised and the state becomes LS_SEARCHING, still turning the same
- *	way.  The search never latches a safe stop (LF_EV_RECOVERY_FAIL is
- *	kept for compatibility but no longer raised).
+ * Digital inputs: GP6 centre, GP2 physical right, GP26 physical left
+ * barcode sensor. Internal IR_L names GP2; task_line mirrors steering
+ * into the physical motor convention (+ is clockwise/right).
+ * Centre-only black: turn left (right wheel faster, left wheel slower).
+ * GP2-only black: turn right (left wheel faster, right wheel slower).
+ * The wheel-speed difference starts at LF_EDGE_STEER_MIN and grows while
+ * the same sensor stays black, up to LF_EDGE_STEER_MAX (curves).  After a
+ * sustained contact the turn is held for LF_HOLD_MS once both sensors are
+ * white, so the line cannot slip past the sensor while the car drives
+ * straight.  Both GP6 and GP2 black for 60 ms: one junction event until
+ * either sensor clears. GP26 never participates in junction detection.
+ * Both tracking sensors white: continue straight in normal corridor
+ * tracking, with no elapsed-time search. Known loss outside NORMAL still
+ * reports LOST/FOUND for avoidance. Barcode turns execute at the next junction; normal
+ * line tracking resumes when Buddy 2 completes the encoder-based turn.
  */
 
 #ifndef LINE_FOLLOW_H
@@ -66,28 +53,49 @@
 
 /* Calibration results */
 #define LF_CAL_OK		0
-#define LF_CAL_AMBIGUOUS	(-1)	/* L and C read the same level      */
+#define LF_CAL_AMBIGUOUS	(-1)	/* retained for interface compatibility */
 #define LF_CAL_UNSTABLE		(-2)	/* readings flickered while still   */
 
 /* Tuning [CAL] */
-#define LF_CRUISE_SPEED		12	/* 12/15 of Buddy 2 cruise: 128 mm/s
-					   with the current 160 mm/s setting */
-#define LF_NEAR_SPEED		10	/* slow gently while correcting       */
-#define LF_KP			8	/* softer centre-first correction     */
-#define LF_KD			0	/* no opposite kick when C reacquires */
-#define LF_CENTER_GAP_MS	60	/* ignore up to two isolated 20 ms
-					   centre/side white samples */
+#define LF_CONFIGURED_BLACK_LEVEL 1U	/* this robot's LM393 D0 is high on black */
+#define LF_CRUISE_SPEED		4	/* 4/15 of Buddy 2 cruise: about
+					   42 mm/s with the current 158 mm/s
+					   (was 5 = 53 mm/s): slower over the
+					   barcodes so GP26 sees every bar */
+#define LF_NEAR_SPEED		LF_CRUISE_SPEED /* constant speed avoids a correction jerk */
+/* Edge correction as a wheel-speed difference.  One steer unit adds
+   cruise/STEER_UNIT_DIV = 2 mm/s to one wheel and takes it from the other
+   (130 mm track), so at the 42 mm/s line speed:
+       steer  8 (first contact): inner 26, outer 58 mm/s, ~14 deg/s
+       steer 12 (sustained):     inner 18, outer 66 mm/s, ~21 deg/s
+   Same inner:outer ratios (path curvature) as 10 / 16 at the old 53 mm/s.
+   Times are 1.25 x the 53 mm/s values: the same heading change and the
+   same distance travelled at the lower speed. */
+#define LF_EDGE_STEER_MIN	8	/* first sample on an edge sensor     */
+#define LF_EDGE_STEER_MAX	12	/* cap: inner wheel stays near MIN_CTRL_SPEED */
+#define LF_EDGE_GROW_MS		50	/* +1 steer per 50 ms the same sensor
+					   stays black (MIN -> MAX in 200 ms) */
+#define LF_HOLD_MIN_MS		120	/* sensor black at least this long: a
+					   curve, not a small drift ...       */
+#define LF_HOLD_MS		380	/* ... so keep turning the same way this
+					   long after both sensors go white,
+					   unless a sensor sees black first    */
+#define LF_HOLD_STEER		LF_EDGE_STEER_MIN
+#define LF_STEER_SLEW_STEP	8	/* first correction in one 20 ms cycle */
+#define LF_EDGE_GAP_MAX_MS	400	/* legacy compatibility; no white-corridor timeout */
+#define LF_EDGE_GAP_ERR		0	/* corridor is a straight-ahead deadband */
+#define LF_CENTER_GAP_MS	LF_EDGE_GAP_MAX_MS /* compatibility/test alias */
 #define LF_LOST_CONFIRM_MM	40	/* lost after this much travel ... (was 25) */
 #define LF_LOST_CONFIRM_MS	250	/* ... or this long without line (was 300, 400) */
 #define LF_JUNCTION_MM		8	/* all-black run to call a junction */
-#define LF_LOST_DIR		1	/* centre and IR_L white: turn towards
-					   IR_R (+1), the car's left with
-					   IR_SIDES_MIRRORED */
-#define LF_LOST_ARC_STEER	10	/* ... first use a gentle corrective arc */
-#define LF_LOST_ARC_SPEED	10	/* ... at 10/15 cruise while searching */
+#define LF_JUNCTION_CONFIRM_MS	60U /* both GP6 and GP2 black, reject flicker */
+#define LF_LOST_DIR		(-1)	/* search towards the C-to-IR_L tracking
+					   corridor, never towards the barcode sensor */
+#define LF_LOST_ARC_STEER	4	/* ... first use a slow corrective arc */
+#define LF_LOST_ARC_SPEED	3	/* ... at about 32 mm/s while searching */
 #define LF_LOST_ARC_MM		40	/* ... for this much travel ... */
 #define LF_LOST_ARC_MS		400	/* ... or this long, then ... */
-#define LF_LOST_PIVOT_STEER	16	/* ... pivoting on the spot at this
+#define LF_LOST_PIVOT_STEER	12	/* ... pivoting on the spot at this
 					   steer (as LF_SIDE_PIVOT_STEER) */
 #define LF_REALIGN_MIN_MS	300	/* found by a turn at least this long (a
 					   curve or corner, not a small slip off
@@ -97,9 +105,9 @@
 					   it sees black, command straight */
 #define LF_REALIGN_STEER	0
 #define LF_REALIGN_SPEED	LF_CRUISE_SPEED
-#define LF_SIDE_PIVOT_STEER	16	/* only IR_L on the line: stop and pivot
-					   towards it at this steer (32 mm/s
-					   per wheel at the 160 mm/s cruise)
+#define LF_SIDE_PIVOT_STEER	12	/* only IR_L on the line: stop and pivot
+					   towards it at this steer (24 mm/s
+					   per wheel at the 158 mm/s cruise)
 					   until the centre is back on it, so the
 					   car never drives off the path.  The
 					   pivot is held even when IR_L goes white
@@ -110,7 +118,7 @@
 					   centre never finds the line does the
 					   lost-line turn take over (was 1500) */
 #define LF_SETTLE_MS		300	/* after a side pivot: drive on ...   */
-#define LF_SETTLE_SPEED		7	/* ... at 7/15 of cruise this long    */
+#define LF_SETTLE_SPEED		3	/* ... at about 32 mm/s this long     */
 
 typedef struct {
 	UB	black_level[3];	/* raw level meaning "black", per sensor */
@@ -119,10 +127,15 @@ typedef struct {
 	UB	pos;		/* LP_* */
 	INT	err;		/* last error, -2..3 */
 	INT	prev_err;
+	INT	steer_cmd;	/* slew-limited steering sent last cycle */
+	INT	edge_side;	/* +1 C black, -1 IR_L black, 0 neither */
+	UW	edge_ms;	/* how long that sensor has been black */
+	INT	hold_side;	/* turn kept after a sustained contact ... */
+	UW	hold_ms;	/* ... for this much longer */
 	UW	lost_ms;	/* time without the line */
 	W	lost_start_mm;
 	BOOL	lost_pending;
-	UW	center_gap_ms;	/* short all-white dropout suppression */
+	UW	center_gap_ms;	/* legacy field; not used to declare line loss */
 	UW	settle_ms;	/* half-speed time left after a pivot */
 	BOOL	turning;	/* lost-line turn under way ... */
 	W	turn_start_mm;	/* ... since this odometer reading ... */
@@ -132,6 +145,7 @@ typedef struct {
 	UW	pivot_ms;	/* time since the centre last saw the line */
 	BOOL	in_junction;
 	W	junction_start_mm;
+	UW	junction_ms;
 } LINE_FOLLOW;
 
 typedef struct {
@@ -144,8 +158,8 @@ typedef struct {
 IMPORT void lf_init(LINE_FOLLOW *lf);
 IMPORT void lf_reset_tracking(LINE_FOLLOW *lf);
 
-/* Calibration with the car on the line: CENTRE over black, LEFT and
-   RIGHT over white.  raw[i] holds 3-bit raw samples. */
+/* Startup qualification from any position (white or black).  The samples
+   must be stable; black polarity is the known hardware configuration. */
 IMPORT INT  lf_calibrate(LINE_FOLLOW *lf, const UB *raw, UINT n);
 
 /* Raw 3-bit levels -> black bits (1 = black) */

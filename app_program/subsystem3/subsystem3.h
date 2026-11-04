@@ -35,19 +35,18 @@
 #define S3_BC_POLL_MS		20	/* completion check while capturing  */
 #define S3_NAV_WAIT_MS		15000	/* longest barcode manoeuvre          */
 
-/* Statechart 6.3 "Barcode / junction detected: pause line following":
-   1 = hold straight while a barcode is being captured, but only while
-   the centre sensor still sees the line and the right one is not on
-   the line itself (otherwise steer normally). */
-#ifndef S3_PAUSE_STEER_ON_BARCODE
-#define S3_PAUSE_STEER_ON_BARCODE	1
+#ifndef S3_BARCODE_DIAG
+#define S3_BARCODE_DIAG		1	/* one width report after each capture */
 #endif
+
+/* GP26 barcode capture never suppresses GP6/GP2 line steering.
+   Only Buddy 2's vehicle mode transfers motor ownership for a turn. */
 
 /* TEAM DECISION: 0 = execute the decoded command at once (Week 6
    statechart order decode -> execute); 1 = keep it until the next
    junction (LF_EV_JUNCTION), discarded after S3_NAV_PENDING_MM. */
 #ifndef S3_NAV_AT_JUNCTION
-#define S3_NAV_AT_JUNCTION	0
+#define S3_NAV_AT_JUNCTION	1
 #endif
 #define S3_NAV_PENDING_MM	800
 

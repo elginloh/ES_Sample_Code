@@ -76,6 +76,8 @@ EXPORT void plant_input(const PLANT *p, MC_IN *in, UW vmode)
 	in->steer_fresh = FALSE;
 	in->cap_mms = 0;
 	in->line_lost_cap = FALSE;
+	in->line_seen = 0;
+	in->line_seen_fresh = FALSE;
 }
 
 /* Run the controller for up to max_ms; returns elapsed ms when a result
@@ -104,6 +106,67 @@ EXPORT UW run_until_result(MOTION_CTRL *mc, PLANT *p, UW vmode, UW src,
 LOCAL W iabs(W v)
 {
 	return (v < 0) ? -v : v;
+}
+
+/* Barcode TURN of 'deg' with simulated IR sensors.  Heading is in 0.1 deg
+   (227 um of wheel difference each at the 130 mm track), magnitude only.
+   While driving to the turn point both sensors are on the junction line
+   until 'line_mm' of travel (0 = never).  While turning the right sensor
+   sees black for headings in [r0, r1], the centre for [c0, c1]. */
+typedef struct {
+	UW	res;
+	W	h;		/* heading after settling, 0.1 deg */
+	W	adv_um;		/* mean travel before the turn began */
+	W	tl_um;		/* wheel travel during the turn */
+	W	tr_um;
+} SEEK_RUN;
+
+LOCAL void seek_turn(PLANT *p, INT deg, BOOL ir, W line_mm, W r0, W r1,
+		     W c0, W c1, SEEK_RUN *s)
+{
+	MOTION_CTRL	mc;
+	MC_IN		in;
+	MC_OUT		out;
+	UW		t, settle = 0;
+	BOOL		turning = FALSE;
+	W		l0 = 0, r0w = 0;
+
+	plant_init(p);
+	mc_init(&mc);
+	mc_out_clear(&out);
+	s->res = 0;
+	s->adv_um = 0;
+	(void)mc_submit(&mc, mcmd_pack(MCMD_TURN, MSRC_BARCODE, 1, 0, 2, deg),
+			VM_NORMAL, 0, &out);
+	for (t = 0; t < 20000U && settle < 25U; t += MOTION_PERIOD_MS) {
+		W	h = iabs(p->d_l_um - p->d_r_um) / 227;
+		W	trav = (p->d_l_um + p->d_r_um) / 2;
+		BOOL	jl = !turning && trav < line_mm * 1000;
+
+		plant_input(p, &in, VM_NAV_ACTION);
+		in.line_seen = lseen_pack(t / MOTION_PERIOD_MS, FALSE,
+			jl || (turning && h >= c0 && h <= c1),
+			jl || (turning && h >= r0 && h <= r1));
+		in.line_seen_fresh = ir;
+		mc_out_clear(&out);
+		mc_step(&mc, &in, MOTION_PERIOD_MS, &out);
+		if (!turning && !mc.advancing) {
+			turning = TRUE;		/* turn point reached */
+			s->adv_um = trav;
+			l0 = in.dist_l_um;
+			r0w = in.dist_r_um;
+		}
+		plant_step(p, out.duty_l_pm, out.duty_r_pm, MOTION_PERIOD_MS);
+		if ((out.result_mask & (1UL << MSRC_BARCODE)) != 0U) {
+			s->res = out.result[MSRC_BARCODE];
+		}
+		if (s->res != 0U) {
+			settle++;
+		}
+	}
+	s->h = iabs(p->d_l_um - p->d_r_um) / 227;
+	s->tl_um = p->d_l_um - l0;
+	s->tr_um = p->d_r_um - r0w;
 }
 
 /* ------------------------------------------------------------------ */
@@ -252,6 +315,51 @@ LOCAL INT test_execution(void)
 		   && pl.d_l_um > 0 && pl.d_r_um < 0
 		   && iabs((pl.d_l_um - pl.d_r_um) / 2 - arc) < 12000,
 		   "TURN +90: left forward, right backward, arc within 12 mm");
+
+	/* Barcode RIGHT at a junction.  Drive on: the right sensor leaves
+	   the junction line after 15 mm (reference point), then the advance
+	   minus half a line width.  Turn: the line passes the right sensor at
+	   70-76 deg and the centre at 85-90 deg (wheel slip: before the
+	   90 deg the encoders expect).  Stop with it in the gap, not at 90. */
+	{
+		SEEK_RUN	s;
+		W		adv = 15000 + (TURN_ADVANCE_RIGHT_MM
+					       - TURN_LINE_WIDTH_MM / 2) * 1000;
+
+		seek_turn(&pl, 90, TRUE, 15, 700, 760, 850, 900, &s);
+		TEST_CHECK("S2-U10b", mres_status(s.res) == MRES_DONE
+			   && iabs(s.adv_um - adv) <= 3000
+			   && s.h > 760 && s.h < 850
+			   && s.tl_um > 0 && s.tr_um < 0
+			   && -s.tr_um * 100 < s.tl_um * 60,
+			   "barcode RIGHT: advance from where the right sensor leaves the junction line, then left forward / right back slowly; ends with the line between centre and right sensors");
+		adv = 15000 + (TURN_ADVANCE_LEFT_MM - TURN_LINE_WIDTH_MM / 2) * 1000;
+		seek_turn(&pl, -90, TRUE, 15, 850, 900, 700, 760, &s);
+		TEST_CHECK("S2-U10c", mres_status(s.res) == MRES_DONE
+			   && iabs(s.adv_um - adv) <= 3000
+			   && s.h > 760 && s.h < 850
+			   && s.tr_um > 0 && s.tl_um < 0
+			   && -s.tl_um * 100 < s.tr_um * 60,
+			   "barcode LEFT: shorter advance, right forward / left back slowly; centre leads, ends with the line in the gap");
+		seek_turn(&pl, 90, TRUE, 15, 750, 790, 750, 790, &s);
+		TEST_CHECK("S2-U10d", mres_status(s.res) == MRES_DONE
+			   && s.h >= 750 && s.h < 820,
+			   "line already under the centre sensor near 90 deg: stop there (line following corrects)");
+		seek_turn(&pl, 90, TRUE, 15, 300, 340, 0, 0, &s);
+		TEST_CHECK("S2-U10e", mres_status(s.res) == MRES_DONE
+			   && s.h > 1020 && s.h < 1110,
+			   "line seen only far from 90 deg (old branch) or never: ignored, stop at 105 deg");
+		seek_turn(&pl, 90, FALSE, 15, 800, 860, 950, 1000, &s);
+		TEST_CHECK("S2-U10f", mres_status(s.res) == MRES_DONE
+			   && iabs(s.adv_um - TURN_ADVANCE_RIGHT_MM * 1000) <= 3000
+			   && s.h > 870 && s.h < 940,
+			   "no fresh IR word from Buddy 3: fixed advance, plain encoder turn to 90 deg");
+		seek_turn(&pl, 180, FALSE, 0, 0, 0, 0, 0, &s);
+		TEST_CHECK("S2-U10g", mres_status(s.res) == MRES_DONE
+			   && s.adv_um < 3000 && s.h > 1750 && s.h < 1850
+			   && iabs(s.tl_um + s.tr_um) < 10000,
+			   "barcode U-turn: no advance, turns on the spot");
+	}
 
 	/* NFR12: MOVE followed by a queued TURN keeps at least creep speed */
 	plant_init(&pl);

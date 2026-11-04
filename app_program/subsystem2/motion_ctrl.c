@@ -92,6 +92,13 @@ EXPORT void mc_init(MOTION_CTRL *mc)
 	mc->start_l_um = 0;
 	mc->start_r_um = 0;
 	mc->target_um = 0;
+	mc->seek_from_um = 0;
+	mc->seek_extra_um = 0;
+	mc->seek_seen = FALSE;
+	mc->advancing = FALSE;
+	mc->advance_um = 0;
+	mc->adv_r_black = FALSE;
+	mc->adv_ref = FALSE;
 	mc->elapsed_ms = 0;
 	mc->timeout_ms = 0;
 	pid_init(&mc->pid_l, PID_KP_Q8, PID_KI_Q8, PID_KD_Q8, PID_I_LIMIT,
@@ -167,6 +174,16 @@ LOCAL W cmd_speed(const MOTION_CTRL *mc, UW cmd, W dflt)
 	return (v < creep) ? creep : v;
 }
 
+/* A 90 deg barcode turn at a junction (not a U-turn, not avoidance):
+   advance to the turn point, then turn about TURN_PIVOT_OFFSET_MM */
+LOCAL BOOL is_junction_turn(UW cmd)
+{
+	INT	arg = mcmd_arg(cmd);
+
+	return (mcmd_type(cmd) == MCMD_TURN && mcmd_src(cmd) == MSRC_BARCODE
+		&& arg > -135 && arg < 135) ? TRUE : FALSE;
+}
+
 LOCAL void start_cmd(MOTION_CTRL *mc, UW cmd, MC_OUT *out)
 {
 	INT	arg = mcmd_arg(cmd);
@@ -181,16 +198,43 @@ LOCAL void start_cmd(MOTION_CTRL *mc, UW cmd, MC_OUT *out)
 	mc->stall_ms_l = 0;
 	mc->stall_ms_r = 0;
 
+	mc->seek_from_um = 0;
+	mc->seek_extra_um = 0;
+	mc->seek_seen = FALSE;
+	mc->advancing = FALSE;
+	mc->advance_um = 0;
+	mc->adv_r_black = FALSE;
+	mc->adv_ref = FALSE;
 	if (mcmd_type(cmd) == MCMD_TURN) {
+		INT	deg = (arg < 0) ? -arg : arg;
+
 		mc->target_um = mc_turn_arc_um(arg);
-		mc->state = MS_TURNING;
+		if (mcmd_src(cmd) == MSRC_BARCODE && TURN_LINE_SEEK) {
+			mc->seek_from_um = (deg > TURN_SEEK_EARLY_DEG)
+				? mc_turn_arc_um(deg - TURN_SEEK_EARLY_DEG) : 0;
+			mc->seek_extra_um = mc_turn_arc_um(TURN_SEEK_EXTRA_DEG);
+		}
+		if (is_junction_turn(cmd)) {
+			mc->advancing = TRUE;
+			mc->advance_um = 1000 * ((arg > 0) ? TURN_ADVANCE_RIGHT_MM
+							   : TURN_ADVANCE_LEFT_MM);
+			mc->state = MS_STRAIGHT;
+		} else {
+			mc->state = MS_TURNING;
+		}
 	} else {
 		mc->target_um = iabs(arg) * 1000;
 		mc->state = MS_STRAIGHT;
 	}
 	/* Generous time limit: the whole distance at creep speed, plus
-	   slack.  The stall detector is the primary failure detector. */
-	mm = mc->target_um / 1000;
+	   slack.  The stall detector is the primary failure detector.
+	   A barcode turn: up to target + extra, with the outer wheel doing
+	   up to twice the mean arc (inner wheel slower), plus the advance
+	   and a line width before the reference point. */
+	mm = (mc->target_um + mc->seek_extra_um) / 1000;
+	if (mcmd_type(cmd) == MCMD_TURN && mcmd_src(cmd) == MSRC_BARCODE) {
+		mm = mm * 2 + mc->advance_um / 1000 + TURN_LINE_WIDTH_MM;
+	}
 	mc->timeout_ms = (UW)(mm * 1000 / creep) + CMD_TIMEOUT_EXTRA_MS;
 
 	if (mcmd_src(cmd) == MSRC_BARCODE) {
@@ -394,24 +438,131 @@ LOCAL void run_move(MOTION_CTRL *mc, W *des_l, W *des_r, MC_OUT *out)
 	mc->state = MS_STRAIGHT;
 }
 
-LOCAL void run_turn(MOTION_CTRL *mc, W *des_l, W *des_r, MC_OUT *out)
+/* Barcode turn ending on the line.  Turning right, the new line sweeps
+   across the sensors from right to left: the right sensor meets it
+   first (lead), then it lies in the gap, then the centre (trail) meets
+   it.  Turning left it comes from the left: the centre leads and the
+   right sensor trails.  Done once the line is in the centre-right gap:
+   the lead sensor has seen it and is white again, or the trail sensor
+   already sees it (just past; line following corrects that). */
+LOCAL BOOL line_in_gap(MOTION_CTRL *mc, UW seen, W dir)
+{
+	BOOL	c = (seen & LSEEN_C) != 0UL;
+	BOOL	r = (seen & LSEEN_R) != 0UL;
+	BOOL	lead = (dir > 0) ? r : c;
+	BOOL	trail = (dir > 0) ? c : r;
+
+	if (trail) {
+		return TRUE;
+	}
+	if (lead) {
+		mc->seek_seen = TRUE;
+		return FALSE;
+	}
+	return mc->seek_seen;
+}
+
+/* Junction turn, phase 1: drive straight to the turn point.  The right
+   IR sensor crossing the junction line is the reference: once it has
+   been black and is white again it is half a line width past the line's
+   centre, and the advance is counted again from there.  Returns TRUE
+   while still advancing (wheel targets set). */
+LOCAL BOOL run_advance(MOTION_CTRL *mc, const MC_IN *in, BOOL seeking,
+		       W *des_l, W *des_r)
+{
+	W	fl = mc->last_l_um - mc->start_l_um;
+	W	fr = mc->last_r_um - mc->start_r_um;
+	W	travel = (fl + fr) / 2;
+	W	rem, v, v_allow, corr;
+
+	if (seeking && !mc->adv_ref) {
+		if ((in->line_seen & LSEEN_R) != 0UL) {
+			mc->adv_r_black = TRUE;
+		} else if (mc->adv_r_black) {
+			mc->adv_ref = TRUE;	/* right sensor left the line */
+			mc->advance_um += travel
+				- TURN_LINE_WIDTH_MM * 1000 / 2;
+			if (mc->advance_um < travel) {
+				mc->advance_um = travel;
+			}
+		}
+	}
+	rem = mc->advance_um - travel;
+	if (rem <= DONE_TOL_UM) {
+		mc->advancing = FALSE;		/* at the turn point */
+		mc->start_l_um = mc->last_l_um;
+		mc->start_r_um = mc->last_r_um;
+		return FALSE;
+	}
+	v = cmd_speed(mc, mc->active, TURN_SPEED_MMS);
+	v_allow = mc_creep_speed(mc) + DECEL_GAIN * (rem / 1000);
+	if (v > v_allow) {
+		v = v_allow;
+	}
+	corr = balance(fl, fr, v);
+	*des_l = v - corr;
+	*des_r = v + corr;
+	mc->state = MS_STRAIGHT;
+	return TRUE;
+}
+
+LOCAL void run_turn(MOTION_CTRL *mc, const MC_IN *in, W *des_l, W *des_r,
+		    MC_OUT *out)
 {
 	W	dir = isign(mcmd_arg(mc->active));	/* +1 = clockwise */
-	W	pl = (mc->last_l_um - mc->start_l_um) * dir;
-	W	pr = (mc->last_r_um - mc->start_r_um) * -dir;
-	W	rem = mc->target_um - (pl + pr) / 2;
-	W	v, corr;
+	BOOL	junction = is_junction_turn(mc->active);
+	BOOL	bc = (mcmd_src(mc->active) == MSRC_BARCODE);
+	BOOL	seeking = bc && TURN_LINE_SEEK && in->line_seen_fresh
+			  && (in->line_seen & LSEEN_VALID) != 0UL;
+	W	pl, pr, done, rem;
+	W	vo, vi, corr, outer, inner;
 
-	if (rem <= DONE_TOL_UM) {
+	if (mc->advancing && run_advance(mc, in, seeking, des_l, des_r)) {
+		return;
+	}
+	/* progress of each wheel in its own turning direction */
+	pl = (mc->last_l_um - mc->start_l_um) * dir;
+	pr = (mc->last_r_um - mc->start_r_um) * -dir;
+	/* (outer + inner) / 2 = angle * track / 2 for any speed split */
+	done = (pl + pr) / 2;
+	rem = mc->target_um + (seeking ? mc->seek_extra_um : 0) - done;
+
+	if (rem <= DONE_TOL_UM
+	    || (seeking && done >= mc->seek_from_um
+		&& line_in_gap(mc, in->line_seen, dir))) {
 		finish_active(mc, out, MRES_DONE);
 		*des_l = 0;
 		*des_r = 0;
 		return;
 	}
-	v = approach_speed(mc, cmd_speed(mc, mc->active, TURN_SPEED_MMS), rem);
-	corr = balance(pl, pr, v);
-	*des_l = dir * (v - corr);		/* clockwise: left forward  */
-	*des_r = -dir * (v + corr);		/*            right backward */
+	vo = approach_speed(mc, cmd_speed(mc, mc->active, TURN_SPEED_MMS), rem);
+	if (junction) {
+		/* outer wheel forward, inner wheel backward slower: turn
+		   about a point TURN_PIVOT_OFFSET_MM towards the inner wheel.
+		   Keep the ratio (and so the turn point) at low speed. */
+		W	ro = TRACK_WIDTH_MM / 2 + TURN_PIVOT_OFFSET_MM;
+		W	ri = TRACK_WIDTH_MM / 2 - TURN_PIVOT_OFFSET_MM;
+
+		vi = vo * ri / ro;
+		if (vi < MIN_CTRL_SPEED_MMS) {
+			vi = MIN_CTRL_SPEED_MMS;
+			vo = vi * ro / ri;
+		}
+		corr = 0;	/* unequal by design: no wheel balancing */
+	} else {
+		/* on the spot: equal speeds, balanced travel */
+		vi = vo;
+		corr = balance((dir > 0) ? pl : pr, (dir > 0) ? pr : pl, vo);
+	}
+	outer = vo - corr;
+	inner = vi + corr;
+	if (dir > 0) {
+		*des_l = outer;			/* clockwise: left forward  */
+		*des_r = -inner;		/*            right backward */
+	} else {
+		*des_r = outer;			/* anticlockwise: right forward */
+		*des_l = -inner;		/*                left backward */
+	}
 	mc->state = MS_TURNING;
 }
 
@@ -599,7 +750,7 @@ EXPORT void mc_step(MOTION_CTRL *mc, const MC_IN *in, UW dt_ms, MC_OUT *out)
 	if (mc->has_active) {
 		mc->elapsed_ms += dt_ms;
 		if (mcmd_type(mc->active) == MCMD_TURN) {
-			run_turn(mc, &des_l, &des_r, out);
+			run_turn(mc, in, &des_l, &des_r, out);
 		} else {
 			run_move(mc, &des_l, &des_r, out);
 		}

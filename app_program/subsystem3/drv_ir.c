@@ -55,6 +55,9 @@ LOCAL void ir_right_edge(UINT pin, UINT events, UW now_us)
 #define POLL_PERIOD_US		1000UL
 LOCAL UW	poll_next_us;
 LOCAL UW	poll_level;
+LOCAL UW	poll_candidate;
+LOCAL UW	poll_candidate_us;
+#define POLL_STABLE_US 3000UL
 
 LOCAL void ir_poll_handler(UINT intno)
 {
@@ -68,9 +71,15 @@ LOCAL void ir_poll_handler(UINT intno)
 		poll_next_us = now + POLL_PERIOD_US;	/* we were late: resync */
 	}
 	out_w(TIMER_ALARM3, poll_next_us);		/* writing arms it */
-	if (lvl != poll_level) {
+	if (lvl != poll_candidate) {
+		poll_candidate = lvl;
+		poll_candidate_us = now;
+	}
+	if (lvl != poll_level && (UW)(now - poll_candidate_us) >= POLL_STABLE_US) {
 		poll_level = lvl;
-		push_edge(now, lvl);
+		/* Keep the first stable candidate's timestamp, rather than
+		   adding the filter delay to measured element durations. */
+		push_edge(poll_candidate_us, lvl);
 	}
 }
 #endif
@@ -110,6 +119,8 @@ EXPORT ER ir_capture_start(void)
 		return er;
 	}
 	poll_level = (in_w(GPIO_IN) >> IR_RIGHT_PIN) & 1UL;
+	poll_candidate = poll_level;
+	poll_candidate_us = hw_time_us();
 	poll_next_us = hw_time_us() + POLL_PERIOD_US;
 	out_w(TIMER_INTR, POLL_ALARM_BIT);
 	set_w(TIMER_INTE, POLL_ALARM_BIT);

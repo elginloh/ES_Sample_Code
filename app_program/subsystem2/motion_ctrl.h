@@ -44,6 +44,8 @@ typedef struct {
 	BOOL	steer_fresh;	/* seq changed within STEER_STALE_MS */
 	UW	cap_mms;	/* obstacle speed cap, 0 = none */
 	BOOL	line_lost_cap;	/* cap to creep while the line is lost */
+	UW	line_seen;	/* line-seen word (motion_msg.h LSEEN_*) */
+	BOOL	line_seen_fresh; /* seq changed within LSEEN_STALE_MS */
 } MC_IN;
 
 /* Outputs of submit/step calls (accumulate over one task cycle) */
@@ -70,6 +72,13 @@ typedef struct {
 	W	start_l_um;	/* wheel travel when the command started */
 	W	start_r_um;
 	W	target_um;	/* distance (MOVE) or wheel arc (TURN) */
+	W	seek_from_um;	/* barcode TURN: IR sensors used from here ... */
+	W	seek_extra_um;	/* ... and up to target + this */
+	BOOL	seek_seen;	/* leading IR sensor has crossed the new line */
+	BOOL	advancing;	/* junction turn: driving to the turn point */
+	W	advance_um;	/* ... until this much travel ...           */
+	BOOL	adv_r_black;	/* ... right sensor seen on the crossing line */
+	BOOL	adv_ref;	/* ... and has left it: advance_um re-based  */
 	UW	elapsed_ms;
 	UW	timeout_ms;
 	W	tgt_l_mms;	/* ramped wheel speed targets */

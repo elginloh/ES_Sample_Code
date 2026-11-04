@@ -157,13 +157,14 @@ EXPORT INT c39_classify(const UW w[C39_ELEMENTS])
 	return (INT)interleave(wide_bars, wide_sp);
 }
 
-/* Narrowest element of a symbol: the unit used to judge the gap */
+/* Compare a white gap with white spaces: threshold/spot bias may make
+   black bars much shorter than white spaces. */
 LOCAL UW narrowest(const UW *s)
 {
-	UW	m = s[0];
+	UW	m = s[1];
 	UINT	i;
 
-	for (i = 1; i < C39_ELEMENTS; i++) {
+	for (i = 3; i < C39_ELEMENTS; i += 2U) {
 		if (s[i] < m) {
 			m = s[i];
 		}
@@ -218,7 +219,9 @@ LOCAL INT decode_dir(const UW *el, UINT n, BOOL rev, UB *data, UINT max_data)
 EXPORT INT c39_decode(const UW *el, UINT n, UB *data, UINT max_data,
 		      BOOL *reversed)
 {
-	INT	r;
+	INT	r, rr;
+	UW first_rev[C39_ELEMENTS];
+	UINT i;
 
 	*reversed = FALSE;
 	if (n < 3U * C39_STRIDE - 1U || (n + 1U) % C39_STRIDE != 0U) {
@@ -230,9 +233,19 @@ EXPORT INT c39_decode(const UW *el, UINT n, UB *data, UINT max_data,
 	}
 	/* A '*' read backwards is not '*', so a forward decode of a reversed
 	   run fails at the first symbol; then try the other direction. */
-	if (decode_dir(el, n, TRUE, data, max_data) >= 0) {
+	rr = decode_dir(el, n, TRUE, data, max_data);
+	if (rr >= 0) {
 		*reversed = TRUE;
-		return decode_dir(el, n, TRUE, data, max_data);
+		return rr;
+	}
+	/* Infer orientation from the first observed delimiter, even when
+	   the final delimiter is damaged. Report that direction's error. */
+	for (i = 0; i < C39_ELEMENTS; i++) {
+		first_rev[i] = el[C39_ELEMENTS - 1U - i];
+	}
+	if (c39_classify(first_rev) == (INT)c39_pattern(C39_STAR)) {
+		*reversed = TRUE;
+		return rr;
 	}
 	return r;
 }

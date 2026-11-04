@@ -92,6 +92,9 @@ IMPORT void motion_stop(UW src);
 IMPORT void motion_set_steer(INT steer, UW speed_frac);
 IMPORT void motion_set_steer_reverse(UW speed_frac);	/* straight back */
 IMPORT void motion_clear_steer(void);
+/* IR sensors seeing black, physical sides; every line period, all modes.
+   Barcode turns end when the new line is between centre and right. */
+IMPORT void motion_set_line_seen(BOOL left, BOOL centre, BOOL right);
 /* Obstacle caution speed cap, mm/s; 0 removes it */
 IMPORT void motion_set_speed_cap(UW cap_mms);
 IMPORT void motion_get_status(MOTION_STATUS *st);

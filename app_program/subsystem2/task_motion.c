@@ -57,6 +57,8 @@ LOCAL INT	dir_l = 1, dir_r = 1;
 LOCAL UW	odo_um;				/* total travel, um */
 LOCAL BOOL	steer_seen;
 LOCAL UW	steer_seen_seq, steer_seen_ms;
+LOCAL BOOL	lseen_seen;
+LOCAL UW	lseen_seen_seq, lseen_seen_ms;
 LOCAL BOOL	cap_seen;
 LOCAL UW	cap_seen_seq, cap_seen_ms;
 LOCAL BOOL	pend_nav_started, pend_nav_finished, pend_resume;
@@ -359,6 +361,7 @@ LOCAL void control_cycle(void)
 	UW		start = task_stat_begin(&s2_stat_motion);
 	UW		sw = app_load(&s2_steer_word);
 	UW		cw = app_load(&s2_cap_word);
+	UW		lw = app_load(&s2_line_seen_word);
 	BOOL		armed = (app_load(&s2_armed) != 0U) ? TRUE : FALSE;
 
 	cycle_ms += MOTION_PERIOD_MS;
@@ -382,6 +385,11 @@ LOCAL void control_cycle(void)
 		&& fresh(scap_seq(cw), &cap_seen, &cap_seen_seq, &cap_seen_ms,
 			 SCAP_STALE_MS)) ? scap_value(cw) : 0U;
 	in.line_lost_cap = vf.line_lost;
+	in.line_seen = lw;
+	in.line_seen_fresh = ((lw & LSEEN_VALID) != 0U)
+		? fresh(lseen_seq(lw), &lseen_seen, &lseen_seen_seq, &lseen_seen_ms,
+			LSEEN_STALE_MS)
+		: FALSE;
 	mc_step(&mc, &in, MOTION_PERIOD_MS, &mout);
 	apply_faults();
 

@@ -54,15 +54,6 @@ EXPORT void s3_get_line_status(S3_LINE_STATUS *s)
 	s->time_ms = t;
 }
 
-/* Barcode capture in progress (published by the barcode task) */
-LOCAL BOOL barcode_capturing(void)
-{
-	S3_BC_STATUS	b;
-
-	s3_bc_unpack(app_load(&s3_bc_word), &b);
-	return (b.state == BCS_CAPTURING) ? TRUE : FALSE;
-}
-
 LOCAL void calibrate_step(UB raw, UW epoch, UW *cal_epoch, UB *buf, UINT *n)
 {
 	INT	r;
@@ -81,11 +72,10 @@ LOCAL void calibrate_step(UB raw, UW epoch, UW *cal_epoch, UB *buf, UINT *n)
 		app_store(&s3_black_level, lf.black_level[IR_R]);
 		sys_fault_clear(SYS_FLT_IR_CAL);
 		sys_post_event(SYS_EV_IR_CAL_OK);
-		tm_printf((UB*)"line: IR calibrated, black level = %d\n",
+		tm_printf((UB*)"line: IR ready from current surface, black level = %d\n",
 			  (INT)lf.black_level[IR_C]);
 	} else {
-		/* Retry calibration each 200 ms rather than latching a
-		   critical fault when the car starts slightly off the line. */
+		/* Retry each 200 ms if a sensor is flickering during startup. */
 	}
 }
 
@@ -161,14 +151,17 @@ EXPORT void line_task(INT stacd, void *exinf)
 #endif
 
 		if (nav && out.steering) {
-			if (S3_PAUSE_STEER_ON_BARCODE && barcode_capturing()
-			    && lf.state == LS_ON_LINE
-			    && (black & IR_BIT(IR_C)) != 0U) {
-				steer = 0;		/* hold straight over the barcode */
-			}
 			motion_set_steer(steer, out.speed_frac);
 		} else {
 			motion_clear_steer();
+		}
+		/* Every mode: Buddy 2 ends a barcode junction turn when the
+		   new line lies between the centre and right sensors. */
+		if (lf.calibrated) {
+			motion_set_line_seen(
+				((black >> (IR_SIDES_MIRRORED ? IR_R : IR_L)) & 1U) != 0U,
+				((black >> IR_C) & 1U) != 0U,
+				((black >> (IR_SIDES_MIRRORED ? IR_L : IR_R)) & 1U) != 0U);
 		}
 
 		if ((out.events & LF_EV_LOST) != 0U) {
@@ -184,6 +177,7 @@ EXPORT void line_task(INT stacd, void *exinf)
 		}
 		if ((out.events & LF_EV_JUNCTION) != 0U) {
 			junctions++;
+			tm_printf((UB*)"line: junction confirmed (GP6 + GP2 black), count %d\n", (INT)junctions);
 			(void)tk_set_flg(flg_line_evt, LEV_JUNCTION);
 		}
 		if ((out.events & LF_EV_RECOVERY_FAIL) != 0U) {
