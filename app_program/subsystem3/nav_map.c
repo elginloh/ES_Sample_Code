@@ -15,9 +15,9 @@ typedef struct {
 LOCAL const NAV_ENTRY S3_NAV_MAP_DEFAULT[] = {
 	{ 10, NAV_RIGHT },	/* A */
 	{ 15, NAV_LEFT },	/* F */
-	{ 30, NAV_LEFT },	/* U */
+	{ 30, NAV_UTURN },	/* U */
 	{ 33, NAV_STRAIGHT },	/* X */
-	{ 34, NAV_UTURN },	/* Y */
+	{ 35, NAV_LEFT },	/* Z */
 	{ 0xFF, 0 }		/* terminator */
 };
 
