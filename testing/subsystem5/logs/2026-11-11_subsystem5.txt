@@ -1,4 +1,4 @@
-﻿[TEST] S5-U01 PASS  10-bit distance code: 5 mm steps, 0..4 m, 1022/1023 reserved
+[TEST] S5-U01 PASS  10-bit distance code: 5 mm steps, 0..4 m, 1022/1023 reserved
 [TEST] S5-U02 PASS  scan sample message round trip at limits
 [TEST] S5-U02b PASS  scan sample positive limits
 [TEST] S5-U03 PASS  scan request message round trip
@@ -37,8 +37,4 @@
 [TEST] S5-U19 PASS  no valid profile: no plan
 [TEST] S5-U20 PASS  every planned step is valid and every avoidance MOVE is forward
 [TEST] s5 plan SUMMARY 15 passed, 0 failed
-[TEST] S5-U21 PASS  Obstacle Scan ranges every 60 ms (+ one 10 ms tick) while monitoring
-[TEST] S5-U22 PASS  ranging result and distance code agree; a silent sensor raises US_NO_RESPONSE
-[TEST] S5-U23 PASS  outside navigation: avoidance idle, servo centred, forward monitoring
-[TEST] subsystem5 target SUMMARY 3 passed, 0 failed
-[TEST] subsystem5 TOTAL 0 failed check(s)
+[TEST] HOST TOTAL: 0 failed check(s)

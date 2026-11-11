@@ -1,5 +1,19 @@
-﻿[TEST] S3-U74 PASS  all Aâ€“Z decode in forward direction
-[TEST] S3-U75 PASS  all Aâ€“Z decode in reverse direction
+[TEST] S3-U01 PASS  Code 39 table: 44 unique patterns, 3 wide each; * A Z as measured
+[TEST] S3-U02 PASS  every supplied sample decodes (PDF A/Z, PPTX A/F/Z/W/X/Y, photo A)
+[TEST] S3-U03 PASS  barcode read in the opposite direction decodes (reversed flag)
+[TEST] S3-U61 PASS  recorded reverse A with damaged final delimiter rejected as reverse
+[TEST] S3-U62 PASS  measured reverse A decodes when final delimiter is valid
+[TEST] S3-U04 PASS  print-scale independent (ratio classification)
+[TEST] S3-U05 PASS  invalid: element count not 10k-1
+[TEST] S3-U79 PASS  25-element scan shared by A and B cannot queue a turn
+[TEST] S3-U06 PASS  invalid: no wide/narrow contrast
+[TEST] S3-U07 PASS  invalid: corrupted start symbol rejected (no command)
+[TEST] S3-U08 PASS  invalid: wide inter-character gap rejected
+[TEST] S3-U09 PASS  invalid: missing start/stop character
+[TEST] S3-U72 PASS  recorded reverse F survives one short narrow-space measurement
+[TEST] S3-U73 PASS  reverse F still rejects a genuinely oversized gap
+[TEST] S3-U74 PASS  all A–Z decode in forward direction
+[TEST] S3-U75 PASS  all A–Z decode in reverse direction
 [TEST] S3-U78 PASS  A-Z capture and decode both ways at 170, 250 and 339 mm (156 cases)
 [TEST] S3-U80 PASS  27-element recovery covers A-Z both ways with no wrong letter across all merge positions
 [TEST] S3-U81 PASS  ambiguous 27-element captures are rejected
@@ -16,10 +30,10 @@
 [TEST] S3-U63 PASS  exact recorded A: wide first white space preserved, biased gaps accepted
 [TEST] S3-U84 PASS  339 mm W with 2 s merged run finishes capture before the stall timeout
 [TEST] s3 capture SUMMARY 9 passed, 0 failed
-[TEST] S3-U15 FAIL  default barcode mapping: A=RIGHT, F=LEFT, Z=LEFT, X=STRAIGHT, U=U-TURN   (../app_program/subsystem3/s3_unit_tests.c:552)
+[TEST] S3-U15 PASS  default barcode mapping: A=RIGHT, F=LEFT, Z=LEFT, X=STRAIGHT, U=U-TURN
 [TEST] S3-U16 PASS  mapping overrides work; '*' and nav > 3 rejected; reset restores defaults
 [TEST] S3-U17 PASS  LEFT/RIGHT/U-TURN/STRAIGHT -> encoder TURN/MOVE commands
-[TEST] s3 nav map SUMMARY 2 passed, 1 failed
+[TEST] s3 nav map SUMMARY 3 passed, 0 failed
 [TEST] S3-U18 PASS  stable centre-on-black start: configured black-high polarity
 [TEST] S3-U19 PASS  all-white start is stable and immediately qualifies IR startup
 [TEST] S3-U20 PASS  all-black start is stable and immediately qualifies IR startup
@@ -54,9 +68,4 @@
 [TEST] S3-U30 PASS  line status word round trip at limits (steer -63)
 [TEST] S3-U31 PASS  barcode status word round trip at limits
 [TEST] s3 status words SUMMARY 2 passed, 0 failed
-[TEST] S3-U32 PASS  Line Following runs every 20 ms (50 per s) within half its period
-[TEST] S3-U33 PASS  line status word republished every period with a fresh timestamp (IF-L1)
-[TEST] S3-U34 PASS  IR calibration decided within 1 s of INIT (calibrated, or IR_CAL fault): never stalls
-[TEST] S3-U35 PASS  barcode reader idle outside NORMAL, no edge overflow; GPIO callbacks frozen once running
-[TEST] subsystem3 target SUMMARY 4 passed, 0 failed
-[TEST] subsystem3 TOTAL 1 failed check(s)
+[TEST] HOST TOTAL: 0 failed check(s)
