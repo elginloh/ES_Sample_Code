@@ -363,6 +363,7 @@ LOCAL void control_cycle(void)
 	UW		cw = app_load(&s2_cap_word);
 	UW		lw = app_load(&s2_line_seen_word);
 	BOOL		armed = (app_load(&s2_armed) != 0U) ? TRUE : FALSE;
+	BOOL		was_advancing = mc.advancing && mc.has_active;
 
 	cycle_ms += MOTION_PERIOD_MS;
 	measure();
@@ -391,6 +392,10 @@ LOCAL void control_cycle(void)
 			LSEEN_STALE_MS)
 		: FALSE;
 	mc_step(&mc, &in, MOTION_PERIOD_MS, &mout);
+	if (was_advancing && !mc.advancing && mc.has_active) {
+		tm_printf((UB*)"motion: junction pivot, GP2 edge %s, advance target %d mm\n",
+			  mc.adv_ref ? "used" : "unavailable", (INT)(mc.advance_um / 1000));
+	}
 	apply_faults();
 
 	/* 2. vehicle mode (Buddy 2 owns it) */

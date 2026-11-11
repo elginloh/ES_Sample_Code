@@ -18,6 +18,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { codec } = require('../lib/protocol');
+// Grafana interprets dollar signs in queries as variable references.
+const CODE39_SQL = "'" + codec.CODE39.replace('$', "' || chr(36) || '") + "'";
 
 const DS = { type: 'grafana-postgresql-datasource', uid: 'csc14-pg' };
 const ROBOT = "robot_id = ${robot:sqlstring} AND source = ${source:sqlstring}";
@@ -223,13 +226,19 @@ add(timeseries('Steering request (+ = turn right)', 'Steering the line follower 
 	'(-63..63, motor convention: + = clockwise). 0 while not steering.',
 	series(['avg(steer) AS "steer"'], 'csc14.telemetry'),
 	12, 6, 0, 'none', { min: -63, max: 63 }));
-add(stat('Last barcode', 'Newest snapshot. "mapped to" is the navigation MAPPING of the symbol; telemetry ' +
-	'v1 does not report whether the turn was executed. The default map is empty (nav_map.c).',
-	LATEST(`${FRESH("coalesce(bc_symbol, '(none)') || ' ' || bc_result_label", 'symbol / result')},
-	  coalesce(nav_label, 'no mapping') AS "mapped to", bc_state_label AS "decoder"`), 5, 6, 12,
-	{}, { colorMode: 'none', textMode: 'value_and_name', text: { titleSize: 12, valueSize: 18 } }));
+add(stat('Last decoded barcode', 'Latest barcode scan in the selected time range and run. ' +
+	'Shows the decoded character for a successful scan or INVALID for a failed scan.',
+	`SELECT CASE WHEN bc_result_label = 'INVALID' THEN 'INVALID' ELSE bc_symbol END AS "barcode"
+	FROM csc14.v_telemetry
+	WHERE ${WHERE} AND (bc_result_label = 'INVALID'
+	  OR (bc_result_label IN ('VALID', 'DUPLICATE') AND bc_symbol IS NOT NULL))
+	ORDER BY received_at DESC LIMIT 1`, 5, 6, 12,
+	{}, { colorMode: 'none', textMode: 'value', text: { valueSize: 22 } }));
 add(table('Barcode reads (robot events)', 'One row per BARCODE event; counters in telemetry are modulo 64.',
-	`SELECT received_at AS "received", message FROM csc14.event
+	`SELECT received_at AS "received",
+	  CASE WHEN csc14.lbl('bc_result', (data->>'result')::integer) = 'INVALID' THEN 'INVALID'
+	    ELSE nullif(substr(${CODE39_SQL}, (data->>'symbol')::integer + 1, 1), '') END AS "barcode"
+	FROM csc14.event
 	WHERE ${WHERE} AND kind = 'BARCODE' ORDER BY received_at DESC LIMIT 200`, 7, 6, 17));
 y += 6;
 

@@ -66,15 +66,20 @@
 /* Edge correction as a wheel-speed difference.  One steer unit adds
    cruise/STEER_UNIT_DIV = 2 mm/s to one wheel and takes it from the other
    (130 mm track), so at the 42 mm/s line speed:
-       steer  8 (first contact): inner 26, outer 58 mm/s, ~14 deg/s
-       steer 12 (sustained):     inner 18, outer 66 mm/s, ~21 deg/s
-   Same inner:outer ratios (path curvature) as 10 / 16 at the old 53 mm/s.
-   Times are 1.25 x the 53 mm/s values: the same heading change and the
-   same distance travelled at the lower speed. */
+       steer  8 (first contact):  inner 26, outer 58 mm/s, ~14 deg/s
+       steer 14 (after 150 ms):   inner 14, outer 70 mm/s, ~25 deg/s
+       steer 21 (after 325 ms):   inner  0, outer 84 mm/s, ~37 deg/s
+   The longer the sensor stays black (a bend), the faster the outer wheel
+   and the slower the inner one, until the inner wheel stands still and
+   the car turns about it (65 mm radius).  (Was capped at steer 12: inner
+   18 / outer 66 mm/s, too gentle for the end of a bend.)
+   Hold times are 1.25 x the 53 mm/s values: the same heading change and
+   the same distance travelled at the lower speed. */
 #define LF_EDGE_STEER_MIN	8	/* first sample on an edge sensor     */
-#define LF_EDGE_STEER_MAX	12	/* cap: inner wheel stays near MIN_CTRL_SPEED */
-#define LF_EDGE_GROW_MS		50	/* +1 steer per 50 ms the same sensor
-					   stays black (MIN -> MAX in 200 ms) */
+#define LF_EDGE_STEER_MAX	21	/* inner wheel stopped: 21 x 2 mm/s =
+					   the 42 mm/s line speed             */
+#define LF_EDGE_GROW_MS		25	/* +1 steer per 25 ms the same sensor
+					   stays black (MIN -> MAX in 325 ms) */
 #define LF_HOLD_MIN_MS		120	/* sensor black at least this long: a
 					   curve, not a small drift ...       */
 #define LF_HOLD_MS		380	/* ... so keep turning the same way this
@@ -119,6 +124,17 @@
 					   lost-line turn take over (was 1500) */
 #define LF_SETTLE_MS		300	/* after a side pivot: drive on ...   */
 #define LF_SETTLE_SPEED		3	/* ... at about 32 mm/s this long     */
+#define LF_RIGHT_TURN_STRAIGHT_MS 150	/* short straight handoff on GP6 */
+/* Realign after a barcode junction turn (lf_turn_done).  Turning left,
+   the new line sweeps centre -> gap -> GP2; Buddy 2 ends the turn with
+   the line in the gap or, overshooting, under GP2.  A sensor still
+   black then means the car points past the line: pivot on the spot
+   towards that sensor until it is white again (line back between the
+   two sensors), then drive straight and resume normal tracking. */
+#define LF_POST_TURN_PIVOT_STEER LF_SIDE_PIVOT_STEER
+#define LF_POST_TURN_PIVOT_MAX_MS 2000	/* give up the pivot after this    */
+#define LF_POST_TURN_MS		400	/* both white this long right after the
+					   turn: already aligned, realign done */
 
 typedef struct {
 	UB	black_level[3];	/* raw level meaning "black", per sensor */
@@ -137,6 +153,7 @@ typedef struct {
 	BOOL	lost_pending;
 	UW	center_gap_ms;	/* legacy field; not used to declare line loss */
 	UW	settle_ms;	/* half-speed time left after a pivot */
+	UW	straight_ms;	/* drive straight after GP6 finds the right branch */
 	BOOL	turning;	/* lost-line turn under way ... */
 	W	turn_start_mm;	/* ... since this odometer reading ... */
 	UW	turn_ms;	/* ... and this long */
@@ -146,6 +163,9 @@ typedef struct {
 	BOOL	in_junction;
 	W	junction_start_mm;
 	UW	junction_ms;
+	BOOL	post_turn;	/* realigning after a barcode turn ... */
+	UW	post_turn_ms;	/* ... for this long so far ... */
+	INT	post_pivot;	/* ... pivoting towards this side (err sign), 0 none */
 } LINE_FOLLOW;
 
 typedef struct {
@@ -157,6 +177,12 @@ typedef struct {
 
 IMPORT void lf_init(LINE_FOLLOW *lf);
 IMPORT void lf_reset_tracking(LINE_FOLLOW *lf);
+
+/* A barcode junction command has just finished: forget everything seen
+   while Buddy 2 was turning and realign on the new line (see
+   LF_POST_TURN_*).  Call lf_reset_tracking() each period while the
+   command runs so no hold/lost/junction state builds up meanwhile. */
+IMPORT void lf_turn_done(LINE_FOLLOW *lf, BOOL centre_acquired);
 
 /* Startup qualification from any position (white or black).  The samples
    must be stable; black polarity is the known hardware configuration. */

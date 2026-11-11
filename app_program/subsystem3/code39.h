@@ -30,6 +30,8 @@
 #define C39_NONE		63
 #define C39_ELEMENTS		9	/* per symbol: b s b s b s b s b */
 #define C39_STRIDE		10	/* symbol + inter-character gap  */
+#define C39_SINGLE_ELEMENTS	29U
+#define C39_MERGED_ELEMENTS	27U	/* one group of three merged into one */
 
 /* Decoder errors (negative) */
 #define C39_ERR_COUNT		(-1)	/* element count is not 10k-1, k >= 3 */
@@ -41,6 +43,7 @@
 
 /* Minimum wide/narrow ratio accepted, x10 (nominal print ratio is 3:1) */
 #define C39_MIN_RATIO_X10	15
+#define C39_MIN_BAR_RATIO_X10	13	/* tolerate compressed wide/narrow bar timing */
 
 IMPORT UH   c39_pattern(UINT index);		/* 0x1FF on bad index */
 IMPORT char c39_char(UINT index);		/* '?' on bad index   */
@@ -53,8 +56,12 @@ IMPORT INT  c39_lookup(UH pattern);		/* index or -1        */
    Returns the pattern, or C39_ERR_WIDTH. */
 IMPORT INT  c39_classify(const UW w[C39_ELEMENTS]);
 
+/* Maximum gap based on the median narrow white space of a symbol. */
+IMPORT UW c39_gap_limit(const UW w[C39_ELEMENTS], UH pattern);
+
 /* Decode a whole element run (bar, space, bar, ... bar).  Tries the
    forward order, then the reversed order (car driving the other way).
+   A 27-element capture can recover one merged run in an uppercase label.
    data[] receives the data symbols between the '*' delimiters.
    Returns the number of data symbols (>= 1) or a C39_ERR_* code. */
 IMPORT INT  c39_decode(const UW *el, UINT n, UB *data, UINT max_data,

@@ -96,10 +96,10 @@ EXPORT INT c39_lookup(UH pattern)
 	return -1;
 }
 
-/* a >= ratio * b, with ratio = C39_MIN_RATIO_X10 / 10 */
-LOCAL BOOL ratio_ok(UW a, UW b)
+/* a >= ratio * b, with the ratio specified in tenths. */
+LOCAL BOOL ratio_ok(UW a, UW b, UW ratio_x10)
 {
-	return ((UD)a * 10U >= (UD)b * C39_MIN_RATIO_X10) ? TRUE : FALSE;
+	return ((UD)a * 10U >= (UD)b * ratio_x10) ? TRUE : FALSE;
 }
 
 /* Sort indices of v[] by descending width (n <= 5, insertion sort) */
@@ -137,18 +137,18 @@ EXPORT INT c39_classify(const UW w[C39_ELEMENTS])
 	order_desc(sp, 4U, so);
 
 	/* Bars: 2 wide (2nd widest clearly wider than 3rd) or none wide */
-	if (ratio_ok(bar[bo[1]], bar[bo[2]])) {
+	if (ratio_ok(bar[bo[1]], bar[bo[2]], C39_MIN_BAR_RATIO_X10)) {
 		wide_bars = (1UL << (4U - bo[0])) | (1UL << (4U - bo[1]));
-	} else if (!ratio_ok(bar[bo[0]], bar[bo[4]])) {
+	} else if (!ratio_ok(bar[bo[0]], bar[bo[4]], C39_MIN_RATIO_X10)) {
 		wide_bars = 0;
 	} else {
 		return C39_ERR_WIDTH;
 	}
 
 	/* Spaces: 1 wide, or 3 wide (only valid with no wide bar) */
-	if (ratio_ok(sp[so[0]], sp[so[1]])) {
+	if (ratio_ok(sp[so[0]], sp[so[1]], C39_MIN_RATIO_X10)) {
 		wide_sp = 1UL << (3U - so[0]);
-	} else if (ratio_ok(sp[so[2]], sp[so[3]])) {
+	} else if (ratio_ok(sp[so[2]], sp[so[3]], C39_MIN_RATIO_X10)) {
 		wide_sp = (1UL << (3U - so[0])) | (1UL << (3U - so[1]))
 			| (1UL << (3U - so[2]));
 	} else {
@@ -157,19 +157,25 @@ EXPORT INT c39_classify(const UW w[C39_ELEMENTS])
 	return (INT)interleave(wide_bars, wide_sp);
 }
 
-/* Compare a white gap with white spaces: threshold/spot bias may make
-   black bars much shorter than white spaces. */
-LOCAL UW narrowest(const UW *s)
+EXPORT UW c39_gap_limit(const UW s[C39_ELEMENTS], UH pattern)
 {
-	UW	m = s[1];
-	UINT	i;
+	UW narrow[4];
+	UB order[4];
+	UINT i, count = 0;
+	UD limit;
 
-	for (i = 3; i < C39_ELEMENTS; i += 2U) {
-		if (s[i] < m) {
-			m = s[i];
+	for (i = 1U; i < C39_ELEMENTS; i += 2U) {
+		if ((pattern & (1U << (C39_ELEMENTS - 1U - i))) == 0U) {
+			narrow[count++] = s[i];
 		}
 	}
-	return m;
+	if (count == 0U) {
+		return 0U;
+	}
+	/* Standard symbols have three narrow spaces, special symbols one. */
+	order_desc(narrow, count, order);
+	limit = (UD)narrow[order[count / 2U]] * 25U / 10U;
+	return limit > 0xFFFFFFFFUL ? 0xFFFFFFFFUL : (UW)limit;
 }
 
 LOCAL INT decode_dir(const UW *el, UINT n, BOOL rev, UB *data, UINT max_data)
@@ -202,7 +208,7 @@ LOCAL INT decode_dir(const UW *el, UINT n, BOOL rev, UB *data, UINT max_data)
 			UINT	gpos = s * C39_STRIDE + C39_ELEMENTS;
 			UW	gap = rev ? el[n - 1U - gpos] : el[gpos];
 
-			if ((UD)gap * 10U > (UD)narrowest(sym) * 25U) {
+			if (gap > c39_gap_limit(sym, (UH)pat)) {
 				return C39_ERR_GAP;
 			}
 		}
@@ -216,6 +222,82 @@ LOCAL INT decode_dir(const UW *el, UINT n, BOOL rev, UB *data, UINT max_data)
 	return (INT)nd;
 }
 
+/* Recover one missed transition pair in *<letter>*. A 3:1 template has
+   47 narrow units, including both gaps. Merging a run preserves its
+   total duration, so the complete capture sets the timing scale. */
+LOCAL INT decode_merged_letter(const UW *el, UB *data, UINT max_data, BOOL *reversed)
+{
+	UD measured[C39_MERGED_ELEMENTS];
+	UD total = 0;
+	INT match = -1;
+	BOOL match_reversed = FALSE;
+	UINT i, symbol, direction, merge;
+
+	for (i = 0; i < C39_MERGED_ELEMENTS; i++) {
+		if (el[i] == 0U) {
+			return C39_ERR_WIDTH;
+		}
+		total += el[i];
+		measured[i] = (UD)el[i] * 47U * 5U;
+	}
+	for (symbol = 10U; symbol < 36U; symbol++) {
+		UB widths[C39_SINGLE_ELEMENTS];
+		UINT group, k;
+
+		for (group = 0; group < 3U; group++) {
+			UH pattern = c39_pattern(group == 1U ? symbol : C39_STAR);
+
+			for (k = 0; k < C39_ELEMENTS; k++) {
+				widths[group * C39_STRIDE + k] =
+					(pattern & (1U << (C39_ELEMENTS - 1U - k))) ? 3U : 1U;
+			}
+		}
+		widths[9] = widths[19] = 1U;
+
+		for (direction = 0; direction < 2U; direction++) {
+			for (merge = 0; merge < C39_MERGED_ELEMENTS; merge++) {
+				UINT pos = 0;
+
+				for (i = 0; i < C39_MERGED_ELEMENTS; i++) {
+					UINT units = widths[pos++];
+					UINT observed = direction ? C39_MERGED_ELEMENTS - 1U - i : i;
+					UD expected;
+
+					if (i == merge) {
+						units += widths[pos] + widths[pos + 1U];
+						pos += 2U;
+					}
+					/* Each run must fit the template within 20%. */
+					expected = total * units;
+					if (measured[observed] < expected * 4U
+					    || measured[observed] > expected * 6U) {
+						break;
+					}
+				}
+				if (i == C39_MERGED_ELEMENTS) {
+					if (match >= 0 && match != (INT)symbol) {
+						return C39_ERR_WIDTH;
+					}
+					if (match < 0) {
+						match = (INT)symbol;
+						match_reversed = direction != 0U;
+					}
+					break;
+				}
+			}
+		}
+	}
+	if (match < 0) {
+		return C39_ERR_WIDTH;
+	}
+	if (max_data == 0U) {
+		return C39_ERR_SPACE;
+	}
+	data[0] = (UB)match;
+	*reversed = match_reversed;
+	return 1;
+}
+
 EXPORT INT c39_decode(const UW *el, UINT n, UB *data, UINT max_data,
 		      BOOL *reversed)
 {
@@ -224,6 +306,9 @@ EXPORT INT c39_decode(const UW *el, UINT n, UB *data, UINT max_data,
 	UINT i;
 
 	*reversed = FALSE;
+	if (n == C39_MERGED_ELEMENTS) {
+		return decode_merged_letter(el, data, max_data, reversed);
+	}
 	if (n < 3U * C39_STRIDE - 1U || (n + 1U) % C39_STRIDE != 0U) {
 		return C39_ERR_COUNT;
 	}

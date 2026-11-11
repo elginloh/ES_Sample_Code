@@ -20,6 +20,7 @@
 EXPORT TASK_STAT	s3_stat_line;
 EXPORT volatile UW	s3_line_word;
 EXPORT volatile UW	s3_line_time;
+LOCAL volatile UW	s3_junction_time;
 EXPORT volatile UW	s3_black_level = 1U;
 EXPORT APP_SEQ		s3_line_seq;
 
@@ -38,7 +39,7 @@ EXPORT void line_cyclic_handler(void *exinf)
 
 EXPORT void s3_get_line_status(S3_LINE_STATUS *s)
 {
-	UW	w = 0, t = 0;
+	UW	w = 0, t = 0, jt = 0;
 	UINT	tries;
 
 	for (tries = 0; tries < APP_SEQ_READ_TRIES; tries++) {
@@ -46,12 +47,14 @@ EXPORT void s3_get_line_status(S3_LINE_STATUS *s)
 
 		w = s3_line_word;
 		t = s3_line_time;
+		jt = s3_junction_time;
 		if (!app_seq_read_retry(&s3_line_seq, q)) {
 			break;
 		}
 	}
 	s3_line_unpack(w, s);
 	s->time_ms = t;
+	s->junction_time_ms = jt;
 }
 
 LOCAL void calibrate_step(UB raw, UW epoch, UW *cal_epoch, UB *buf, UINT *n)
@@ -87,7 +90,10 @@ EXPORT void line_task(INT stacd, void *exinf)
 	UINT		cal_n = 0;
 	UW		cal_epoch = 0xFFU;
 	BOOL		was_nav = FALSE;
+	BOOL		was_scan_limited = FALSE;
+	BOOL		was_executing = FALSE;
 	UB		seq = 0, junctions = 0, lost_count = 0;
+	UW		junction_time = 0;
 	UB		prev_black = 0xFFU;	/* S3_LINE_LOG */
 	UB		prev_pos = 0xFFU;	/* S3_LINE_LOG */
 	UB		prev_state = 0xFFU;	/* S3_LINE_LOG */
@@ -101,6 +107,9 @@ EXPORT void line_task(INT stacd, void *exinf)
 		UW	start, vsw, mode;
 		UB	raw, black;
 		BOOL	nav;
+		BOOL	scan_limited = FALSE;
+		BOOL	executing;
+		S3_BC_STATUS barcode;
 		INT	steer;
 
 		(void)tk_slp_tsk(TMO_FEVR);
@@ -125,7 +134,49 @@ EXPORT void line_task(INT stacd, void *exinf)
 		was_nav = nav;
 
 		black = lf_black_bits(&lf, raw);
+		s3_get_barcode_status(&barcode);
+		executing = (barcode.state == BCS_EXECUTING) ? TRUE : FALSE;
+		if (executing) {
+			/* Buddy 2 owns the wheels for the junction turn.  What
+			   the sensors see while it turns (the centre sweeping
+			   over the new line, long all-white spells) must not
+			   become a hold, a line loss or a junction afterwards. */
+			if (lf.calibrated && lf.state != LS_ON_LINE) {
+				sys_fault_clear(SYS_FLT_LINE_LOST | SYS_FLT_LINE_RECOVERY);
+				sys_post_event(SYS_EV_LINE_FOUND);
+				(void)tk_set_flg(flg_line_evt, LEV_FOUND);
+			}
+			lf_reset_tracking(&lf);
+		} else if (was_executing && nav) {
+			if (barcode.mres == MRES_DONE && barcode.nav == NAV_LEFT
+			    && (black & (IR_BIT(IR_C) | IR_BIT(IR_L))) == IR_BIT(IR_L)) {
+				lf_reset_tracking(&lf);
+				tm_printf((UB*)"line: GP2 acquired outgoing branch, resuming steering\n");
+			} else if (barcode.mres == MRES_DONE) {
+				BOOL centre_acquired = barcode.nav == NAV_RIGHT || barcode.nav == NAV_LEFT;
+
+				lf_turn_done(&lf, centre_acquired);
+				tm_printf((UB*)"line: %s\n", centre_acquired
+					? "outgoing branch acquired, driving straight"
+					: "barcode command done, realigning on the line");
+			}
+		}
+		was_executing = executing;
 		lf_step(&lf, black, odo, S3_PERIOD_MS, nav, &out);
+		if (nav && out.steering && out.speed_frac > S3_BC_SPEED_FRAC) {
+			if (barcode.state == BCS_CAPTURING) {
+				/* Scale forward speed and steering together so the
+				   correction keeps the same turn radius. */
+				out.steer = out.steer * (INT)S3_BC_SPEED_FRAC / (INT)out.speed_frac;
+				out.speed_frac = S3_BC_SPEED_FRAC;
+				scan_limited = TRUE;
+			}
+		}
+		if (scan_limited != was_scan_limited) {
+			tm_printf((UB*)"line: barcode speed cap %s (speed fraction %d/15)\n",
+				  scan_limited ? "active" : "released", (INT)out.speed_frac);
+			was_scan_limited = scan_limited;
+		}
 		steer = IR_SIDES_MIRRORED ? -out.steer : out.steer;
 #if S3_LINE_LOG
 		/* L and R are the car's real sides, steer is what the
@@ -150,13 +201,12 @@ EXPORT void line_task(INT stacd, void *exinf)
 		prev_state = lf.state;
 #endif
 
-		if (nav && out.steering) {
+		if (nav && !executing && out.steering) {
 			motion_set_steer(steer, out.speed_frac);
 		} else {
 			motion_clear_steer();
 		}
-		/* Every mode: Buddy 2 ends a barcode junction turn when the
-		   new line lies between the centre and right sensors. */
+		/* Every mode: Buddy 2 uses these readings to find the outgoing tape. */
 		if (lf.calibrated) {
 			motion_set_line_seen(
 				((black >> (IR_SIDES_MIRRORED ? IR_R : IR_L)) & 1U) != 0U,
@@ -175,7 +225,7 @@ EXPORT void line_task(INT stacd, void *exinf)
 			sys_post_event(SYS_EV_LINE_FOUND);
 			(void)tk_set_flg(flg_line_evt, LEV_FOUND);
 		}
-		if ((out.events & LF_EV_JUNCTION) != 0U) {
+		if (nav && !executing && (out.events & LF_EV_JUNCTION) != 0U) {
 			junctions++;
 			tm_printf((UB*)"line: junction confirmed (GP6 + GP2 black), count %d\n", (INT)junctions);
 			(void)tk_set_flg(flg_line_evt, LEV_JUNCTION);
@@ -197,6 +247,11 @@ EXPORT void line_task(INT stacd, void *exinf)
 		app_seq_write_begin(&s3_line_seq);
 		s3_line_word = s3_line_pack(&st);
 		s3_line_time = app_now_ms();
+		if (nav && !executing && lf.pos == LP_JUNCTION
+		    && lf.junction_ms >= LF_JUNCTION_CONFIRM_MS) {
+			junction_time = s3_line_time;
+		}
+		s3_junction_time = junction_time;
 		app_seq_write_end(&s3_line_seq);
 
 		task_stat_end(&s3_stat_line, start, (UW)S3_PERIOD_MS * 1000U / 2U);

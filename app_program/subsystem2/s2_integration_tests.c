@@ -442,9 +442,9 @@ LOCAL INT int_avoidance(void)
 
 LOCAL INT int_barcode_nav(void)
 {
-	static const char	sym[4] = { 'A', 'F', 'Z', 'X' };
-	static const UB		navs[4] = { NAV_RIGHT, NAV_RIGHT, NAV_UTURN, NAV_STRAIGHT };
-	static const W		turn_mdeg[4] = { 90000, 90000, 180000, 0 };
+	static const char	sym[] = { 'A', 'F', 'Z', 'X', 'U' };
+	static const UB		navs[] = { NAV_RIGHT, NAV_LEFT, NAV_LEFT, NAV_STRAIGHT, NAV_UTURN };
+	static const W		turn_mdeg[] = { 90000, -90000, -90000, 0, 180000 };
 	CAR		*c = &car;
 	BC_RESULT	res;
 	S3_BC_STATUS	bs, bs2;
@@ -465,7 +465,12 @@ LOCAL INT int_barcode_nav(void)
 	TEST_CHECK("INT-11a", unmapped_no_motion && c->vf.mode == VM_NORMAL && c->res_mask == 0U,
 		   "valid unmapped barcode is decoded and reported without motion");
 
-	for (k = 0; k < 4U; k++) {
+	for (k = 0; k < sizeof(sym) / sizeof(sym[0]); k++) {
+		car_start(c);
+		if (navs[k] == NAV_RIGHT || navs[k] == NAV_LEFT) {
+			c->ir_track = TRUE;
+			c->jy_um = (D)(TURN_IR_AHEAD_MM + TURN_LINE_WIDTH_MM / 2 - 3) * 1000;
+		}
 		W	th0 = c->th_mdeg;
 		W	d0 = (c->pl.d_l_um + c->pl.d_r_um) / 2;
 		UW	type, cmd, r;
@@ -502,7 +507,7 @@ LOCAL INT int_barcode_nav(void)
 			ok = FALSE;
 			continue;
 		}
-		cmd = car_cmd(c, type, MSRC_BARCODE, arg, 0);
+		cmd = car_cmd(c, type, MSRC_BARCODE, arg, S3_NAV_SPEED_LEVEL);
 		if (car_submit(c, cmd) != MREJ_NONE) {
 			ok = FALSE;
 			continue;
@@ -512,6 +517,12 @@ LOCAL INT int_barcode_nav(void)
 		r = car_until_result(c, cmd, RUN_LIMIT_MS);
 		car_cycle(c);				/* nav finished -> NORMAL */
 		moved = (c->pl.d_l_um + c->pl.d_r_um) / 2 - d0;
+		if (nav == NAV_UTURN) {
+			TEST_CHECK("INT-11d", nav_mode && mres_status(r) == MRES_DONE
+				   && c->vf.mode == VM_NORMAL && iabs(moved) <= 10000
+				   && iabs(c->th_mdeg - th0 - 180000) <= TURN_TOL_MDEG,
+				   "U at the junction pivots about 180 degrees in place and returns to NORMAL");
+		}
 		ok = ok && nav_mode && mres_status(r) == MRES_DONE && c->vf.mode == VM_NORMAL
 		     && iabs(c->th_mdeg - th0 - turn_mdeg[k]) <= TURN_TOL_MDEG
 		     && (navs[k] != NAV_STRAIGHT || iabs(moved - S3_STRAIGHT_MM * 1000) <= 10000);
@@ -536,7 +547,7 @@ LOCAL INT int_barcode_nav(void)
 	}
 	nav_map_reset();
 	TEST_CHECK("INT-11b", ok,
-		   "A/F/Z/X wait for GP6+GP2 junction -> RIGHT/RIGHT/U-TURN/STRAIGHT -> DONE -> NORMAL");
+		   "A/F/Z/X/U wait for GP6+GP2 junction -> RIGHT/LEFT/LEFT/STRAIGHT/U-TURN -> DONE -> NORMAL");
 	TEST_CHECK("INT-11c", word_ok, "barcode status word carries symbol, command and motion result");
 	TEST_SUMMARY("int barcode nav");
 	return test_fail_;
@@ -571,7 +582,9 @@ LOCAL BOOL junction_turn(CAR *c, INT deg, W *th, W *off_c, W *off_r)
 	tm_printf((UB*)"[TEST]   junction turn %d: heading %d mdeg, crossing line "
 		  "%d mm from centre sensor, %d mm from right sensor\n",
 		  (INT)deg, (INT)*th, (INT)*off_c, (INT)*off_r);
-	return (mres_status(r) == MRES_DONE && c->vf.mode == VM_NORMAL) ? TRUE : FALSE;
+	return (mres_status(r) == MRES_DONE && c->vf.mode == VM_NORMAL
+		&& car_sensor_black(c, 0)
+		&& !car_sensor_black(c, TURN_IR_GAP_MM)) ? TRUE : FALSE;
 }
 
 LOCAL INT int_junction_turn(void)
@@ -582,11 +595,28 @@ LOCAL INT int_junction_turn(void)
 
 	TEST_INIT();
 	ok = junction_turn(c, 90, &th, &oc, &orr);
-	TEST_CHECK("INT-21a", ok && iabs(th - 90000) <= 5000 && oc > 0 && orr < 0,
-		   "'A' RIGHT at a cross junction: 90 deg +-5, crossing line between centre and right sensors");
+	TEST_CHECK("INT-21a", ok && iabs(th - 90000) <= TURN_TOL_MDEG
+		   && iabs(oc) <= TURN_LINE_WIDTH_MM / 2 && orr < 0,
+		   "'A' RIGHT at a cross junction: outgoing line under the centre sensor");
 	ok = junction_turn(c, -90, &th, &oc, &orr);
-	TEST_CHECK("INT-21b", ok && iabs(th + 90000) <= 5000 && oc < 0 && orr > 0,
-		   "LEFT at a cross junction: 90 deg +-5, crossing line between centre and right sensors");
+	TEST_CHECK("INT-21b", ok && iabs(th + 90000) <= TURN_TOL_MDEG
+		   && iabs(oc) <= TURN_LINE_WIDTH_MM / 2 && orr > 0,
+		   "LEFT at a cross junction: outgoing line under the centre sensor");
+	car_start(c);
+	c->ir_track = TRUE;
+	c->jy_um = 10000000;	/* no outgoing line within reach of this turn */
+	{
+		UW cmd = car_cmd(c, MCMD_TURN, MSRC_BARCODE, 90, S3_NAV_SPEED_LEVEL);
+		UW result = 0;
+		if (car_submit(c, cmd) == MREJ_NONE) {
+			result = car_until_result(c, cmd, RUN_LIMIT_MS);
+			car_cycle(c);
+		}
+		TEST_CHECK("INT-21c", mres_status(result) == MRES_FAULT
+			   && (c->faults & SYS_FLT_RECOVERY_TIMEOUT) != 0U
+			   && c->vf.mode == VM_SAFE_STOP && c->duty_l == 0 && c->duty_r == 0,
+			   "no outgoing line: junction turn faults and holds both motors off");
+	}
 	TEST_SUMMARY("int junction turn");
 	return test_fail_;
 }

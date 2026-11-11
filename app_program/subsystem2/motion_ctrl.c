@@ -95,10 +95,15 @@ EXPORT void mc_init(MOTION_CTRL *mc)
 	mc->seek_from_um = 0;
 	mc->seek_extra_um = 0;
 	mc->seek_seen = FALSE;
+	mc->seek_pause_ms = 0;
+	mc->seek_forward = FALSE;
 	mc->advancing = FALSE;
 	mc->advance_um = 0;
 	mc->adv_r_black = FALSE;
 	mc->adv_ref = FALSE;
+	mc->junction_black = FALSE;
+	mc->junction_edge_ms = 0;
+	mc->junction_edge_um = 0;
 	mc->elapsed_ms = 0;
 	mc->timeout_ms = 0;
 	pid_init(&mc->pid_l, PID_KP_Q8, PID_KI_Q8, PID_KD_Q8, PID_I_LIMIT,
@@ -201,6 +206,8 @@ LOCAL void start_cmd(MOTION_CTRL *mc, UW cmd, MC_OUT *out)
 	mc->seek_from_um = 0;
 	mc->seek_extra_um = 0;
 	mc->seek_seen = FALSE;
+	mc->seek_pause_ms = 0;
+	mc->seek_forward = FALSE;
 	mc->advancing = FALSE;
 	mc->advance_um = 0;
 	mc->adv_r_black = FALSE;
@@ -216,6 +223,8 @@ LOCAL void start_cmd(MOTION_CTRL *mc, UW cmd, MC_OUT *out)
 		}
 		if (is_junction_turn(cmd)) {
 			mc->advancing = TRUE;
+			mc->adv_r_black = mc->junction_black;
+			mc->junction_black = FALSE;
 			mc->advance_um = 1000 * ((arg > 0) ? TURN_ADVANCE_RIGHT_MM
 							   : TURN_ADVANCE_LEFT_MM);
 			mc->state = MS_STRAIGHT;
@@ -443,8 +452,8 @@ LOCAL void run_move(MOTION_CTRL *mc, W *des_l, W *des_r, MC_OUT *out)
    first (lead), then it lies in the gap, then the centre (trail) meets
    it.  Turning left it comes from the left: the centre leads and the
    right sensor trails.  Done once the line is in the centre-right gap:
-   the lead sensor has seen it and is white again, or the trail sensor
-   already sees it (just past; line following corrects that). */
+   the lead sensor has seen it and both sensors are white before the
+   trail sensor reaches the line. */
 LOCAL BOOL line_in_gap(MOTION_CTRL *mc, UW seen, W dir)
 {
 	BOOL	c = (seen & LSEEN_C) != 0UL;
@@ -474,13 +483,20 @@ LOCAL BOOL run_advance(MOTION_CTRL *mc, const MC_IN *in, BOOL seeking,
 	W	fr = mc->last_r_um - mc->start_r_um;
 	W	travel = (fl + fr) / 2;
 	W	rem, v, v_allow, corr;
+	W	edge_travel = travel;
 
 	if (seeking && !mc->adv_ref) {
 		if ((in->line_seen & LSEEN_R) != 0UL) {
 			mc->adv_r_black = TRUE;
-		} else if (mc->adv_r_black) {
-			mc->adv_ref = TRUE;	/* right sensor left the line */
-			mc->advance_um += travel
+			mc->junction_edge_ms = 0;
+		} else if (mc->adv_r_black || mc->junction_edge_ms > 0U) {
+			if (mc->junction_edge_ms > 0U) {
+				edge_travel = mc->junction_edge_um
+					- (mc->start_l_um / 2 + mc->start_r_um / 2);
+			}
+			mc->junction_edge_ms = 0;
+			mc->adv_ref = TRUE;
+			mc->advance_um += edge_travel
 				- TURN_LINE_WIDTH_MM * 1000 / 2;
 			if (mc->advance_um < travel) {
 				mc->advance_um = travel;
@@ -507,17 +523,48 @@ LOCAL BOOL run_advance(MOTION_CTRL *mc, const MC_IN *in, BOOL seeking,
 }
 
 LOCAL void run_turn(MOTION_CTRL *mc, const MC_IN *in, W *des_l, W *des_r,
-		    MC_OUT *out)
+		    UW dt_ms, MC_OUT *out)
 {
 	W	dir = isign(mcmd_arg(mc->active));	/* +1 = clockwise */
 	BOOL	junction = is_junction_turn(mc->active);
 	BOOL	bc = (mcmd_src(mc->active) == MSRC_BARCODE);
 	BOOL	seeking = bc && TURN_LINE_SEEK && in->line_seen_fresh
 			  && (in->line_seen & LSEEN_VALID) != 0UL;
+	BOOL	require_line = junction && TURN_LINE_SEEK;
+	BOOL	centre_target = require_line && dir > 0;
+	BOOL	line_confirmed = FALSE;
 	W	pl, pr, done, rem;
 	W	vo, vi, corr, outer, inner;
 
 	if (mc->advancing && run_advance(mc, in, seeking, des_l, des_r)) {
+		return;
+	}
+	if (mc->seek_forward) {
+		W travel = (mc->last_l_um - mc->start_l_um
+			  + mc->last_r_um - mc->start_r_um) / 2;
+		W creep = mc_creep_speed(mc);
+		UW seen = in->line_seen & (LSEEN_C | LSEEN_R);
+
+		if (mc->seek_pause_ms > 0U) {
+			mc->seek_pause_ms -= (dt_ms < mc->seek_pause_ms)
+				? dt_ms : mc->seek_pause_ms;
+			mc->hard_stop = TRUE;
+			return;
+		}
+		/* Either tracking sensor can acquire the outgoing edge after
+		   settling. Normal steering can follow from either side. */
+		if (seeking && (seen == LSEEN_C || seen == LSEEN_R)) {
+			finish_active(mc, out, MRES_DONE);
+			mc->hard_stop = TRUE;
+		} else if (!seeking || travel >= TURN_LEFT_SEARCH_MM * 1000) {
+			finish_active(mc, out, MRES_FAULT);
+			out->flt_set |= SYS_FLT_RECOVERY_TIMEOUT;
+			mc->hard_stop = TRUE;
+		} else {
+			*des_l = creep + ((travel >= TURN_LEFT_STRAIGHT_MM * 1000) ? 8 : 0);
+			*des_r = creep;
+			mc->state = MS_STRAIGHT;
+		}
 		return;
 	}
 	/* progress of each wheel in its own turning direction */
@@ -526,11 +573,42 @@ LOCAL void run_turn(MOTION_CTRL *mc, const MC_IN *in, W *des_l, W *des_r,
 	/* (outer + inner) / 2 = angle * track / 2 for any speed split */
 	done = (pl + pr) / 2;
 	rem = mc->target_um + (seeking ? mc->seek_extra_um : 0) - done;
+	if (require_line && dir < 0) {
+		rem = mc->target_um - mc_turn_arc_um(TURN_LEFT_COAST_DEG) - done;
+		if (rem <= DONE_TOL_UM) {
+			mc->seek_forward = TRUE;
+			mc->seek_pause_ms = TURN_SEEK_SETTLE_MS;
+			mc->start_l_um = mc->last_l_um;
+			mc->start_r_um = mc->last_r_um;
+			mc->hard_stop = TRUE;
+			return;
+		}
+	}
 
-	if (rem <= DONE_TOL_UM
-	    || (seeking && done >= mc->seek_from_um
-		&& line_in_gap(mc, in->line_seen, dir))) {
-		finish_active(mc, out, MRES_DONE);
+	if (!seeking && require_line) {
+		mc->seek_seen = FALSE;
+	}
+	if (seeking && centre_target) {
+		/* GP6 must clear the original crossing before a new black
+		   reading can identify the branch near the target heading. */
+		if ((in->line_seen & LSEEN_C) == 0UL) {
+			mc->seek_seen = TRUE;
+		}
+		line_confirmed = mc->seek_seen && done >= mc->seek_from_um
+			&& (in->line_seen & (LSEEN_C | LSEEN_R)) == LSEEN_C;
+	} else if (!require_line && seeking && done >= mc->seek_from_um) {
+		line_confirmed = line_in_gap(mc, in->line_seen, dir);
+	}
+	if (rem <= DONE_TOL_UM || line_confirmed) {
+		if (require_line && !line_confirmed) {
+			finish_active(mc, out, MRES_FAULT);
+			out->flt_set |= SYS_FLT_RECOVERY_TIMEOUT;
+		} else {
+			finish_active(mc, out, MRES_DONE);
+		}
+		if (require_line) {
+			mc->hard_stop = TRUE;
+		}
 		*des_l = 0;
 		*des_r = 0;
 		return;
@@ -718,6 +796,28 @@ EXPORT void mc_step(MOTION_CTRL *mc, const MC_IN *in, UW dt_ms, MC_OUT *out)
 	mc->last_l_um = in->dist_l_um;
 	mc->last_r_um = in->dist_r_um;
 
+	mc->junction_edge_ms = (mc->junction_edge_ms > dt_ms)
+		? mc->junction_edge_ms - dt_ms : 0U;
+	if (in->vmode != VM_NORMAL && in->vmode != VM_NAV_ACTION) {
+		mc->junction_edge_ms = 0;
+		mc->junction_black = FALSE;
+	} else if (in->vmode == VM_NORMAL && !mc->has_active) {
+		UW seen = in->line_seen & (LSEEN_C | LSEEN_R);
+
+		if (!in->armed || !in->enc_valid || !in->line_seen_fresh
+		    || (in->line_seen & LSEEN_VALID) == 0UL) {
+			mc->junction_black = FALSE;
+			mc->junction_edge_ms = 0;
+		} else if (seen == (LSEEN_C | LSEEN_R)) {
+			mc->junction_black = TRUE;
+			mc->junction_edge_ms = 0;
+		} else if (mc->junction_black && (seen & LSEEN_R) == 0UL) {
+			mc->junction_black = FALSE;
+			mc->junction_edge_um = in->dist_l_um / 2 + in->dist_r_um / 2;
+			mc->junction_edge_ms = TURN_JUNCTION_EDGE_MS;
+		}
+	}
+
 	out->duty_l_pm = 0;
 	out->duty_r_pm = 0;
 
@@ -750,12 +850,13 @@ EXPORT void mc_step(MOTION_CTRL *mc, const MC_IN *in, UW dt_ms, MC_OUT *out)
 	if (mc->has_active) {
 		mc->elapsed_ms += dt_ms;
 		if (mcmd_type(mc->active) == MCMD_TURN) {
-			run_turn(mc, in, &des_l, &des_r, out);
+			run_turn(mc, in, &des_l, &des_r, dt_ms, out);
 		} else {
 			run_move(mc, &des_l, &des_r, out);
 		}
 		if (mc->has_active && mc->elapsed_ms > mc->timeout_ms) {
-			enter_fault(mc, out, SYS_FLT_MOTOR_STALL);
+			enter_fault(mc, out, is_junction_turn(mc->active) && TURN_LINE_SEEK
+				? SYS_FLT_RECOVERY_TIMEOUT : SYS_FLT_MOTOR_STALL);
 			return;
 		}
 	} else if (in->vmode == VM_NORMAL && in->steer_fresh

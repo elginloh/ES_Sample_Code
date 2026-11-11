@@ -27,7 +27,6 @@ LOCAL BC_DEC		dec;
 LOCAL S3_BC_STATUS	bst;
 LOCAL BOOL		pending_valid;
 LOCAL UB		pending_nav;
-LOCAL W			pending_odo;
 LOCAL UB		pending_junctions;
 LOCAL UB		capture_junctions;
 
@@ -64,21 +63,16 @@ LOCAL void print_widths(const BC_RESULT *res)
 		  (INT)res->n_diag);
 	while (i < res->n_diag) {
 		UINT	j, count = res->n_diag - i;
-		UW	narrow;
 		UW sym[C39_ELEMENTS];
 
 		if (count > C39_ELEMENTS) {
 			count = C39_ELEMENTS;
 		}
-		narrow = res->element_um[i + (count > 1U ? 1U : 0U)];
 		tm_printf((UB*)"  s%d:", (INT)symbol);
 		for (j = 0; j < count; j++) {
 			UW	w = res->element_um[i + j];
 			sym[j] = w;
 
-			if ((j & 1U) != 0U && w < narrow) {
-			narrow = w;
-			}
 			tm_printf((UB*)" %d", (INT)w);
 		}
 		if (count == C39_ELEMENTS) {
@@ -95,11 +89,18 @@ LOCAL void print_widths(const BC_RESULT *res)
 		i += count;
 		if (count == C39_ELEMENTS && i < res->n_diag) {
 			UW	gap = res->element_um[i++];
-			UW	limit = narrow * 25U / 10U;
+			INT pattern;
 
-			tm_printf((UB*)" | gap %d (max %d)",
-				  (INT)gap,
-				  (INT)limit);
+			if (res->reversed && i + C39_ELEMENTS <= res->n_diag) {
+				for (j = 0; j < C39_ELEMENTS; j++) {
+					sym[j] = res->element_um[i + C39_ELEMENTS - 1U - j];
+				}
+			}
+			pattern = c39_classify(sym);
+			tm_printf((UB*)" | gap %d", (INT)gap);
+			if (pattern >= 0) {
+				tm_printf((UB*)" (max %d)", (INT)c39_gap_limit(sym, (UH)pattern));
+			}
 		}
 		tm_printf((UB*)"\n");
 		symbol++;
@@ -132,6 +133,13 @@ LOCAL void execute(UB nav)
 	}
 	tm_printf((UB*)"barcode: %s -> motion result %d\n", nav_name(nav),
 		  (INT)bst.mres);
+	if (nav == NAV_LEFT || nav == NAV_RIGHT) {
+		if (bst.mres == MRES_DONE) {
+			tm_printf((UB*)"barcode: %s junction turn complete\n", nav_name(nav));
+		} else {
+			tm_printf((UB*)"barcode: %s junction turn incomplete\n", nav_name(nav));
+		}
+	}
 	/* edges seen while manoeuvring belong to no barcode */
 	ir_edge_flush();
 	bc_init(&dec);
@@ -139,7 +147,7 @@ LOCAL void execute(UB nav)
 	publish();
 }
 
-LOCAL void handle(const BC_RESULT *res, W odo)
+LOCAL void handle(const BC_RESULT *res)
 {
 	UB	nav;
 
@@ -173,8 +181,9 @@ LOCAL void handle(const BC_RESULT *res, W odo)
 		return;				/* duplicate-reading prevention */
 	}
 	bst.n_valid = (UB)((bst.n_valid + 1U) & 0x3FU);
-	tm_printf((UB*)"barcode: '%c'%s\n", c39_char(res->data[0]),
-		  res->reversed ? " (read reversed)" : "");
+	tm_printf((UB*)"barcode: '%c'%s%s\n", c39_char(res->data[0]),
+		  res->reversed ? " (read reversed)" : "",
+		  res->n_elements == C39_MERGED_ELEMENTS ? " (recovered 27-element scan)" : "");
 
 	if (sys_mode() != VM_NORMAL || !nav_map_lookup(res->data[0], &nav)) {
 		bst.nav_valid = 0;		/* no meaning assigned (nav_map.h) */
@@ -187,7 +196,6 @@ LOCAL void handle(const BC_RESULT *res, W odo)
 	if (S3_NAV_AT_JUNCTION) {
 		pending_valid = TRUE;
 		pending_nav = nav;
-		pending_odo = odo;
 		pending_junctions = capture_junctions;
 		bst.state = BCS_DECODING;
 		publish();
@@ -198,28 +206,30 @@ LOCAL void handle(const BC_RESULT *res, W odo)
 	}
 }
 
-LOCAL void check_pending(UW mode, W odo)
+LOCAL void check_pending(UW mode)
 {
 	S3_LINE_STATUS line;
-	BOOL changed, at_junction;
 
 	if (!pending_valid) {
 		return;
 	}
 	s3_get_line_status(&line);
-	changed = line.junctions != pending_junctions;
-	at_junction = line.pos == LP_JUNCTION
-		&& (UW)(app_now_ms() - line.time_ms) <= 2U * S3_PERIOD_MS;
-	if (mode != VM_NORMAL || odo - pending_odo > S3_NAV_PENDING_MM
-	    || (changed && !at_junction)) {
-		pending_valid = FALSE;		/* no junction in time: discard */
+	if (mode == VM_INIT || mode == VM_SAFE_STOP) {
+		pending_valid = FALSE;
 		bst.state = BCS_IDLE;
 		bst.nav_valid = 0;
 		bc_init(&dec);
 		publish();
-		tm_printf((UB*)"barcode: pending command cancelled (mode change, missed junction, or beyond %d mm)\n",
-			  S3_NAV_PENDING_MM);
-	} else if (changed && at_junction) {
+		tm_printf((UB*)"barcode: pending turn cleared on init or safe stop\n");
+	} else if (mode != VM_NORMAL) {
+		pending_junctions = line.junctions;
+	} else if (line.junctions != pending_junctions) {
+		pending_junctions = line.junctions;
+		if ((UW)(app_now_ms() - line.junction_time_ms) > S3_JUNCTION_HANDOFF_MS) {
+			tm_printf((UB*)"barcode: junction passed before handoff; %s still queued\n",
+				  nav_name(pending_nav));
+			return;
+		}
 		pending_valid = FALSE;
 		tm_printf((UB*)"barcode: confirmed junction; executing %s\n", nav_name(pending_nav));
 		execute(pending_nav);
@@ -258,7 +268,13 @@ EXPORT void barcode_task(INT stacd, void *exinf)
 	}
 	ir_edge_flush();
 #if S3_BARCODE_DIAG
+#if S3_BARCODE_ANALOG
+	tm_printf((UB*)"barcode: GP26 ADC0, threshold=%d +/- %d, black-high=%d\n",
+		  (INT)S3_BARCODE_ADC_THRESHOLD, (INT)S3_BARCODE_ADC_HYSTERESIS,
+		  (INT)S3_BARCODE_ADC_BLACK_HIGH);
+#else
 	tm_printf((UB*)"barcode: debug enabled (GP26 digital input, 1 ms sampling, 3 ms stable filter)\n");
+#endif
 #endif
 
 	for (;;) {
@@ -282,7 +298,7 @@ EXPORT void barcode_task(INT stacd, void *exinf)
 		if (pending_valid) {
 			ir_edge_flush();
 			(void)ir_edge_overflow_take();
-			check_pending(mode, odo);
+			check_pending(mode);
 			continue;
 		}
 #if S3_BARCODE_DIAG
@@ -292,9 +308,15 @@ EXPORT void barcode_task(INT stacd, void *exinf)
 			if (diag_next_us == 0U || (W)(now - diag_next_us) >= 0) {
 				UB raw = (UB)((ir_read_raw() >> 2) & 1U);
 
+#if S3_BARCODE_ANALOG
+				tm_printf((UB*)"barcode: GP26 adc=%d black=%d mode=%d edges=%d\n",
+					  (INT)ir_barcode_adc(), (INT)(raw == black_level),
+					  (INT)mode, (INT)diag_edges);
+#else
 				tm_printf((UB*)"barcode: debug alive GP26 raw=%d black=%d mode=%d speed=%d mm/s edges=%d\n",
 					  (INT)raw, (INT)(raw == black_level),
 					  (INT)mode, (INT)spd, (INT)diag_edges);
+#endif
 				diag_next_us = now + BC_DIAG_HEARTBEAT_US;
 			}
 		}
@@ -303,7 +325,7 @@ EXPORT void barcode_task(INT stacd, void *exinf)
 		if (ir_edge_overflow_take()) {
 			sys_fault_set(SYS_FLT_BARCODE_OVERFLOW);
 			bc_abort(&dec, &res);
-			handle(&res, odo);
+			handle(&res);
 			ir_edge_flush();
 			continue;
 		}
@@ -323,14 +345,14 @@ EXPORT void barcode_task(INT stacd, void *exinf)
 			if (!was_capturing && bc_capturing(&dec)) {
 				capture_junctions = junction_count();
 			}
-			handle(&res, odo);
+			handle(&res);
 			if (pending_valid) {
 				break;
 			}
 		}
 		bc_poll(&dec, hw_time_us(), spd, odo, &res);
-		handle(&res, odo);
-		check_pending(mode, odo);
+		handle(&res);
+		check_pending(mode);
 
 		if (bc_capturing(&dec) != (bst.state == BCS_CAPTURING)
 		    && bst.state != BCS_DECODING) {

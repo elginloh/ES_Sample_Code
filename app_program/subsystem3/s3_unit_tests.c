@@ -121,6 +121,16 @@ LOCAL INT test_code39(void)
 	}
 	TEST_CHECK("S3-U05", c39_decode(el, 28, data, 4, &rev) == C39_ERR_COUNT,
 		   "invalid: element count not 10k-1");
+	{
+		/* In an ideal 3:1 scan, *A* and *B* yield identical timings
+		   when elements 2–4 and 11–13 each merge into a single run. */
+		static const UW ambiguous[25] = {
+			1, 5, 3, 1, 3, 1, 1, 1, 5, 1, 1, 3, 1,
+			1, 3, 1, 1, 3, 1, 1, 3, 1, 3, 1, 1
+		};
+		TEST_CHECK("S3-U79", c39_decode(ambiguous, 25U, data, 4U, &rev) == C39_ERR_COUNT,
+			   "25-element scan shared by A and B cannot queue a turn");
+	}
 	for (k = 0; k < 29U; k++) {
 		el[k] = 40;
 	}
@@ -147,6 +157,155 @@ LOCAL INT test_code39(void)
 	}
 	TEST_CHECK("S3-U09", c39_decode(el, 29, data, 4, &rev) == C39_ERR_STARTSTOP,
 		   "invalid: missing start/stop character");
+	{
+		UW recorded[29] = {
+			183000,128000,469000,125000,555000,71000,269000,582000,100000,262008,
+			109994,250004,153994,579000,402000,264000,436000,195002,122998,298002,
+			79998,171000,618004,82996,787004,286996,256000,640000,98000
+		};
+		n = c39_decode(recorded, 29U, data, 4U, &rev);
+		TEST_CHECK("S3-U72", n == 1 && rev && c39_char(data[0]) == 'F',
+			   "recorded reverse F survives one short narrow-space measurement");
+		recorded[19] = 600000U;
+		TEST_CHECK("S3-U73", c39_decode(recorded, 29U, data, 4U, &rev) == C39_ERR_GAP && rev,
+			   "reverse F still rejects a genuinely oversized gap");
+	}
+	{
+		/* Independent Code 39 encodings from ZXing Code39Reader's A–Z table. */
+		static const UH alphabet[] = {
+			0x109, 0x049, 0x148, 0x019, 0x118, 0x058, 0x00D, 0x10C, 0x04C, 0x01C,
+			0x103, 0x043, 0x142, 0x013, 0x112, 0x052, 0x007, 0x106, 0x046, 0x016,
+			0x181, 0x0C1, 0x1C0, 0x091, 0x190, 0x0D0
+		};
+		UINT forward_ok = 0, reverse_ok = 0;
+		static const UINT label_mm[] = {170U, 250U, 339U};
+		UINT scale_ok = 0;
+		UINT recoverable_directions = 0, rejected_merges = 0, wrong_merges = 0;
+
+		for (i = 0; i < sizeof(alphabet) / sizeof(alphabet[0]); i++) {
+			char expected = (char)('A' + i);
+
+			/* Use the measured delimiters and gaps from the printed A. */
+			for (k = 0; k < 29U; k++) {
+				el[k] = bc_vectors[0].el[k];
+			}
+			for (k = 0; k < C39_ELEMENTS; k++) {
+				el[C39_STRIDE + k] = (alphabet[i] & (1U << (8U - k))) ? 120U : 40U;
+			}
+			for (UINT size = 0; size < sizeof(label_mm) / sizeof(label_mm[0]); size++) {
+				/* Approximate the deck sizes at a steady 32 mm/s.
+				   A 3:1 single-letter Code 39 label spans 47 units. */
+				UW narrow_us = label_mm[size] * 1000000UL / (47U * 32U);
+
+				for (UINT direction = 0; direction < 2U; direction++) {
+					BC_DEC capture;
+					BC_RESULT result;
+					UW now = 100000U, widest = 0U;
+					UB level = 1U;
+					BOOL intact = TRUE;
+
+					bc_init(&capture);
+					bc_edge(&capture, now, level, 32, 0, &result);
+					for (k = 0; k < 29U; k++) {
+						UINT pos = direction ? 28U - k : k;
+						UW duration = el[pos] * narrow_us / 40U;
+
+						for (UW tick = 20000U; tick < duration; tick += 20000U) {
+							bc_poll(&capture, now + tick, 32, 0, &result);
+							intact = intact && result.result == BCR_NONE;
+						}
+						if (duration > widest) {
+							widest = duration;
+						}
+						now += duration;
+						level ^= 1U;
+						bc_edge(&capture, now, level, 32, 0, &result);
+						intact = intact && result.result == BCR_NONE;
+					}
+					bc_poll(&capture, now + widest * 25U / 10U + 20000U, 32, 0, &result);
+					if (intact && result.result == BCR_VALID && result.n_data == 1U
+					    && result.reversed == (direction != 0U)
+					    && c39_char(result.data[0]) == expected) {
+						scale_ok++;
+					} else {
+						tm_printf((UB*)"[TEST] %c size %d mm reverse %d failed, err %d\n",
+							  expected, (INT)label_mm[size], (INT)direction, result.err);
+					}
+				}
+			}
+			n = c39_decode(el, 29U, data, 4U, &rev);
+			if (n == 1 && !rev && c39_char(data[0]) == expected) {
+				forward_ok++;
+			} else {
+				tm_printf((UB*)"[TEST] forward %c failed, result %d\n", expected, n);
+			}
+			for (UINT direction = 0; direction < 2U; direction++) {
+				BOOL recovered = FALSE;
+
+				for (UINT merge = 0; merge < C39_MERGED_ELEMENTS; merge++) {
+					UW merged[C39_MERGED_ELEMENTS];
+					UINT pos = 0;
+
+					for (k = 0; k < C39_SINGLE_ELEMENTS; k++) {
+						UW width = el[direction ? C39_SINGLE_ELEMENTS - 1U - k : k];
+						if (k == merge + 1U || k == merge + 2U) {
+							merged[pos - 1U] += width;
+						} else {
+							merged[pos++] = width;
+						}
+					}
+					n = c39_decode(merged, C39_MERGED_ELEMENTS, data, 4U, &rev);
+					if (n == 1 && c39_char(data[0]) == expected && rev == (direction != 0U)) {
+						recovered = TRUE;
+					} else if (n < 0) {
+						rejected_merges++;
+					} else {
+						wrong_merges++;
+					}
+				}
+				if (recovered) {
+					recoverable_directions++;
+				}
+			}
+			for (k = 0; k < 14U; k++) {
+				UW width = el[k];
+				el[k] = el[28U - k];
+				el[28U - k] = width;
+			}
+			n = c39_decode(el, 29U, data, 4U, &rev);
+			if (n == 1 && rev && c39_char(data[0]) == expected) {
+				reverse_ok++;
+			} else {
+				tm_printf((UB*)"[TEST] reverse %c failed, result %d\n", expected, n);
+			}
+		}
+		TEST_CHECK("S3-U74", forward_ok == 26U, "all A–Z decode in forward direction");
+		TEST_CHECK("S3-U75", reverse_ok == 26U, "all A–Z decode in reverse direction");
+		TEST_CHECK("S3-U78", scale_ok == 156U,
+			   "A-Z capture and decode both ways at 170, 250 and 339 mm (156 cases)");
+		TEST_CHECK("S3-U80", recoverable_directions == 52U && wrong_merges == 0U,
+			   "27-element recovery covers A-Z both ways with no wrong letter across all merge positions");
+		TEST_CHECK("S3-U81", rejected_merges > 0U,
+			   "ambiguous 27-element captures are rejected");
+	}
+	{
+		static const UW reverse_f[29] = {
+			160000,111000,485000,186000,582000,48000,312000,557000,127002,201998,
+			225000,89000,279000,623000,378000,57000,601000,90000,277000,104000,
+			364000,97000,585000,42000,523000,76000,299000,487000,92010
+		};
+		static const UW ambiguous_f[29] = {
+			274000,187000,103000,64000,327000,95000,332000,116000,137004,112996,
+			102000,79000,341000,83000,395000,424000,130000,39000,155000,125000,
+			249000,439000,132000,76000,381000,69000,558004,98996,141004
+		};
+		n = c39_decode(reverse_f, 29U, data, 4U, &rev);
+		TEST_CHECK("S3-U76", n == 1 && rev && c39_char(data[0]) == 'F',
+			   "recorded reverse F with 1.35x bar separation decodes");
+		n = c39_decode(ambiguous_f, 29U, data, 4U, &rev);
+		TEST_CHECK("S3-U77", n == C39_ERR_WIDTH,
+			   "recorded forward scan with 1.19x bar separation is rejected");
+	}
 	TEST_SUMMARY("s3 code39");
 	return test_fail_;
 }
@@ -345,6 +504,32 @@ LOCAL INT test_capture(void)
 			   && c39_char(res.data[0]) == 'A' && !res.reversed,
 			   "exact recorded A: wide first white space preserved, biased gaps accepted");
 	}
+	{
+		W widths[C39_SINGLE_ELEMENTS];
+		UW narrow = 339000000UL / (47U * 32U);
+		UW now = 100000U;
+		UB level = 1U;
+		UINT k;
+
+		(void)build_barcode('W', 0, widths);
+		bc_init(&d);
+		bc_edge(&d, now, level, 32, 0, &res);
+		for (k = 0; k < C39_SINGLE_ELEMENTS; k++) {
+			W width = widths[k];
+			if (k == C39_STRIDE) {
+				/* First three elements of W are all wide. */
+				width += widths[k + 1U] + widths[k + 2U];
+				k += 2U;
+			}
+			now += (UW)(width / SIM_NARROW_UM) * narrow;
+			level ^= 1U;
+			bc_edge(&d, now, level, 32, 0, &res);
+		}
+		bc_poll(&d, now + 1800000U, 32, 0, &res);
+		TEST_CHECK("S3-U84", res.result == BCR_VALID && res.n_elements == C39_MERGED_ELEMENTS
+			   && c39_char(res.data[0]) == 'W',
+			   "339 mm W with 2 s merged run finishes capture before the stall timeout");
+	}
 	TEST_SUMMARY("s3 capture");
 	return test_fail_;
 }
@@ -359,12 +544,13 @@ LOCAL INT test_nav_map(void)
 	TEST_INIT();
 	nav_map_reset();
 	map_ok = nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_RIGHT
-		 && nav_map_lookup((UB)c39_index_of_char('F'), &nav) && nav == NAV_RIGHT
-		 && nav_map_lookup((UB)c39_index_of_char('Z'), &nav) && nav == NAV_UTURN
+		 && nav_map_lookup((UB)c39_index_of_char('F'), &nav) && nav == NAV_LEFT
+		 && nav_map_lookup((UB)c39_index_of_char('Z'), &nav) && nav == NAV_LEFT
 		 && nav_map_lookup((UB)c39_index_of_char('X'), &nav) && nav == NAV_STRAIGHT
+		 && nav_map_lookup((UB)c39_index_of_char('U'), &nav) && nav == NAV_UTURN
 		 && !nav_map_lookup((UB)c39_index_of_char('W'), &nav);
 	TEST_CHECK("S3-U15", map_ok,
-		   "default barcode mapping: A=RIGHT, F=RIGHT, Z=U-TURN, X=STRAIGHT");
+		   "default barcode mapping: A=RIGHT, F=LEFT, Z=LEFT, X=STRAIGHT, U=U-TURN");
 	t_ok = nav_map_set((UB)c39_index_of_char('A'), NAV_LEFT) == E_OK
 		   && nav_map_lookup((UB)c39_index_of_char('A'), &nav) && nav == NAV_LEFT
 		   && nav_map_set(C39_STAR, NAV_LEFT) == E_PAR
@@ -764,6 +950,56 @@ LOCAL INT test_line(void)
 		ok_jn = o.steer == 0;
 		TEST_CHECK("S3-U71", ok_opp && ok_jn,
 			   "held turn ends at once when the other sensor sees black or at a junction");
+	}
+	{
+		BOOL ok_pivot = TRUE, ok_aligned = TRUE, ok_quiet = TRUE;
+		/* Left barcode turn: while Buddy 2 turns, the centre sweeps
+		   over the new line (long contact) and both sensors are white
+		   for a long time.  The task resets tracking every period. */
+		for (k = 0; k < 100U; k++) {
+			lf_reset_tracking(&lf);
+			lf_step(&lf, (k >= 40U && k < 55U) ? IR_BIT(IR_C) : 0U,
+				odo, 20U, TRUE, &o);
+			ok_quiet = ok_quiet && o.events == 0U;
+		}
+		/* Overshot: GP2 (IR_L) on the line when the turn ends.
+		   Pivot on the spot towards it (right) until it is white. */
+		lf_turn_done(&lf, FALSE);
+		for (k = 0; k < 5U; k++) {
+			lf_step(&lf, IR_BIT(IR_L), odo, 20U, TRUE, &o);
+			ok_pivot = ok_pivot && o.speed_frac == 0
+				   && o.steer == -LF_POST_TURN_PIVOT_STEER;
+		}
+		/* line now between the sensors: straight, no held turn */
+		for (k = 0; k < 30U; k++) {
+			lf_step(&lf, 0, odo + (W)k, 20U, TRUE, &o);
+			ok_pivot = ok_pivot && o.steer == 0 && o.speed_frac > 0
+				   && o.events == 0U;
+		}
+		ok_pivot = ok_pivot && !lf.post_turn && lf.state == LS_ON_LINE;
+		/* Turn ended with the line already between the sensors:
+		   straight on, and later contacts use normal edge steering. */
+		lf_turn_done(&lf, FALSE);
+		for (k = 0; k < LF_POST_TURN_MS / 20U; k++) {
+			lf_step(&lf, 0, odo, 20U, TRUE, &o);
+			ok_aligned = ok_aligned && o.steer == 0
+				     && o.speed_frac == LF_CRUISE_SPEED;
+		}
+		lf_step(&lf, 0, odo, 20U, TRUE, &o);
+		lf_step(&lf, IR_BIT(IR_L), odo, 20U, TRUE, &o);
+		ok_aligned = ok_aligned && !lf.post_turn
+			     && o.steer == -LF_EDGE_STEER_MIN && o.speed_frac > 0;
+		TEST_CHECK("S3-U82", ok_quiet && ok_pivot && ok_aligned,
+			   "after a barcode turn: GP2 on the line -> pivot right until white, then straight");
+		lf_turn_done(&lf, TRUE);
+		ok_aligned = TRUE;
+		for (k = 0; k < LF_RIGHT_TURN_STRAIGHT_MS; k += 20U) {
+			lf_step(&lf, IR_BIT(IR_C), odo, 20U, TRUE, &o);
+			ok_aligned = ok_aligned && o.steer == 0 && o.speed_frac == LF_SETTLE_SPEED;
+		}
+		lf_step(&lf, IR_BIT(IR_C), odo, 20U, TRUE, &o);
+		TEST_CHECK("S3-U85", ok_aligned && o.steer > 0,
+			   "right branch under GP6: drive straight briefly then resume normal steering");
 	}
 	TEST_SUMMARY("s3 line");
 	return test_fail_;

@@ -6,7 +6,7 @@
  *	Buddy 3: "2-bit codes for up to 4 navigation commands"); validity is
  *	a separate bit, so all four codes stay usable.
  *
- *	Current course mapping: A = RIGHT, F = RIGHT, Z = U-TURN,
+ *	Current course mapping: A = RIGHT, F and Z = LEFT, U = U-TURN,
  *	X = STRAIGHT. Other valid but unmapped barcode symbols are reported
  *	without producing motion.
  */

@@ -44,6 +44,7 @@ typedef struct {
 	UB	lost_count;
 	UB	speed_frac;
 	UW	time_ms;	/* publication time (separate word) */
+	UW	junction_time_ms; /* last sample on the confirmed crossing */
 } S3_LINE_STATUS;
 
 #define S3_BCE_NONE	0U

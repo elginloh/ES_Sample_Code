@@ -64,7 +64,7 @@
 #define SYS_FLT_OBSTACLE_UNAVOIDABLE	(1UL << 16)	/* B5: no safe clearance */
 #define SYS_FLT_PROFILE_INVALID		(1UL << 17)	/* B5: profiling failed */
 #define SYS_FLT_AVOID_FAILED		(1UL << 18)	/* B5: manoeuvre failed */
-#define SYS_FLT_RECOVERY_TIMEOUT	(1UL << 19)	/* B5: line not reacquired */
+#define SYS_FLT_RECOVERY_TIMEOUT	(1UL << 19)	/* line not reacquired after turn/bypass */
 #define SYS_FLT_WIFI_LOSS		(1UL << 20)	/* B1: WiFi link lost */
 #define SYS_FLT_MQTT_LOSS		(1UL << 21)	/* B1: broker session lost */
 #define SYS_FLT_CMD_INVALID		(1UL << 22)	/* B1: last remote command rejected */

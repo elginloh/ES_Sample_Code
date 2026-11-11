@@ -33,22 +33,23 @@
 #define S3_PERIOD_MS		20	/* Week 6: 20-50 ms; one fixed value */
 #define S3_CAL_SAMPLES		10	/* 200 ms of samples while still     */
 #define S3_BC_POLL_MS		20	/* completion check while capturing  */
+#define S3_BC_SPEED_FRAC	3U	/* 3/15 of cruise during barcode capture */
 #define S3_NAV_WAIT_MS		15000	/* longest barcode manoeuvre          */
 
 #ifndef S3_BARCODE_DIAG
 #define S3_BARCODE_DIAG		1	/* one width report after each capture */
 #endif
 
-/* GP26 barcode capture never suppresses GP6/GP2 line steering.
+/* GP26 barcode capture caps speed while GP6/GP2 retain line steering.
    Only Buddy 2's vehicle mode transfers motor ownership for a turn. */
 
 /* TEAM DECISION: 0 = execute the decoded command at once (Week 6
    statechart order decode -> execute); 1 = keep it until the next
-   junction (LF_EV_JUNCTION), discarded after S3_NAV_PENDING_MM. */
+   junction (LF_EV_JUNCTION) during Normal Navigation. */
 #ifndef S3_NAV_AT_JUNCTION
 #define S3_NAV_AT_JUNCTION	1
 #endif
-#define S3_NAV_PENDING_MM	800
+#define S3_JUNCTION_HANDOFF_MS	100	/* accept a confirmed crossing just after clearing it */
 
 /* IF-L2: line event flag bits (owned by subsystem 3) */
 #define LEV_FOUND	0x01U	/* line reacquired (LOST -> ON_LINE) */

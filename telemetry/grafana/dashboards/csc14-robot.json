@@ -1275,8 +1275,8 @@
     {
       "id": 17,
       "type": "stat",
-      "title": "Last barcode",
-      "description": "Newest snapshot. \"mapped to\" is the navigation MAPPING of the symbol; telemetry v1 does not report whether the turn was executed. The default map is empty (nav_map.c).",
+      "title": "Last decoded barcode",
+      "description": "Latest barcode scan in the selected time range and run. Shows the decoded character for a successful scan or INVALID for a failed scan.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "csc14-pg"
@@ -1297,7 +1297,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT CASE WHEN now() - received_at > interval '5 seconds' THEN 'STALE ' || round(extract(epoch FROM now() - received_at)) || ' s: ' || coalesce((coalesce(bc_symbol, '(none)') || ' ' || bc_result_label)::text, '-') ELSE coalesce((coalesce(bc_symbol, '(none)') || ' ' || bc_result_label)::text, '-') END AS \"symbol / result\",\n\t  coalesce(nav_label, 'no mapping') AS \"mapped to\", bc_state_label AS \"decoder\" FROM csc14.v_telemetry WHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} ORDER BY received_at DESC LIMIT 1"
+          "rawSql": "SELECT CASE WHEN bc_result_label = 'INVALID' THEN 'INVALID' ELSE bc_symbol END AS \"barcode\"\n\tFROM csc14.v_telemetry\n\tWHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) AND (bc_result_label = 'INVALID'\n\t  OR (bc_result_label IN ('VALID', 'DUPLICATE') AND bc_symbol IS NOT NULL))\n\tORDER BY received_at DESC LIMIT 1"
         }
       ],
       "fieldConfig": {
@@ -1328,13 +1328,12 @@
         "colorMode": "none",
         "graphMode": "none",
         "justifyMode": "center",
-        "textMode": "value_and_name",
+        "textMode": "value",
         "wideLayout": true,
         "showPercentChange": false,
         "orientation": "auto",
         "text": {
-          "titleSize": 12,
-          "valueSize": 18
+          "valueSize": 22
         }
       }
     },
@@ -1363,7 +1362,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT received_at AS \"received\", message FROM csc14.event\n\tWHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) AND kind = 'BARCODE' ORDER BY received_at DESC LIMIT 200"
+          "rawSql": "SELECT received_at AS \"received\",\n\t  CASE WHEN csc14.lbl('bc_result', (data->>'result')::integer) = 'INVALID' THEN 'INVALID'\n\t    ELSE nullif(substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. ' || chr(36) || '/+%*', (data->>'symbol')::integer + 1, 1), '') END AS \"barcode\"\n\tFROM csc14.event\n\tWHERE robot_id = ${robot:sqlstring} AND source = ${source:sqlstring} AND $__timeFilter(received_at) AND (${run:sqlstring} = 'all' OR run_id = (CASE WHEN ${run:sqlstring} = 'all' THEN NULL ELSE ${run:sqlstring} END)::uuid) AND kind = 'BARCODE' ORDER BY received_at DESC LIMIT 200"
         }
       ],
       "fieldConfig": {

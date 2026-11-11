@@ -320,7 +320,7 @@ LOCAL INT test_execution(void)
 	   the junction line after 15 mm (reference point), then the advance
 	   minus half a line width.  Turn: the line passes the right sensor at
 	   70-76 deg and the centre at 85-90 deg (wheel slip: before the
-	   90 deg the encoders expect).  Stop with it in the gap, not at 90. */
+	   90 deg the encoders expect).  Stop when the centre sees tape. */
 	{
 		SEEK_RUN	s;
 		W		adv = 15000 + (TURN_ADVANCE_RIGHT_MM
@@ -329,37 +329,66 @@ LOCAL INT test_execution(void)
 		seek_turn(&pl, 90, TRUE, 15, 700, 760, 850, 900, &s);
 		TEST_CHECK("S2-U10b", mres_status(s.res) == MRES_DONE
 			   && iabs(s.adv_um - adv) <= 3000
-			   && s.h > 760 && s.h < 850
+			   && s.h >= 850 && s.h <= 900
 			   && s.tl_um > 0 && s.tr_um < 0
 			   && -s.tr_um * 100 < s.tl_um * 60,
-			   "barcode RIGHT: advance from where the right sensor leaves the junction line, then left forward / right back slowly; ends with the line between centre and right sensors");
+			   "barcode RIGHT: advance past the crossing and keep turning until the centre sensor sees the outgoing line");
 		adv = 15000 + (TURN_ADVANCE_LEFT_MM - TURN_LINE_WIDTH_MM / 2) * 1000;
-		seek_turn(&pl, -90, TRUE, 15, 850, 900, 700, 760, &s);
+		seek_turn(&pl, -90, TRUE, 15, 700, 760, 840, 950, &s);
 		TEST_CHECK("S2-U10c", mres_status(s.res) == MRES_DONE
 			   && iabs(s.adv_um - adv) <= 3000
-			   && s.h > 760 && s.h < 850
+			   && s.h >= 840 && s.h <= 930
 			   && s.tr_um > 0 && s.tl_um < 0
 			   && -s.tl_um * 100 < s.tr_um * 60,
-			   "barcode LEFT: shorter advance, right forward / left back slowly; centre leads, ends with the line in the gap");
+			   "barcode LEFT: advance past junction, settle near 90 deg and confirm centre on tape");
+		seek_turn(&pl, -90, TRUE, 15, 840, 950, 0, 0, &s);
+		TEST_CHECK("S2-U10j", mres_status(s.res) == MRES_DONE
+			   && s.h >= 840 && s.h <= 930,
+			   "barcode LEFT: GP2 alone on the outgoing tape completes the turn");
+		seek_turn(&pl, -90, TRUE, 15, 0, 0, 0, 0, &s);
+		TEST_CHECK("S2-U10h", mres_status(s.res) == MRES_FAULT
+			   && s.tl_um > 0 && s.tr_um > 0,
+			   "barcode LEFT: missing tape triggers a bounded forward search before fault");
 		seek_turn(&pl, 90, TRUE, 15, 750, 790, 750, 790, &s);
-		TEST_CHECK("S2-U10d", mres_status(s.res) == MRES_DONE
-			   && s.h >= 750 && s.h < 820,
-			   "line already under the centre sensor near 90 deg: stop there (line following corrects)");
-		seek_turn(&pl, 90, TRUE, 15, 300, 340, 0, 0, &s);
-		TEST_CHECK("S2-U10e", mres_status(s.res) == MRES_DONE
+		TEST_CHECK("S2-U10d", mres_status(s.res) == MRES_FAULT
 			   && s.h > 1020 && s.h < 1110,
-			   "line seen only far from 90 deg (old branch) or never: ignored, stop at 105 deg");
+			   "both sensors black together do not confirm the right branch");
+		seek_turn(&pl, 90, TRUE, 15, 300, 340, 0, 0, &s);
+		TEST_CHECK("S2-U10e", mres_status(s.res) == MRES_FAULT
+			   && s.h > 1020 && s.h < 1110,
+			   "line seen only far from 90 deg: fault at the angle limit");
 		seek_turn(&pl, 90, FALSE, 15, 800, 860, 950, 1000, &s);
-		TEST_CHECK("S2-U10f", mres_status(s.res) == MRES_DONE
+		TEST_CHECK("S2-U10f", mres_status(s.res) == MRES_FAULT
 			   && iabs(s.adv_um - TURN_ADVANCE_RIGHT_MM * 1000) <= 3000
 			   && s.h > 870 && s.h < 940,
-			   "no fresh IR word from Buddy 3: fixed advance, plain encoder turn to 90 deg");
+			   "no fresh IR word: stop at encoder target and report unconfirmed turn");
 		seek_turn(&pl, 180, FALSE, 0, 0, 0, 0, 0, &s);
 		TEST_CHECK("S2-U10g", mres_status(s.res) == MRES_DONE
 			   && s.adv_um < 3000 && s.h > 1750 && s.h < 1850
 			   && iabs(s.tl_um + s.tr_um) < 10000,
 			   "barcode U-turn: no advance, turns on the spot");
 	}
+
+	/* GP2 clears the cross before the barcode task submits the turn. */
+	plant_init(&pl);
+	mc_init(&mc);
+	mc_out_clear(&out);
+	plant_input(&pl, &in, VM_NORMAL);
+	in.line_seen_fresh = TRUE;
+	in.line_seen = lseen_pack(1, FALSE, TRUE, TRUE);
+	mc_step(&mc, &in, MOTION_PERIOD_MS, &out);
+	in.dist_l_um = in.dist_r_um = 18000;
+	in.line_seen = lseen_pack(2, FALSE, FALSE, FALSE);
+	mc_step(&mc, &in, MOTION_PERIOD_MS, &out);
+	in.dist_l_um = in.dist_r_um = 25000;
+	mc_step(&mc, &in, MOTION_PERIOD_MS, &out);
+	cmd = mcmd_pack(MCMD_TURN, MSRC_BARCODE, 1, 0, 2, -90);
+	res = mc_submit(&mc, cmd, VM_NORMAL, 0, &out);
+	in.vmode = VM_NAV_ACTION;
+	mc_step(&mc, &in, MOTION_PERIOD_MS, &out);
+	TEST_CHECK("S2-U10i", res == MREJ_NONE && mc.adv_ref
+		   && mc.advance_um == (TURN_ADVANCE_LEFT_MM - TURN_LINE_WIDTH_MM / 2 - 7) * 1000,
+		   "left turn uses the recorded GP2 exit 7 mm before command start");
 
 	/* NFR12: MOVE followed by a queued TURN keeps at least creep speed */
 	plant_init(&pl);

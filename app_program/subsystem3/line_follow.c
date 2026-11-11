@@ -24,6 +24,7 @@ EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 	lf->lost_pending = FALSE;
 	lf->center_gap_ms = 0;
 	lf->settle_ms = 0;
+	lf->straight_ms = 0;
 	lf->turning = FALSE;
 	lf->turn_start_mm = 0;
 	lf->turn_ms = 0;
@@ -33,6 +34,18 @@ EXPORT void lf_reset_tracking(LINE_FOLLOW *lf)
 	lf->in_junction = FALSE;
 	lf->junction_start_mm = 0;
 	lf->junction_ms = 0;
+	lf->post_turn = FALSE;
+	lf->post_turn_ms = 0;
+	lf->post_pivot = 0;
+}
+
+EXPORT void lf_turn_done(LINE_FOLLOW *lf, BOOL centre_acquired)
+{
+	lf_reset_tracking(lf);
+	if (lf->calibrated) {
+		lf->post_turn = !centre_acquired;
+		lf->straight_ms = centre_acquired ? LF_RIGHT_TURN_STRAIGHT_MS : 0;
+	}
 }
 
 EXPORT void lf_init(LINE_FOLLOW *lf)
@@ -198,6 +211,48 @@ LOCAL INT edge_steer(LINE_FOLLOW *lf, UW dt_ms)
 	return 0;
 }
 
+/* Realign after a barcode turn (see LF_POST_TURN_*).  Returns TRUE while
+   it owns the steering; FALSE once done (normal tracking from then on).
+   err sign convention: +1 centre black, -1 GP2 (IR_L) black. */
+LOCAL BOOL post_turn_step(LINE_FOLLOW *lf, BOOL c, BOOL l, UW dt_ms,
+			  LF_OUT *out)
+{
+	INT	side = (c && !l) ? 1 : ((l && !c) ? -1 : 0);
+
+	lf->post_turn_ms += dt_ms;
+	if (lf->post_pivot == 0 && side != 0) {
+		/* turned past the line (left turn: GP2 on it) or short of it
+		   (centre on it): pivot towards that sensor */
+		lf->post_pivot = side;
+		lf->post_turn_ms = 0;
+	}
+	if (lf->post_pivot != 0) {
+		if (side == lf->post_pivot
+		    && lf->post_turn_ms < LF_POST_TURN_PIVOT_MAX_MS) {
+			out->steer = side * LF_POST_TURN_PIVOT_STEER;
+			out->speed_frac = 0;
+			lf->steer_cmd = out->steer;
+			return TRUE;
+		}
+		/* sensor white again: the line is between the two sensors */
+		lf->settle_ms = LF_SETTLE_MS;
+	} else if (!c && !l && lf->post_turn_ms < LF_POST_TURN_MS) {
+		/* line already between the sensors: straight on */
+		out->steer = 0;
+		out->speed_frac = LF_CRUISE_SPEED;
+		lf->steer_cmd = 0;
+		return TRUE;
+	}
+	lf->post_turn = FALSE;
+	lf->post_pivot = 0;
+	lf->post_turn_ms = 0;
+	lf->steer_cmd = 0;		/* aligned: start from straight */
+	lf->edge_side = 0;
+	lf->edge_ms = 0;
+	lf->hold_ms = 0;
+	return FALSE;
+}
+
 EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 		    BOOL navigating, LF_OUT *out)
 {
@@ -278,9 +333,20 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 		lf->state = LS_SEARCHING;	/* lost outside Normal Navigation */
 	}
 
+	if (!navigating) {
+		lf->post_turn = FALSE;
+		lf->post_pivot = 0;
+		lf->straight_ms = 0;
+	}
 	if (navigating) {
 		out->steering = TRUE;
-		if (!on_line && lf->turn_ms <= LF_LOST_ARC_MS
+		if (on_line && lf->straight_ms > 0U) {
+			out->steer = 0;
+			out->speed_frac = LF_SETTLE_SPEED;
+		} else if (on_line && lf->post_turn
+		    && post_turn_step(lf, c, l, dt_ms, out)) {
+			/* realigning after a barcode turn */
+		} else if (!on_line && lf->turn_ms <= LF_LOST_ARC_MS
 			   && odo_mm - lf->turn_start_mm < LF_LOST_ARC_MM) {
 			/* centre and IR_L white: arc towards IR_R (the car's
 			   left) at once while moving on, a curve ... */
@@ -316,6 +382,7 @@ EXPORT void lf_step(LINE_FOLLOW *lf, UB black, W odo_mm, UW dt_ms,
 		}
 	}
 	lf->prev_err = lf->err;
+	lf->straight_ms = (lf->straight_ms > dt_ms) ? lf->straight_ms - dt_ms : 0U;
 	lf->settle_ms = (lf->settle_ms > dt_ms) ? lf->settle_ms - dt_ms : 0U;
 	lf->realign_ms = (lf->realign_ms > dt_ms) ? lf->realign_ms - dt_ms : 0U;
 }

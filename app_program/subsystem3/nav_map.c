@@ -11,13 +11,13 @@ typedef struct {
 	UB	nav;		/* NAV_* */
 } NAV_ENTRY;
 
-/* Buddy 3 barcode assignments supplied for Buddy 3:
-   A = right (current course request), F = right, Z = U-turn, X = straight. */
+/* Default barcode assignments for Buddy 3. */
 LOCAL const NAV_ENTRY S3_NAV_MAP_DEFAULT[] = {
 	{ 10, NAV_RIGHT },	/* A */
-	{ 15, NAV_RIGHT },	/* F */
-	{ 35, NAV_UTURN },	/* Z */
+	{ 15, NAV_LEFT },	/* F */
+	{ 30, NAV_LEFT },	/* U */
 	{ 33, NAV_STRAIGHT },	/* X */
+	{ 34, NAV_UTURN },	/* Y */
 	{ 0xFF, 0 }		/* terminator */
 };
 

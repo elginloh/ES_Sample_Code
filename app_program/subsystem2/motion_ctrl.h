@@ -75,10 +75,15 @@ typedef struct {
 	W	seek_from_um;	/* barcode TURN: IR sensors used from here ... */
 	W	seek_extra_um;	/* ... and up to target + this */
 	BOOL	seek_seen;	/* leading IR sensor has crossed the new line */
+	UW	seek_pause_ms;	/* allow the left pivot to settle before driving */
+	BOOL	seek_forward;	/* left junction pivot is complete */
 	BOOL	advancing;	/* junction turn: driving to the turn point */
 	W	advance_um;	/* ... until this much travel ...           */
 	BOOL	adv_r_black;	/* ... right sensor seen on the crossing line */
 	BOOL	adv_ref;	/* ... and has left it: advance_um re-based  */
+	BOOL	junction_black;	/* both tracking sensors saw the crossing before a command */
+	UW	junction_edge_ms;	/* remaining lifetime of the saved GP2 falling edge */
+	W	junction_edge_um;	/* mean wheel position when GP2 cleared the tape */
 	UW	elapsed_ms;
 	UW	timeout_ms;
 	W	tgt_l_mms;	/* ramped wheel speed targets */

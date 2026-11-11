@@ -28,6 +28,18 @@
 #define IR_CENTER_PIN		6
 #define IR_RIGHT_PIN		26
 
+/* Barcode DO on GP26 by default. Set to 1 for the AO/ADC0 trial. */
+#ifndef S3_BARCODE_ANALOG
+#define S3_BARCODE_ANALOG 0
+#endif
+#ifndef S3_BARCODE_ADC_THRESHOLD
+#define S3_BARCODE_ADC_THRESHOLD 2048U
+#endif
+#ifndef S3_BARCODE_ADC_BLACK_HIGH
+#define S3_BARCODE_ADC_BLACK_HIGH 1
+#endif
+#define S3_BARCODE_ADC_HYSTERESIS 96U
+
 /* 1 = this car has the IR_RIGHT (GP26, barcode) sensor on its LEFT side,
    on the outrigger bracket, and IR_LEFT on its right.  The line follower
    keeps its own labels (the barcode handling stays on GP26); task_line.c
@@ -54,5 +66,8 @@ IMPORT BOOL ir_edge_get(UW *rec);	/* consumer side; FALSE when empty     */
 IMPORT BOOL ir_edge_overflow_take(void);	/* TRUE once after an overflow */
 IMPORT void ir_edge_flush(void);
 IMPORT UW   ir_edge_count(void);	/* edges recorded (diagnostics)        */
+#if S3_BARCODE_ANALOG
+IMPORT UW   ir_barcode_adc(void);
+#endif
 
 #endif /* DRV_IR_H */

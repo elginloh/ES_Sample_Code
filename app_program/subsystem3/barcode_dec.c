@@ -172,20 +172,41 @@ EXPORT void bc_poll(BC_DEC *d, UW now_us, W speed_mms, W odo_mm,
 	if (d->state != BCS_CAPTURING) {
 		return;
 	}
-	if ((UW)(now_us - d->t_last_us) > BC_IDLE_TIMEOUT_US) {
-		fail(d, res, BC_ERR_STALLED);
-		return;
-	}
+	quiet = now_us - d->t_last_us;
 	/* A narrow first bar cannot establish the maximum space duration.
 	   Observe a whole symbol before deciding that white ends the scan. */
 	if (d->level == 0U && d->n_edges >= C39_ELEMENTS + 1U) {
-		quiet = now_us - d->t_last_us;
-		end_q = d->widest_um * BC_END_QUIET_X10 / 10U;
+		UW reference = d->widest_um;
+
+		if (d->n_edges == C39_MERGED_ELEMENTS + 1U) {
+			UW longest = 0, second = 0;
+			UINT i;
+
+			/* One merged run may be much longer than any real space. */
+			for (i = 1U; i < d->n_edges; i++) {
+				UW width = d->edge_t[i] - d->edge_t[i - 1U];
+				if (width >= longest) {
+					second = longest;
+					longest = width;
+				} else if (width > second) {
+					second = width;
+				}
+			}
+			reference = second;
+		}
+		end_q = reference * BC_END_QUIET_X10 / 10U;
 		if (end_q < BC_END_QUIET_US) {
 			end_q = BC_END_QUIET_US;
 		}
+		if (end_q > BC_IDLE_TIMEOUT_US) {
+			end_q = BC_IDLE_TIMEOUT_US;
+		}
 		if (quiet >= end_q) {
 			finish(d, odo_mm, res);	/* completion: trailing quiet zone */
+			return;
 		}
+	}
+	if (quiet > BC_IDLE_TIMEOUT_US) {
+		fail(d, res, BC_ERR_STALLED);
 	}
 }

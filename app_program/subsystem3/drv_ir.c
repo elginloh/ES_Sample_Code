@@ -6,6 +6,36 @@
 #include "subsystem3.h"
 #include "drv_ir.h"
 
+#if S3_BARCODE_ANALOG
+#include "../../device/adc/sysdepend/rp2040/adc_sysdep.h"
+#if !S3_CAPTURE_POLL_1MS
+#error Analog barcode capture requires the 1 ms sampling timer
+#endif
+LOCAL volatile UW barcode_adc;
+
+EXPORT UW ir_barcode_adc(void)
+{
+	return app_load(&barcode_adc);
+}
+
+/* Normalize the analog reading to the decoder's black-high levels. */
+LOCAL UW analog_level(UW previous)
+{
+	UW sample = in_w(ADC_RESULT) & 0xFFFU;
+	UW high = S3_BARCODE_ADC_THRESHOLD + S3_BARCODE_ADC_HYSTERESIS;
+	UW low = S3_BARCODE_ADC_THRESHOLD - S3_BARCODE_ADC_HYSTERESIS;
+
+	app_store(&barcode_adc, sample);
+	if (sample >= high) {
+		return S3_BARCODE_ADC_BLACK_HIGH;
+	}
+	if (sample <= low) {
+		return !S3_BARCODE_ADC_BLACK_HIGH;
+	}
+	return previous;
+}
+#endif
+
 /* Ring: head written only by the ISR, tail only by the consumer task */
 LOCAL UW		edge_ring[IR_EDGE_RING];
 LOCAL volatile UW	edge_head;
@@ -54,7 +84,7 @@ LOCAL void ir_right_edge(UINT pin, UINT events, UW now_us)
 #define POLL_ALARM_BIT		(1UL << 3)
 #define POLL_PERIOD_US		1000UL
 LOCAL UW	poll_next_us;
-LOCAL UW	poll_level;
+LOCAL volatile UW poll_level;
 LOCAL UW	poll_candidate;
 LOCAL UW	poll_candidate_us;
 #define POLL_STABLE_US 3000UL
@@ -62,7 +92,11 @@ LOCAL UW	poll_candidate_us;
 LOCAL void ir_poll_handler(UINT intno)
 {
 	UW	now = hw_time_us();
+#if S3_BARCODE_ANALOG
+	UW	lvl = analog_level(poll_candidate);
+#else
 	UW	lvl = (in_w(GPIO_IN) >> IR_RIGHT_PIN) & 1UL;
+#endif
 
 	(void)intno;
 	out_w(TIMER_INTR, POLL_ALARM_BIT);		/* acknowledge */
@@ -76,7 +110,7 @@ LOCAL void ir_poll_handler(UINT intno)
 		poll_candidate_us = now;
 	}
 	if (lvl != poll_level && (UW)(now - poll_candidate_us) >= POLL_STABLE_US) {
-		poll_level = lvl;
+		app_store(&poll_level, lvl);
 		/* Keep the first stable candidate's timestamp, rather than
 		   adding the filter delay to measured element durations. */
 		push_edge(poll_candidate_us, lvl);
@@ -98,7 +132,12 @@ EXPORT ER ir_init(void)
 	edge_wake_tid = 0;
 	gpio_input_config(IR_LEFT_PIN, GPIO_PULL_UP);
 	gpio_input_config(IR_CENTER_PIN, GPIO_PULL_UP);
+#if S3_BARCODE_ANALOG
+	out_w(GPIO_CTRL(IR_RIGHT_PIN), GPIO_CTRL_FUNCSEL_NULL);
+	clr_w(GPIO(IR_RIGHT_PIN), GPIO_IE | GPIO_PUE | GPIO_PDE);
+#else
 	gpio_input_config(IR_RIGHT_PIN, GPIO_PULL_UP);
+#endif
 #if !S3_CAPTURE_POLL_1MS
 	return gpio_irq_register(IR_RIGHT_PIN, GPIO_IRQ_EDGES, ir_right_edge);
 #else
@@ -118,7 +157,21 @@ EXPORT ER ir_capture_start(void)
 	if (er < E_OK) {
 		return er;
 	}
-	poll_level = (in_w(GPIO_IN) >> IR_RIGHT_PIN) & 1UL;
+#if S3_BARCODE_ANALOG
+	UW start = hw_time_us();
+
+	/* The kernel starts the ADC clock. Buddy 3 owns ADC0 in this build. */
+	out_w(ADC_CS, ADC_CS_EN);
+	while ((in_w(ADC_CS) & ADC_CS_READY) == 0U) {
+		if ((UW)(hw_time_us() - start) >= 1000U) {
+			return E_TMOUT;
+		}
+	}
+	out_w(ADC_CS, ADC_CS_EN | ADC_CS_START_MANY);
+	app_store(&poll_level, 0U);
+#else
+	app_store(&poll_level, (in_w(GPIO_IN) >> IR_RIGHT_PIN) & 1UL);
+#endif
 	poll_candidate = poll_level;
 	poll_candidate_us = hw_time_us();
 	poll_next_us = hw_time_us() + POLL_PERIOD_US;
@@ -134,10 +187,15 @@ EXPORT ER ir_capture_start(void)
 EXPORT UB ir_read_raw(void)
 {
 	UW	in = in_w(GPIO_IN);		/* one read: consistent snapshot */
+#if S3_BARCODE_ANALOG
+	UW	barcode = app_load(&poll_level);
+#else
+	UW	barcode = (in >> IR_RIGHT_PIN) & 1UL;
+#endif
 
 	return (UB)(((in >> IR_LEFT_PIN) & 1UL)
 		  | (((in >> IR_CENTER_PIN) & 1UL) << 1)
-		  | (((in >> IR_RIGHT_PIN) & 1UL) << 2));
+		  | (barcode << 2));
 }
 
 EXPORT BOOL ir_edge_get(UW *rec)

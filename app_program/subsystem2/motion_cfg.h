@@ -76,11 +76,12 @@
  *       more, so the turn point is where the turn must happen;
  *    2. turns: outer wheel forward, inner wheel slowly backward, about a
  *       point TURN_PIVOT_OFFSET_MM from the axle centre;
- *    3. ends once the crossing line has passed the right sensor and lies
- *       between the centre and right sensors (about 90 deg).
- *  Advance for the line to end up between the centre and right sensors:
- *    right turn: IR_AHEAD - PIVOT_OFFSET + IR_GAP / 2
- *    left turn:  IR_AHEAD - PIVOT_OFFSET - IR_GAP / 2
+ *    3. ends when the centre sensor meets the outgoing tape on a right
+ *       turn. A left turn settles near 90 deg, then seeks the tape while
+ *       moving forward until the centre sensor finds it.
+ *  Advance to align with the outgoing line:
+ *    right turn: IR_AHEAD - PIVOT_OFFSET + IR_GAP
+ *    left turn:  IR_AHEAD - PIVOT_OFFSET + left course adjustment
  *  U-turns turn on the spot with no advance.
  * --------------------------------------------------------------------- */
 #define TURN_IR_AHEAD_MM	80	/* [CAL] centre IR sensor ahead of the
@@ -94,16 +95,22 @@
 #define TURN_ADVANCE_TRIM_MM	0	/* [CAL] + if the line ends up nearer the
 					   centre sensor, - if nearer the right */
 #define TURN_ADVANCE_RIGHT_MM	(TURN_IR_AHEAD_MM - TURN_PIVOT_OFFSET_MM \
-				 + TURN_IR_GAP_MM / 2 + TURN_ADVANCE_TRIM_MM)
+				 + TURN_IR_GAP_MM + TURN_ADVANCE_TRIM_MM)
+#define TURN_ADVANCE_LEFT_EXTRA_MM 50	/* [CAL] extra approach on the physical course */
 #define TURN_ADVANCE_LEFT_MM	(TURN_IR_AHEAD_MM - TURN_PIVOT_OFFSET_MM \
-				 - TURN_IR_GAP_MM / 2 + TURN_ADVANCE_TRIM_MM)
+				 + TURN_ADVANCE_TRIM_MM + TURN_ADVANCE_LEFT_EXTRA_MM)
+#define TURN_LEFT_COAST_DEG	3	/* release drive before 90 deg */
+#define TURN_LEFT_SEARCH_MM	60	/* bounded forward search after pivot */
+#define TURN_LEFT_STRAIGHT_MM	20	/* then gently arc back toward the junction */
 #define TURN_LINE_SEEK		1	/* 1 = use Buddy 3's line-seen word for
 					   the reference point and the end of
 					   the turn; 0 = distances/encoders only */
 #define TURN_SEEK_EARLY_DEG	20	/* sensors end the turn only from
 					   90 - 20 = 70 deg ...               */
 #define TURN_SEEK_EXTRA_DEG	15	/* ... and at the latest at 105 deg   */
+#define TURN_SEEK_SETTLE_MS	120	/* PWM off before forward search    */
 #define LSEEN_STALE_MS		100	/* line-seen word freshness           */
+#define TURN_JUNCTION_EDGE_MS	200	/* keep a recently cleared crossing for command handoff */
 
 /* ---- Speed PID + feed-forward [CAL] (duty in permille, -1000..1000) - */
 #define PID_KP_Q8		512	/* 2.0  permille per mm/s            */

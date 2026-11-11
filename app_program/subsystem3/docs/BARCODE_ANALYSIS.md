@@ -52,14 +52,25 @@ common symbologies do not fit:
 group) rather than from a typed list. S3-U01 checks the table: 44 unique
 patterns, 3 wide each, and `*`, `A` and `Z` equal to the measured patterns.
 
+The decoder supports every uppercase letter `A` through `Z` in standard
+Code 39. It generates the letter patterns in three groups (`A`–`J`,
+`K`–`T`, and `U`–`Z`) and matches the measured bars and spaces to those
+patterns. A single-letter label such as `*B*` has 29 measured elements,
+including the two inter-character gaps. The `*` symbols delimit the scan.
+
+References
+
+- [Zebra SM72 Integration Guide — ASCII Character Sets](https://docs.zebra.com/us/en/scanners/general/sm72-ig/ascii-character-sets.html)
+- [Zebra ZPL Programming Guide — `^B3` Code 39](https://cpws.zebra.com/cpws/docs/zpl/zpl-zbi2-pm-en.pdf)
+
 ## 3. Buddy 3 navigation mapping
 
-The supplied Buddy 3 mapping is:
+The current firmware uses these Buddy 3 mappings:
 
 | Code 39 character | Buddy 3 command |
 |---|---|
-| A | Turn Left |
-| F | Turn Right |
+| A | Turn Right |
+| F | Turn Left |
 | Z | U-turn |
 | X | Straight |
 
