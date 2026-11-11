@@ -1,0 +1,53 @@
+﻿[TEST] S4-U01 PASS  integer square root exact (floor) incl. 32-bit maximum
+[TEST] S4-U02 PASS  sine within 0.002 at 0/30/90/-30/180/270 deg
+[TEST] S4-U03 PASS  atan2 within 0.3 deg (0, 45, 90, -135, 10 deg)
+[TEST] s4 math SUMMARY 3 passed, 0 failed
+[TEST] S4-U04 PASS  stationary calibration recovers gyro bias and level offsets
+[TEST] S4-U05 PASS  car moving during calibration: rejected (retry)
+[TEST] S4-U06 PASS  gravity not on the configured up axis: calibration failure
+[TEST] S4-U07 PASS  no samples: failure
+[TEST] s4 calibration SUMMARY 4 passed, 0 failed
+[TEST] S4-U08 PASS  static 10 deg pitch measured within 0.5 deg
+[TEST] S4-U09 PASS  short braking/bump spike: pitch error < 1 deg (filter)
+[TEST] S4-U10 PASS  tilt event only after 200 ms beyond 15 deg (no false tilt)
+[TEST] S4-U11 PASS  2.5 g impact detected once (refractory), peak recorded
+[TEST] S4-U12 PASS  0.9 g bump below the collision threshold
+[TEST] S4-U13 PASS  still for 300 ms: STATIONARY
+[TEST] S4-U14 PASS  +30 dps yaw: TURN_LEFT, turn rate reported
+[TEST] S4-U15 PASS  -30 dps yaw: TURN_RIGHT
+[TEST] S4-U16 PASS  vibration/acceleration: MOVING
+[TEST] S4-U17 PASS  frozen raw data -> invalid run -> IMU fault
+[TEST] S4-U18 PASS  saturated sample rejected, never used
+[TEST] s4 monitoring SUMMARY 11 passed, 0 failed
+[TEST] S4-U33 PASS  no gyro: static 10 deg pitch from the accelerometer within 0.5 deg
+[TEST] S4-U34 PASS  no gyro: single bump spike rejected, pitch error < 1 deg
+[TEST] S4-U35 PASS  no gyro: tilt only after the filter settles and 200 ms beyond 15 deg
+[TEST] S4-U36 PASS  no gyro: 2.5 g impact detected once, peak recorded
+[TEST] S4-U37 PASS  no gyro: left turn from the magnetometer, rate within 3 dps, heading within 2 deg
+[TEST] S4-U38 PASS  no gyro: right turn gives a negative yaw rate
+[TEST] S4-U39 PASS  no gyro: heading tilt-compensated, climbing 10 deg moves it < 2 deg, no false turn
+[TEST] S4-U40 PASS  no gyro: magnetometer overflow invalidates heading only, not the IMU
+[TEST] S4-U41 PASS  no gyro: still for 300 ms: STATIONARY
+[TEST] S4-U42 PASS  no gyro: 40 mm hump through the accelerometer filter within +-4 mm, no false turn
+[TEST] S4-U43 PASS  no gyro: 40 mm hump at 30 mm/s (0.3 mm per sample) within +-4 mm
+[TEST] s4 no gyro SUMMARY 11 passed, 0 failed
+[TEST] S4-U19 PASS  40 mm hump measured within +-4 mm (Tribunal 1 success criterion)
+[TEST] S4-U20 PASS  highest hump of the run tracked at full resolution
+[TEST] S4-U21 PASS  flat track with vibration: no hump
+[TEST] S4-U22 PASS  long ramp (> 1 m) is not reported as a hump
+[TEST] S4-U23 PASS  invalid sample mid-hump: measurement discarded
+[TEST] S4-U24 PASS  6-bit hump code: 2 mm steps, saturation flag, 63 = none
+[TEST] S4-U25 PASS  quantisation error <= 1 mm over 0..100 mm
+[TEST] S4-U44 PASS  shallow road grade is not accumulated into a later hump candidate
+[TEST] S4-U45 PASS  reverse motion rejects an active forward hump measurement
+[TEST] s4 hump SUMMARY 9 passed, 0 failed
+[TEST] S4-U26 PASS  IMU status words round trip at limits and invalid codes
+[TEST] S4-U27 PASS  hump status word (count saturates at 15)
+[TEST] S4-U28 PASS  IMU->hump queue message: pitch clamped to 11-bit range
+[TEST] S4-U29 PASS  compaction rounds to nearest and saturates
+[TEST] s4 packing SUMMARY 4 passed, 0 failed
+[TEST] S4-U30 PASS  IMU Monitoring runs every 10 ms (100 per s)
+[TEST] S4-U31 PASS  IMU snapshot honest and fresh: valid data only from a calibrated chip, else invalid codes + IMU fault
+[TEST] S4-U32 PASS  standing car: no hump reported; IMU -> hump queue never overflowed
+[TEST] subsystem4 target SUMMARY 3 passed, 0 failed
+[TEST] subsystem4 TOTAL 0 failed check(s)

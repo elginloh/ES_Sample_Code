@@ -1,0 +1,1 @@
+﻿No 2 test result lines were present in the supplied COM7 capture. This file records missing capture evidence; it is not a test PASS or FAIL.

@@ -1,0 +1,62 @@
+﻿[TEST] S3-U74 PASS  all Aâ€“Z decode in forward direction
+[TEST] S3-U75 PASS  all Aâ€“Z decode in reverse direction
+[TEST] S3-U78 PASS  A-Z capture and decode both ways at 170, 250 and 339 mm (156 cases)
+[TEST] S3-U80 PASS  27-element recovery covers A-Z both ways with no wrong letter across all merge positions
+[TEST] S3-U81 PASS  ambiguous 27-element captures are rejected
+[TEST] S3-U76 PASS  recorded reverse F with 1.35x bar separation decodes
+[TEST] S3-U77 PASS  recorded forward scan with 1.19x bar separation is rejected
+[TEST] s3 code39 SUMMARY 21 passed, 0 failed
+[TEST] S3-U10 PASS  15/15 reads at 100, 200 and 300 mm/s (+-15 % ripple, 5 % speed bias, 0.6 mm blur)
+[TEST] S3-U11a PASS  first pass over Z: VALID, with 29 diagnostic element widths
+[TEST] S3-U11 PASS  same barcode again within 600 mm: DUPLICATE (no second command)
+[TEST] S3-U12 PASS  isolated black run times out without a complete symbol
+[TEST] S3-U13 PASS  no edge for 3 s while capturing: aborted (bounded)
+[TEST] S3-U14 PASS  wheel odometry jump does not affect sensor capture
+[TEST] S3-U60 PASS  stationary wheels: digital transition timing decodes A
+[TEST] S3-U63 PASS  exact recorded A: wide first white space preserved, biased gaps accepted
+[TEST] S3-U84 PASS  339 mm W with 2 s merged run finishes capture before the stall timeout
+[TEST] s3 capture SUMMARY 9 passed, 0 failed
+[TEST] S3-U15 FAIL  default barcode mapping: A=RIGHT, F=LEFT, Z=LEFT, X=STRAIGHT, U=U-TURN   (../app_program/subsystem3/s3_unit_tests.c:552)
+[TEST] S3-U16 PASS  mapping overrides work; '*' and nav > 3 rejected; reset restores defaults
+[TEST] S3-U17 PASS  LEFT/RIGHT/U-TURN/STRAIGHT -> encoder TURN/MOVE commands
+[TEST] s3 nav map SUMMARY 2 passed, 1 failed
+[TEST] S3-U18 PASS  stable centre-on-black start: configured black-high polarity
+[TEST] S3-U19 PASS  all-white start is stable and immediately qualifies IR startup
+[TEST] S3-U20 PASS  all-black start is stable and immediately qualifies IR startup
+[TEST] S3-U59 PASS  physical-right-only black start qualifies and preserves its position
+[TEST] S3-U21 PASS  flickering sensor while still -> calibration failure
+[TEST] S3-U22 PASS  centre black: gradual physical-left correction through mirrored steering
+[TEST] S3-U23 PASS  wide line filling the C-to-IR_L corridor: drive straight
+[TEST] S3-U24 PASS  line on outer boundary: smooth moving correction, never a pivot
+[TEST] S3-U52 PASS  white corridor straight; centre black ramps physical-left correction
+[TEST] S3-U25 PASS  explicit known loss uses an arc, then pivot; normal white corridor does not trigger it
+[TEST] S3-U26 PASS  line reacquired on centre -> FOUND and gradual physical-left correction
+[TEST] S3-U58 PASS  white corridor gradually returns to straight with no loss event
+[TEST] S3-U57 PASS  short white corridor remains straight and ramps smoothly at the centre edge
+[TEST] S3-U55 PASS  lost-line arc ends after LF_LOST_ARC_MM of travel, then pivot
+[TEST] S3-U56 PASS  line spanning both corridor edges after a find: drive straight
+[TEST] S3-U27 PASS  line never found: keeps pivoting towards IR_R; no RECOVERY_FAIL
+[TEST] S3-U28 PASS  GP6 + GP2 black for 60 ms, barcode white: one JUNCTION event
+[TEST] S3-U29 PASS  black under the barcode sensor (IR_R) beside the line does not disturb steering
+[TEST] S3-U53 PASS  black under IR_R alone is not the line: lost, turning towards IR_R, search not ended
+[TEST] S3-U54 PASS  lost-line turn, then IR_L has the line: FOUND, smooth moving correction
+[TEST] S3-U64 PASS  barcode toggles on GP26 do not block stable GP6/GP2 startup
+[TEST] S3-U65 PASS  barcode input cannot change line steering, speed, junction or recovery events
+[TEST] S3-U66 PASS  30 s both-white corridor remains straight; barcode toggling never triggers search
+[TEST] S3-U67 PASS  centre LEFT -> right sensor RIGHT -> white: hold, then STRAIGHT; fixed speed
+[TEST] S3-U68 PASS  edge correction in the first 20 ms; reverse correction within 40 ms, wheels keep moving
+[TEST] S3-U69 PASS  centre stays black (curve): correction grows to LF_EDGE_STEER_MAX, never beyond
+[TEST] S3-U70 PASS  short contact -> straight; sustained contact -> turn held LF_HOLD_MS, then straight
+[TEST] S3-U71 PASS  held turn ends at once when the other sensor sees black or at a junction
+[TEST] S3-U82 PASS  after a barcode turn: GP2 on the line -> pivot right until white, then straight
+[TEST] S3-U85 PASS  right branch under GP6: drive straight briefly then resume normal steering
+[TEST] s3 line SUMMARY 30 passed, 0 failed
+[TEST] S3-U30 PASS  line status word round trip at limits (steer -63)
+[TEST] S3-U31 PASS  barcode status word round trip at limits
+[TEST] s3 status words SUMMARY 2 passed, 0 failed
+[TEST] S3-U32 PASS  Line Following runs every 20 ms (50 per s) within half its period
+[TEST] S3-U33 PASS  line status word republished every period with a fresh timestamp (IF-L1)
+[TEST] S3-U34 PASS  IR calibration decided within 1 s of INIT (calibrated, or IR_CAL fault): never stalls
+[TEST] S3-U35 PASS  barcode reader idle outside NORMAL, no edge overflow; GPIO callbacks frozen once running
+[TEST] subsystem3 target SUMMARY 4 passed, 0 failed
+[TEST] subsystem3 TOTAL 1 failed check(s)

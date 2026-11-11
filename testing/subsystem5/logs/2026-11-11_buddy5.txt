@@ -1,0 +1,44 @@
+﻿[TEST] S5-U01 PASS  10-bit distance code: 5 mm steps, 0..4 m, 1022/1023 reserved
+[TEST] S5-U02 PASS  scan sample message round trip at limits
+[TEST] S5-U02b PASS  scan sample positive limits
+[TEST] S5-U03 PASS  scan request message round trip
+[TEST] S5-U04 PASS  profile message: limits kept, 'unknown' clearance stays unknown
+[TEST] S5-U05 PASS  scan and avoidance status words round trip
+[TEST] s5 codes SUMMARY 6 passed, 0 failed
+[TEST] S5-U06 PASS  width within 10 % and distance within 1 cm (4 boxes, full fine scan)
+[TEST] S5-U07 PASS  obstacle left of the path: negative bearing, more room on the right
+[TEST] S5-U08 PASS  no echo anywhere: path clear (NO_OBSTACLE)
+[TEST] S5-U09 PASS  object beyond 700 mm is not an obstacle to avoid
+[TEST] S5-U10 PASS  wall across the whole scan: edges unknown (INSUFFICIENT)
+[TEST] S5-U11 PASS  identical range at every angle: servo suspect (INVALID)
+[TEST] S5-U12 PASS  too few valid samples: INVALID
+[TEST] S5-U13 PASS  wall beside the obstacle limits that side's clearance
+[TEST] S5-U13b PASS  single 3-deg dropout stays in one obstacle; open sides ignore deep background
+[TEST] S5-U13c PASS  extreme-angle near echoes stay outside the symmetric front-plane band
+[TEST] S5-U13d PASS  captured production profile has two known edges for open-board planning
+[TEST] S5-U13e PASS  measured beam compensation removes false width and preserves clearance
+[TEST] S5-U13f PASS  narrow obstacle width comes from one angular scan cell, not a fixed millimetre clamp
+[TEST] S5-U13g PASS  central median rejects one short reflection in the front-gap estimate
+[TEST] S5-U13h PASS  central three-ray median retains a narrow obstacle despite background echoes
+[TEST] s5 profile SUMMARY 15 passed, 0 failed
+[TEST] S5-U14 PASS  plan uses forward space, calculated departure, pass, shallow return and align
+[TEST] S5-U15 PASS  calculated path gives 10 cm side gap and clears front face before PASS
+[TEST] S5-U15b PASS  more measured front clearance produces a longer forward approach
+[TEST] S5-U15c PASS  live side gap adaptively shortens return while preserving 10 cm clearance
+[TEST] S5-U16 PASS  right-shifted obstacle: shorter calculated route bypasses on the left
+[TEST] S5-U16b PASS  open-road planning has no hardcoded 320 mm board-width limit
+[TEST] S5-U16c PASS  route beyond the motion-command capacity is rejected safely
+[TEST] S5-U17 PASS  bumper gap below minimum: no plan; Safe Stop
+[TEST] S5-U17b PASS  100 mm close stop reverses only to the calculated safe path gap
+[TEST] S5-U17d PASS  minimum calculated bumper gap plans directly without reverse
+[TEST] S5-U17c PASS  reverse beyond the 150 mm bound is refused
+[TEST] S5-U18a PASS  open-board mode ignores captured 240/130 mm echo reach; equal geometry prefers right
+[TEST] S5-U18 PASS  no known safe side: no plan (Safe Stop), never an invented bypass
+[TEST] S5-U19 PASS  no valid profile: no plan
+[TEST] S5-U20 PASS  every planned step is valid and every avoidance MOVE is forward
+[TEST] s5 plan SUMMARY 15 passed, 0 failed
+[TEST] S5-U21 PASS  Obstacle Scan ranges every 60 ms (+ one 10 ms tick) while monitoring
+[TEST] S5-U22 PASS  ranging result and distance code agree; a silent sensor raises US_NO_RESPONSE
+[TEST] S5-U23 PASS  outside navigation: avoidance idle, servo centred, forward monitoring
+[TEST] subsystem5 target SUMMARY 3 passed, 0 failed
+[TEST] subsystem5 TOTAL 0 failed check(s)
