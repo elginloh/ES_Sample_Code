@@ -1,0 +1,886 @@
+
+microT-Kernel Version 3.00
+
+
+=== micro T-Kernel on Raspberry Pi Pico W (spec 0x6300, product 0x0003) ===
+dual-core (SMP) build, usermain on core 0
+us: init trig GP4 echo GP5, wait 40 ms, irq status 0
+all subsystems started
+
+[TEST] === test run start ===
+[TEST] S1-U01 PASS  CRC-16/CCITT-FALSE: catalogue check value 0x29B1; empty input 0xFFFF
+wifi: cyw43_utk_task starting (proc 1)
+[TEST] S1-U02 PASS  LSB-first bit order (known bytes FD BC DA), signed fields, overflow/underflow flagged
+wifi: cyw43_init() ...
+[TEST] s1 bits SUMMARY 2 passed, 0 failed
+wifi: cyw43_init() returned, bringing interface up ...
+[TEST] S1-U03 PASS  heartbeat = golden bytes 12 2A 04 34 12 EC 3D 60 E5; decodes; reconnects saturate at 15
+[TEST] S1-U04 PASS  command frame = golden bytes; decoded and validated (SET_SPEED 250, id 0x5A)
+[TEST] S1-U05 PASS  acknowledgement and event frames = golden bytes; both decode
+[TEST] S1-U06 PASS  telemetry: 279 bits -> 40-byte frame = golden frame; decodes field by field
+[TEST] S1-U07 PASS  telemetry round trip with every field at its maximum and at its minimum
+[TEST] s1 frames SUMMARY 5 passed, 0 failed
+[TEST] S1-U08 PASS  rejected: bad CRC, truncated, version, unknown type, length byte, wrong type, schema size
+[TEST] S1-U09 PASS  command fields: reserved bits / codes 6-7 rejected; SET_SPEED 50..400 only; no stray args
+[TEST] S1-U10 PASS  decoder errors map to distinct acknowledgement codes
+[TEST] S1-U11 PASS  commands map to supervisory requests only; Buddy 2's refusal is acknowledged with its reason
+[TEST] s1 validation SUMMARY 4 passed, 0 failed
+[TEST] S1-U12 PASS  every encoder refuses a buffer one byte too small (no overrun)
+[TEST]   telemetry size: binary frame 40 bytes, same fields as JSON 697 bytes
+[TEST] S1-U13 PASS  binary telemetry frame (40 B) at least 10x smaller than the JSON text form
+[TEST] s1 sizes SUMMARY 2 passed, 0 failed
+[TEST] S1-U14 PASS  no network stack in the image: DISABLED without faults; starts once configured
+[TEST] S1-U15 PASS  connect sequence WIFI -> MQTT -> SUBSCRIBE -> ONLINE
+[TEST] S1-U16 PASS  WiFi lost while online: WIFI_LOSS (degraded) and RECOVERING reported
+[TEST] S1-U17 PASS  retries wait 1, 2, 4, 8, 16, 16 s (capped, non-blocking); every 3rd restarts the client
+[TEST] S1-U18 PASS  automatic reconnection: ONLINE again, counted, back-off reset, faults cleared
+[TEST] S1-U19 PASS  broker lost with WiFi up: MQTT_LOSS only; each wait for the broker bounded to 10 s
+[TEST] s1 comm fsm SUMMARY 6 passed, 0 failed
+[TEST] S1-U20 PASS  communication status word: 17 bits, counters saturate at 15
+[TEST] s1 status word SUMMARY 1 passed, 0 failed
+[TEST] INT-15a PASS  Buddies 1-5 at their limits and invalid codes: all 48 fields reach the server unchanged
+[TEST] INT-15b PASS  engineering values arrive within their step: 2 deg, 10 mm/s, 1 deg, 5 mm, 10 mm
+[TEST] int binary interfaces SUMMARY 2 passed, 0 failed
+[TEST] INT-16a PASS  30 mm hump measured by Buddy 4 arrives at the server within +-4 mm
+[TEST] INT-16b PASS  after humps of 30, 20, 45 mm: count 3, highest 45 mm within +-4 mm
+[TEST] INT-16c PASS  one EVT_HUMP frame carries last, highest and count
+[TEST] INT-16d PASS  mode, barcode, obstacle and collision events decode to their fields; no change, no event
+[TEST] INT-16e PASS  a failed avoidance (counter unchanged) sends one OBSTACLE event with its reason
+[TEST] int hump telemetry SUMMARY 5 passed, 0 failed
+[TEST] S1-U21 PASS  message buffers, event flag and both cyclic handlers exist and run
+ir: L1 C0 R0 | err 0 state 3 steer 0
+us: fault seq 2 result 2 echo 0 edges 0 rise 0 us pulse 0 us distance 0 mm (threshold 210 mm)
+us: recovered seq 3 result 0 echo 0 edges 3 rise 2239 us pulse 2034 us distance 349 mm (threshold 210 mm)
+comm: INIT -> DISABLED
+imu: ST LSM303DLHC (accel + mag, no gyro) at 0x19 (id 0x48)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+[TEST]   telemetry: 3 runs in 2 s, worst run 930 us
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+[TEST] S1-U22 PASS  telemetry task: one frame per 500 ms, never over its 50 ms budget
+[TEST]   comm state DISABLED, link 0, session 0
+[TEST] S1-U23 PASS  connection stat[TEST]   line: 50 runs/s, worst run 345 us
+[TEST] S3-U32 PASS  Line Following runs every 20 ms (50 per s) within half its period
+[TEST] S3-U33 PASS  line status word republished every period with a fresh timestamp (IF-L1)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 115 result 0 echo 0 edges 3 rise 2240 us pulse 941 us distance 161 mm (threshold 210 mm)
+us: clear seq 116 result 0 echo 0 edges 3 rise 2240 us pulse 1741 us distance 299 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+[TEST]   mode INIT, raw IR L/C/R = 001, IR calibrated 0
+[TEST] S3-U34 FAIL  IR calibration decided within 1 s of INIT (calibrated, or IR_CAL fault): never stalls   (../app_program/subsystem3/subsystem3_test.c:70)
+[TEST] S3-U35 PASS  barcode reader idle outside NORMAL, no edge overflow; GPIO callbacks frozen once running
+[TEST] subsystem3 target SUMMARY 3 passed, 1 failed
+[TEST] subsystem3 TOTAL 1 failed check(s)
+[TEST] S4-U01 PASS  integer square root exact (floor) incl. 32-bit maximum
+[TEST] S4-U02 PASS  sine within 0.002 at 0/30/90/-30/180/270 deg
+[TEST] S4-U03 PASS  atan2 within 0.3 deg (0, 45, 90, -135, 10 deg)
+[TEST] s4 math SUMMARY 3 passed, 0 failed
+[TEST] S4-U04 PASS  stationary calibration recovers gyro bias and level offsets
+[TEST] S4-U05 PASS  car moving during calibration: rejected (retry)
+[TEST] S4-U06 PASS  gravity not on the configured up axis: calibration failure
+[TEST] S4-U07 PASS  no samples: failure
+[TEST] s4 calibration SUMMARY 4 passed, 0 failed
+[TEST] S4-U08 PASS  static 10 deg pitch measured within 0.5 deg
+[TEST] S4-U09 PASS  short braking/bump spike: pitch error < 1 deg (filter)
+[TEST] S4-U10 PASS  tilt event only after 200 ms beyond 15 deg (no false tilt)
+[TEST] S4-U11 PASS  2.5 g impact detected once (refractory), peak recorded
+[TEST] S4-U12 PASS  0.9 g bump below the collision threshold
+[TEST] S4-U13 PASS  still for 300 ms: STATIONARY
+[TEST] S4-U14 PASS  +30 dps yaw: TURN_LEFT, turn rate reported
+[TEST] S4-U15 PASS  -30 dps yaw: TURN_RIGHT
+[TEST] S4-U16 PASS  vibration/acceleration: MOVING
+[TEST] S4-U17 PASS  frozen raw data -> invalid run -> IMU fault
+[TEST] S4-U18 PASS  saturated sample rejected, never used
+[TEST] s4 monitoring SUMMARY 11 passed, 0 failed
+[TEST] S4-U33 PASS  no gyro: static 10 deg pitch from the accelerometer within 0.5 deg
+[TEST] S4-U34 PASS  no gyro: single bump spike rejected, pitch error < 1 deg
+[TEST] S4-U35 PASS  no gyro: tilt only after the filter settles and 200 ms beyond 15 deg
+[TEST] S4-U36 PASS  no gyro: 2.5 g impact detected once, peak recorded
+[TEST] S4-U37 PASS  no gyro: left turn from the magnetometer, rate within 3 dps, heading within 2 deg
+[TEST] S4-U38 PASS  no gyro: right turn gives a negative yaw rate
+[TEST] S4-U39 PASS  no gyro: heading tilt-compensated, climbing 10 deg moves it < 2 deg, no false turn
+[TEST] S4-U40 PASS  no gyro: magnetometer overflow invalidates heading only, not the IMU
+[TEST] S4-U41 PASS  no gyro: still for 300 ms: STATIONARY
+[TEST] S4-U42 PASS  no gyro: 40 mm hump through the accelerometer filter within +-4 mm, no false turn
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+[TEST] S4-U43 PASS  no gyro: 40 mm hump at 30 mm/s (0.3 mm per sample) within +-4 mm
+[TEST] s4 no gyro SUMMARY 11 passed, 0 failed
+[TEST] S4-U19 PASS  40 mm hump measured within +-4 mm (Tribunal 1 success criterion)
+[TEST] S4-U20 PASS  highest hump of the run tracked at full resolution
+[TEST] S4-U21 PASS  flat track with vibration: no hump
+[TEST] S4-U22 PASS  long ramp (> 1 m) is not reported as a hump
+[TEST] S4-U23 PASS  invalid sample mid-hump: measurement discarded
+[TEST] S4-U24 PASS  6-bit hump code: 2 mm steps, saturation flag, 63 = none
+[TEST] S4-U25 PASS  quantisation error <= 1 mm over 0..100 mm
+[TEST] S4-U44 PASS  shallow road grade is not accumulated into a later hump candidate
+[TEST] S4-U45 PASS  reverse motion rejects an active forward hump measurement
+[TEST] s4 hump SUMMARY 9 passed, 0 failed
+[TEST] S4-U26 PASS  IMU status words round trip at limits and invalid codes
+[TEST] S4-U27 PASS  hump status word (count saturates at 15)
+[TEST] S4-U28 PASS  IMU->hump queue message: pitch clamped to 11-bit range
+[TEST] S4-U29 PASS  compaction rounds to nearest and saturates
+[TEST] s4 packing SUMMARY 4 passed, 0 failed
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+[TEST]   imu: 101 runs/s, worst run 90569 us (includes I2C waits)
+[TEST] S4-U30 PASS  IMU Monitoring runs every 10 ms (100 per s)
+[TEST]   imu status 2, chip 3, valid 1, pitch 0 deg
+[TEST] S4-U31 PASS  IMU snapshot honest and fresh: valid data only from a calibrated chip, else invalid codes + IMU fault
+[TEST] S4-U32 PASS  standing car: no hump reported; IMU -> hump queue never overflowed
+[TEST] subsystem4 target SUMMARY 3 passed, 0 failed
+[TEST] subsystem4 TOTAL 0 failed check(s)
+[TEST] S5-U01 PASS  10-bit distance code: 5 mm steps, 0..4 m, 1022/1023 reserved
+[TEST] S5-U02 PASS  scan sample message round trip at limits
+[TEST] S5-U02b PASS  scan sample positive limits
+[TEST] S5-U03 PASS  scan request message round trip
+[TEST] S5-U04 PASS  profile message: limits kept, 'unknown' clearance stays unknown
+[TEST] S5-U05 PASS  scan and avoidance status words round trip
+[TEST] s5 codes SUMMARY 6 passed, 0 failed
+[TEST] S5-U06 PASS  width within 10 % and distance within 1 cm (4 boxes, full fine scan)
+[TEST] S5-U07 PASS  obstacle left of the path: negative bearing, more room on the right
+[TEST] S5-U08 PASS  no echo anywhere: path clear (NO_OBSTACLE)
+[TEST] S5-U09 PASS  object beyond 700 mm is not an obstacle to avoid
+[TEST] S5-U10 PASS  wall across the whole scan: edges unknown (INSUFFICIENT)
+[TEST] S5-U11 PASS  identical range at every angle: servo suspect (INVALID)
+[TEST] S5-U12 PASS  too few valid samples: INVALID
+[TEST] S5-U13 PASS  wall beside the obstacle limits that side's clearance
+[TEST] S5-U13b PASS  single 3-deg dropout stays in one obstacle; open sides ignore deep background
+[TEST] S5-U13c PASS  extreme-angle near echoes stay outside the symmetric front-plane band
+[TEST] S5-U13d PASS  captured production profile has two known edges for open-board planning
+[TEST] S5-U13e PASS  measured beam compensation removes false width and preserves clearance
+[TEST] S5-U13f PASS  narrow obstacle width comes from one angular scan cell, not a fixed millimetre clamp
+[TEST] S5-U13g PASS  central median rejects one short reflection in the front-gap estimate
+[TEST] S5-U13h PASS  central three-ray median retains a narrow obstacle despite background echoes
+[TEST] s5 profile SUMMARY 15 passed, 0 failed
+[TEST] S5-U14 PASS  plan uses forward space, calculated departure, pass, shallow return and align
+[TEST] S5-U15 PASS  calculated path gives 10 cm side gap and clears front face before PASS
+[TEST] S5-U15b PASS  more measured front clearance produces a longer forward approach
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+[TEST] S5-U15c PASS  live side gap adaptively shortens return while preserving 10 cm clearance
+[TEST] S5-U16 PASS  right-shifted obstacle: shorter calculated route bypasses on the left
+[TEST] S5-U16b PASS  open-road planning has no hardcoded 320 mm board-width limit
+[TEST] S5-U16c PASS  route beyond the motion-command capacity is rejected safely
+[TEST] S5-U17 PASS  bumper gap below minimum: no plan; Safe Stop
+[TEST] S5-U17b PASS  100 mm close stop reverses only to the calculated safe path gap
+[TEST] S5-U17d PASS  minimum calculated bumper gap plans directly without reverse
+[TEST] S5-U17c PASS  reverse beyond the 150 mm bound is refused
+[TEST] S5-U18a PASS  open-board mode ignores captured 240/130 mm echo reach; equal geometry prefers right
+[TEST] S5-U18 PASS  no known safe side: no plan (Safe Stop), never an invented bypass
+[TEST] S5-U19 PASS  no valid profile: no plan
+[TEST] S5-U20 PASS  every planned step is valid and every avoidance MOVE is forward
+[TEST] s5 plan SUMMARY 15 passed, 0 failed
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+[TEST]   scan: 17 rangings in 1.2 s, worst 167282 us
+[TEST] S5-U21 PASS  Obstacle Scan ranges every 60 ms (+ one 10 ms tick) while monitoring
+[TEST]   ultrasonic result 0, distance code 60 (5 mm steps)
+[TEST] S5-U22 PASS  ranging result and distance code agree; a silent sensor raises US_NO_RESPONSE
+[TEST] S5-U23 PASS  outside navigation: avoidance idle, servo centred, forward monitoring
+[TEST] subsystem5 target SUMMARY 3 passed, 0 failed
+[TEST] subsystem5 TOTAL 0 failed check(s)
+[TEST] === test run end ===
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 206 result 0 echo 0 edges 3 rise 2238 us pulse 1186 us distance 204 mm (threshold 210 mm)
+us: obstacle seq 208 result 0 echo 0 edges 3 rise 2241 us pulse 921 us distance 158 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 211 result 0 echo 0 edges 3 rise 2240 us pulse 721 us distance 124 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 252 result 0 echo 0 edges 3 rise 2240 us pulse 901 us distance 155 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 302 result 0 echo 0 edges 3 rise 2238 us pulse 450 us distance 77 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 306 result 0 echo 0 edges 3 rise 2241 us pulse 878 us distance 151 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 310 result 0 echo 0 edges 3 rise 2239 us pulse 320 us distance 55 mm (threshold 210 mm)
+us: obstacle seq 314 result 0 echo 0 edges 3 rise 2242 us pulse 879 us distance 151 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: clear seq 345 result 0 echo 0 edges 3 rise 2241 us pulse 1999 us distance 343 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 346 result 0 echo 0 edges 3 rise 2240 us pulse 1034 us distance 177 mm (threshold 210 mm)
+us: obstacle seq 349 result 0 echo 0 edges 3 rise 2240 us pulse 683 us distance 117 mm (threshold 210 mm)
+us: obstacle seq 351 result 0 echo 0 edges 3 rise 2240 us pulse 920 us distance 158 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 354 result 0 echo 0 edges 3 rise 2241 us pulse 743 us distance 127 mm (threshold 210 mm)
+us: obstacle seq 355 result 0 echo 0 edges 3 rise 2240 us pulse 264 us distance 45 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 360 result 0 echo 0 edges 3 rise 2239 us pulse 941 us distance 161 mm (threshold 210 mm)
+us: obstacle seq 363 result 0 echo 0 edges 3 rise 2241 us pulse 207 us distance 36 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 371 result 0 echo 0 edges 3 rise 2241 us pulse 978 us distance 168 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 420 result 0 echo 0 edges 3 rise 2241 us pulse 1185 us distance 203 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 424 result 0 echo 0 edges 3 rise 2239 us pulse 976 us distance 167 mm (threshold 210 mm)
+us: obstacle seq 426 result 0 echo 0 edges 3 rise 2238 us pulse 1128 us distance 194 mm (threshold 210 mm)
+us: clear seq 427 result 0 echo 0 edges 3 rise 2239 us pulse 3397 us distance 583 mm (threshold 210 mm)
+us: obstacle seq 430 result 0 echo 0 edges 3 rise 2238 us pulse 1109 us distance 190 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 433 result 0 echo 0 edges 3 rise 2238 us pulse 3531 us distance 606 mm (threshold 210 mm)
+us: obstacle seq 436 result 0 echo 0 edges 3 rise 2237 us pulse 1185 us distance 203 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: clear seq 442 result 0 echo 0 edges 3 rise 2238 us pulse 3267 us distance 561 mm (threshold 210 mm)
+us: obstacle seq 444 result 0 echo 0 edges 3 rise 2238 us pulse 1164 us distance 200 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 447 result 0 echo 0 edges 3 rise 2240 us pulse 3322 us distance 570 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 469 result 0 echo 0 edges 3 rise 2240 us pulse 1167 us distance 200 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 474 result 0 echo 0 edges 3 rise 2241 us pulse 3039 us distance 521 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 509 result 0 echo 0 edges 3 rise 2241 us pulse 1185 us distance 203 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 522 result 0 echo 0 edges 3 rise 2240 us pulse 1035 us distance 178 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 527 result 0 echo 0 edges 3 rise 2241 us pulse 1185 us distance 203 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 541 result 0 echo 0 edges 3 rise 2243 us pulse 1033 us distance 177 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 591 result 0 echo 0 edges 3 rise 2241 us pulse 1203 us distance 206 mm (threshold 210 mm)
+us: obstacle seq 593 result 0 echo 0 edges 3 rise 2241 us pulse 941 us distance 161 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 597 result 0 echo 0 edges 3 rise 2241 us pulse 1222 us distance 210 mm (threshold 210 mm)
+us: obstacle seq 598 result 0 echo 0 edges 3 rise 2241 us pulse 996 us distance 171 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 639 result 0 echo 0 edges 3 rise 2241 us pulse 1184 us distance 203 mm (threshold 210 mm)
+us: obstacle seq 643 result 0 echo 0 edges 3 rise 2241 us pulse 939 us distance 161 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 661 result 0 echo 0 edges 3 rise 2240 us pulse 1185 us distance 203 mm (threshold 210 mm)
+us: obstacle seq 662 result 0 echo 0 edges 3 rise 2242 us pulse 939 us distance 161 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 668 result 0 echo 0 edges 3 rise 2242 us pulse 1740 us distance 299 mm (threshold 210 mm)
+us: obstacle seq 669 result 0 echo 0 edges 3 rise 2242 us pulse 940 us distance 161 mm (threshold 210 mm)
+us: clear seq 670 result 0 echo 0 edges 3 rise 2241 us pulse 3310 us distance 568 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 675 result 0 echo 0 edges 3 rise 2243 us pulse 994 us distance 171 mm (threshold 210 mm)
+us: clear seq 677 result 0 echo 0 edges 3 rise 2241 us pulse 3230 us distance 554 mm (threshold 210 mm)
+us: obstacle seq 678 result 0 echo 0 edges 3 rise 2242 us pulse 995 us distance 171 mm (threshold 210 mm)
+us: clear seq 679 result 0 echo 0 edges 3 rise 2241 us pulse 3290 us distance 565 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 681 result 0 echo 0 edges 3 rise 2270 us pulse 967 us distance 166 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: clear seq 690 result 0 echo 0 edges 3 rise 2240 us pulse 3301 us distance 566 mm (threshold 210 mm)
+us: obstacle seq 694 result 0 echo 0 edges 3 rise 2242 us pulse 938 us distance 161 mm (threshold 210 mm)
+us: clear seq 695 result 0 echo 0 edges 3 rise 2241 us pulse 3241 us distance 556 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 696 result 0 echo 0 edges 3 rise 2241 us pulse 939 us distance 161 mm (threshold 210 mm)
+us: clear seq 698 result 0 echo 0 edges 3 rise 2240 us pulse 3661 us distance 628 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 718 result 0 echo 0 edges 3 rise 2240 us pulse 997 us distance 171 mm (threshold 210 mm)
+us: clear seq 722 result 0 echo 0 edges 3 rise 2242 us pulse 3900 us distance 669 mm (threshold 210 mm)
+us: obstacle seq 723 result 0 echo 0 edges 3 rise 2241 us pulse 996 us distance 171 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 734 result 0 echo 0 edges 3 rise 2240 us pulse 3110 us distance 534 mm (threshold 210 mm)
+us: obstacle seq 735 result 0 echo 0 edges 3 rise 2243 us pulse 994 us distance 171 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: clear seq 741 result 0 echo 0 edges 3 rise 2242 us pulse 2927 us distance 502 mm (threshold 210 mm)
+us: obstacle seq 743 result 0 echo 0 edges 3 rise 2240 us pulse 996 us distance 171 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 747 result 0 echo 0 edges 3 rise 2242 us pulse 3138 us distance 538 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 753 result 0 echo 0 edges 3 rise 2241 us pulse 996 us distance 171 mm (threshold 210 mm)
+us: clear seq 755 result 0 echo 0 edges 3 rise 2241 us pulse 3007 us distance 516 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 786 result 0 echo 0 edges 3 rise 2240 us pulse 319 us distance 55 mm (threshold 210 mm)
+us: obstacle seq 787 result 0 echo 0 edges 3 rise 2241 us pulse 1014 us distance 174 mm (threshold 210 mm)
+us: clear seq 788 result 0 echo 0 edges 3 rise 2240 us pulse 2959 us distance 508 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 792 result 0 echo 0 edges 3 rise 2241 us pulse 1053 us distance 181 mm (threshold 210 mm)
+us: clear seq 793 result 0 echo 0 edges 3 rise 2242 us pulse 2231 us distance 383 mm (threshold 210 mm)
+us: obstacle seq 794 result 0 echo 0 edges 3 rise 2242 us pulse 976 us distance 167 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 798 result 0 echo 0 edges 3 rise 2240 us pulse 376 us distance 65 mm (threshold 210 mm)
+us: clear seq 801 result 0 echo 0 edges 3 rise 2242 us pulse 3230 us distance 554 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 803 result 0 echo 0 edges 3 rise 2242 us pulse 977 us distance 168 mm (threshold 210 mm)
+us: clear seq 804 result 0 echo 0 edges 3 rise 2242 us pulse 2927 us distance 502 mm (threshold 210 mm)
+us: obstacle seq 805 result 0 echo 0 edges 3 rise 2240 us pulse 978 us distance 168 mm (threshold 210 mm)
+us: obstacle seq 806 result 0 echo 0 edges 3 rise 2241 us pulse 319 us distance 55 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 810 result 0 echo 0 edges 3 rise 2240 us pulse 996 us distance 171 mm (threshold 210 mm)
+us: obstacle seq 811 result 0 echo 0 edges 3 rise 2242 us pulse 318 us distance 55 mm (threshold 210 mm)
+us: obstacle seq 812 result 0 echo 0 edges 3 rise 2240 us pulse 958 us distance 164 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 818 result 0 echo 0 edges 3 rise 2239 us pulse 1771 us distance 304 mm (threshold 210 mm)
+us: obstacle seq 823 result 0 echo 0 edges 3 rise 2242 us pulse 938 us distance 161 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 827 result 0 echo 0 edges 3 rise 2241 us pulse 2448 us distance 420 mm (threshold 210 mm)
+us: obstacle seq 828 result 0 echo 0 edges 3 rise 2241 us pulse 939 us distance 161 mm (threshold 210 mm)
+us: obstacle seq 829 result 0 echo 0 edges 3 rise 2241 us pulse 450 us distance 77 mm (threshold 210 mm)
+us: obstacle seq 830 result 0 echo 0 edges 3 rise 2242 us pulse 244 us distance 42 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 947 result 0 echo 0 edges 3 rise 2242 us pulse 2109 us distance 362 mm (threshold 210 mm)
+us: obstacle seq 948 result 0 echo 0 edges 3 rise 2241 us pulse 1053 us distance 181 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 954 result 0 echo 0 edges 3 rise 2241 us pulse 301 us distance 52 mm (threshold 210 mm)
+us: obstacle seq 955 result 0 echo 0 edges 3 rise 2240 us pulse 997 us distance 171 mm (threshold 210 mm)
+us: obstacle seq 956 result 0 echo 0 edges 3 rise 2240 us pulse 301 us distance 52 mm (threshold 210 mm)
+us: obstacle seq 958 result 0 echo 0 edges 3 rise 2241 us pulse 1053 us distance 181 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 1000 result 0 echo 0 edges 3 rise 2242 us pulse 3239 us distance 556 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1033 result 0 echo 0 edges 3 rise 2240 us pulse 1035 us distance 178 mm (threshold 210 mm)
+us: clear seq 1034 result 0 echo 0 edges 3 rise 2242 us pulse 3250 us distance 558 mm (threshold 210 mm)
+us: obstacle seq 1036 result 0 echo 0 edges 3 rise 2240 us pulse 1166 us distance 200 mm (threshold 210 mm)
+us: obstacle seq 1038 result 0 echo 0 edges 3 rise 2242 us pulse 243 us distance 42 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: clear seq 1039 result 0 echo 0 edges 3 rise 2241 us pulse 1741 us distance 299 mm (threshold 210 mm)
+us: obstacle seq 1040 result 0 echo 0 edges 3 rise 2241 us pulse 319 us distance 55 mm (threshold 210 mm)
+us: obstacle seq 1041 result 0 echo 0 edges 3 rise 2241 us pulse 996 us distance 171 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1048 result 0 echo 0 edges 3 rise 2240 us pulse 376 us distance 65 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1053 result 0 echo 0 edges 3 rise 2241 us pulse 1071 us distance 184 mm (threshold 210 mm)
+us: obstacle seq 1054 result 0 echo 0 edges 3 rise 2241 us pulse 300 us distance 51 mm (threshold 210 mm)
+us: obstacle seq 1058 result 0 echo 0 edges 3 rise 2242 us pulse 1052 us distance 181 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1060 result 0 echo 0 edges 3 rise 2242 us pulse 299 us distance 51 mm (threshold 210 mm)
+us: obstacle seq 1064 result 0 echo 0 edges 3 rise 2240 us pulse 153 us distance 26 mm (threshold 210 mm)
+us: obstacle seq 1066 result 0 echo 0 edges 3 rise 2239 us pulse 1016 us distance 174 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1077 result 0 echo 0 edges 3 rise 2239 us pulse 300 us distance 51 mm (threshold 210 mm)
+us: obstacle seq 1080 result 0 echo 0 edges 3 rise 2239 us pulse 1128 us distance 194 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1128 result 0 echo 0 edges 3 rise 2241 us pulse 487 us distance 84 mm (threshold 210 mm)
+us: obstacle seq 1130 result 0 echo 0 edges 3 rise 2238 us pulse 339 us distance 58 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1168 result 0 echo 0 edges 3 rise 2242 us pulse 486 us distance 83 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1174 result 0 echo 0 edges 3 rise 2240 us pulse 301 us distance 52 mm (threshold 210 mm)
+us: obstacle seq 1178 result 0 echo 0 edges 3 rise 2241 us pulse 486 us distance 83 mm (threshold 210 mm)
+us: obstacle seq 1179 result 0 echo 0 edges 3 rise 2241 us pulse 300 us distance 51 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 1231 result 0 echo 0 edges 3 rise 2246 us pulse 2337 us distance 401 mm (threshold 210 mm)
+us: obstacle seq 1233 result 0 echo 0 edges 3 rise 2241 us pulse 1109 us distance 190 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1266 result 0 echo 0 edges 3 rise 2238 us pulse 430 us distance 74 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1270 result 0 echo 0 edges 3 rise 2240 us pulse 227 us distance 39 mm (threshold 210 mm)
+us: fault seq 1272 result 3 echo 0 edges 3 rise 2243 us pulse 113 us distance 19 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1274 result 0 echo 0 edges 3 rise 2242 us pulse 114 us distance 20 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: fault seq 1284 result 3 echo 0 edges 3 rise 2242 us pulse 95 us distance 16 mm (threshold 210 mm)
+us: obstacle seq 1285 result 0 echo 0 edges 3 rise 2243 us pulse 132 us distance 23 mm (threshold 210 mm)
+us: obstacle seq 1288 result 0 echo 0 edges 3 rise 2240 us pulse 283 us distance 49 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 1367 result 0 echo 0 edges 3 rise 2240 us pulse 2216 us distance 380 mm (threshold 210 mm)
+us: obstacle seq 1368 result 0 echo 0 edges 3 rise 2241 us pulse 450 us distance 77 mm (threshold 210 mm)
+us: obstacle seq 1369 result 0 echo 0 edges 3 rise 2239 us pulse 1185 us distance 203 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1374 result 0 echo 0 edges 3 rise 2242 us pulse 1033 us distance 177 mm (threshold 210 mm)
+us: obstacle seq 1377 result 0 echo 0 edges 3 rise 2241 us pulse 861 us distance 148 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1385 result 0 echo 0 edges 3 rise 2240 us pulse 703 us distance 121 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 1394 result 0 echo 0 edges 3 rise 2241 us pulse 900 us distance 154 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1477 result 0 echo 0 edges 3 rise 2242 us pulse 449 us distance 77 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1487 result 0 echo 0 edges 3 rise 2239 us pulse 960 us distance 165 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1502 result 0 echo 0 edges 3 rise 2241 us pulse 724 us distance 124 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1512 result 0 echo 0 edges 3 rise 2242 us pulse 939 us distance 161 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1588 result 0 echo 0 edges 3 rise 2241 us pulse 320 us distance 55 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1597 result 0 echo 0 edges 3 rise 2242 us pulse 977 us distance 168 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1621 result 0 echo 0 edges 3 rise 2242 us pulse 318 us distance 55 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1624 result 0 echo 0 edges 3 rise 2239 us pulse 152 us distance 26 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1636 result 0 echo 0 edges 3 rise 2241 us pulse 319 us distance 55 mm (threshold 210 mm)
+us: obstacle seq 1637 result 0 echo 0 edges 3 rise 2242 us pulse 938 us distance 161 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 1741 result 0 echo 0 edges 3 rise 2243 us pulse 781 us distance 134 mm (threshold 210 mm)
+us: obstacle seq 1743 result 0 echo 0 edges 3 rise 2240 us pulse 625 us distance 107 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1747 result 0 echo 0 edges 3 rise 2242 us pulse 841 us distance 144 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 1841 result 0 echo 0 edges 3 rise 2241 us pulse 393 us distance 67 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1854 result 0 echo 0 edges 3 rise 2241 us pulse 880 us distance 151 mm (threshold 210 mm)
+us: obstacle seq 1858 result 0 echo 0 edges 3 rise 2241 us pulse 468 us distance 80 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1871 result 0 echo 0 edges 3 rise 2241 us pulse 319 us distance 55 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1878 result 0 echo 0 edges 3 rise 2241 us pulse 938 us distance 161 mm (threshold 210 mm)
+us: obstacle seq 1879 result 0 echo 0 edges 3 rise 2241 us pulse 412 us distance 71 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1882 result 0 echo 0 edges 3 rise 2241 us pulse 245 us distance 42 mm (threshold 210 mm)
+us: obstacle seq 1888 result 0 echo 0 edges 3 rise 2242 us pulse 430 us distance 74 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 1889 result 0 echo 0 edges 3 rise 2242 us pulse 938 us distance 161 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 1899 result 0 echo 0 edges 3 rise 2242 us pulse 392 us distance 67 mm (threshold 210 mm)
+us: obstacle seq 1900 result 0 echo 0 edges 3 rise 2241 us pulse 921 us distance 158 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 2028 result 0 echo 0 edges 3 rise 2241 us pulse 1109 us distance 190 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 2045 result 0 echo 0 edges 3 rise 2239 us pulse 959 us distance 165 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 2048 result 0 echo 0 edges 3 rise 2240 us pulse 2528 us distance 434 mm (threshold 210 mm)
+us: obstacle seq 2051 result 0 echo 0 edges 3 rise 2242 us pulse 1031 us distance 177 mm (threshold 210 mm)
+us: clear seq 2052 result 0 echo 0 edges 3 rise 2240 us pulse 1880 us distance 323 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 2054 result 0 echo 0 edges 3 rise 2239 us pulse 1073 us distance 184 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 2063 result 0 echo 0 edges 3 rise 2241 us pulse 2108 us distance 362 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 2080 result 0 echo 0 edges 3 rise 2242 us pulse 1164 us distance 200 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: clear seq 2092 result 0 echo 0 edges 3 rise 2240 us pulse 1938 us distance 333 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 2096 result 0 echo 0 edges 3 rise 2240 us pulse 1072 us distance 184 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 2173 result 0 echo 0 edges 3 rise 2240 us pulse 1771 us distance 304 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 2176 result 0 echo 0 edges 3 rise 2240 us pulse 1090 us distance 187 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 2181 result 0 echo 0 edges 3 rise 2240 us pulse 2971 us distance 510 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 2211 result 0 echo 0 edges 3 rise 2240 us pulse 1223 us distance 210 mm (threshold 210 mm)
+us: obstacle seq 2216 result 0 echo 0 edges 3 rise 2241 us pulse 1069 us distance 183 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: clear seq 2674 result 0 echo 0 edges 3 rise 2240 us pulse 2449 us distance 420 mm (threshold 210 mm)
+us: obstacle seq 2675 result 0 echo 0 edges 3 rise 2240 us pulse 1109 us distance 190 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 3125 result 0 echo 0 edges 3 rise 2237 us pulse 956 us distance 164 mm (threshold 210 mm)
+us: obstacle seq 3126 result 0 echo 0 edges 3 rise 2237 us pulse 782 us distance 134 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 3135 result 0 echo 0 edges 3 rise 2238 us pulse 957 us distance 164 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 3146 result 0 echo 0 edges 3 rise 2238 us pulse 1146 us distance 197 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 3261 result 0 echo 0 edges 3 rise 2240 us pulse 939 us distance 161 mm (threshold 210 mm)
+us: obstacle seq 3266 result 0 echo 0 edges 3 rise 2240 us pulse 763 us distance 131 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 3269 result 0 echo 0 edges 3 rise 2240 us pulse 978 us distance 168 mm (threshold 210 mm)
+us: obstacle seq 3272 result 0 echo 0 edges 3 rise 2241 us pulse 1128 us distance 194 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 3595 result 0 echo 0 edges 3 rise 2241 us pulse 486 us distance 83 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 3596 result 0 echo 0 edges 3 rise 2241 us pulse 336 us distance 58 mm (threshold 210 mm)
+us: clear seq 3598 result 0 echo 0 edges 3 rise 2240 us pulse 2147 us distance 368 mm (threshold 210 mm)
+us: obstacle seq 3599 result 0 echo 0 edges 3 rise 2238 us pulse 1204 us distance 207 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+us: obstacle seq 3633 result 0 echo 0 edges 3 rise 2241 us pulse 1015 us distance 174 mm (threshold 210 mm)
+us: obstacle seq 3635 result 0 echo 0 edges 3 rise 2243 us pulse 839 us distance 144 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+us: obstacle seq 3642 result 0 echo 0 edges 3 rise 2240 us pulse 1015 us distance 174 mm (threshold 210 mm)
+us: obstacle seq 3645 result 0 echo 0 edges 3 rise 2243 us pulse 1184 us distance 203 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+---- Closed the serial port COM4 ----
