@@ -1,3 +1,5 @@
+---- Opened the serial port COM4 ----
+
 
 microT-Kernel Version 3.00
 
@@ -53,11 +55,11 @@ us: fault seq 1 result 2 echo 0 edges 0 rise 0 us pulse 0 us distance 0 mm (thre
 comm: INIT -> DISABLED
 imu: ST LSM303DLHC (accel + mag, no gyro) at 0x19 (id 0x48)
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 0
-us: recovered seq 8 result 0 echo 0 edges 3 rise 2237 us pulse 2111 us distance 362 mm (threshold 210 mm)
+us: obstacle seq 8 result 0 echo 0 edges 3 rise 2239 us pulse 1002 us distance 172 mm (threshold 210 mm)
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
-imu: calibrated (no gyro), level offset -38 -10 mg
+imu: calibrated (no gyro), level offset -36 -11 mg
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
-[TEST]   telemetry: 3 runs in 2 s, worst run 922 us
+[TEST]   telemetry: 3 runs in 2 s, worst run 943 us
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 [TEST] S1-U22 PASS  telemetry task: one frame per 500 ms, never over its 50 ms budget
 [TEST]   comm state DISABLED, link 0, session 0
@@ -173,11 +175,11 @@ speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 [TEST] S2-U41 PASS  microsecond TIMER runs at 1 MHz against the kernel clock
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
-[TEST]   motion: 50 runs/s, worst run 989 us, period 19440..20577 us
+[TEST]   motion: 50 runs/s, worst run 894 us, period 19144..20875 us
 [TEST] S2-U42 PASS  Motion Control runs every 20 ms and finishes within half its period
 [TEST]   mode INIT, faults 0x0800000
 [TEST] S2-U43 PASS  test image disarmed: INIT or SAFE_STOP only; motor watchdog never tripped
-[TEST]   stop() request served after 70 us
+[TEST]   stop() request served after 67 us
 [TEST] S2-U44 PASS  stop() bypass served by Motion Control within 100 ms (NFR6, software path)
 [TEST] S2-U45 PASS  IF-M1/M3 on target: a BARCODE MOVE outside navigation is answered REJECTED (MODE)
 motion: mode INIT -> SAFE_STOP (epoch 1, faults 0x4800000)
@@ -233,9 +235,9 @@ speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 [TEST] S3-U31 PASS  barcode status word round trip at limits
 [TEST] s3 status words SUMMARY 2 passed, 0 failed
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
-imu: calibrated (no gyro), level offset -36 -9 mg
+imu: calibrated (no gyro), level offset -33 -11 mg
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
-[TEST]   line: 51 runs/s, worst run 454 us
+[TEST]   line: 51 runs/s, worst run 450 us
 [TEST] S3-U32 PASS  Line Following runs every 20 ms (50 per s) within half its period
 [TEST] S3-U33 PASS  line status word republished every period with a fresh timestamp (IF-L1)
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
@@ -297,7 +299,7 @@ speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 [TEST] s4 packing SUMMARY 4 passed, 0 failed
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
-[TEST]   imu: 101 runs/s, worst run 90633 us (includes I2C waits)
+[TEST]   imu: 101 runs/s, worst run 90652 us (includes I2C waits)
 [TEST] S4-U30 PASS  IMU Monitoring runs every 10 ms (100 per s)
 [TEST]   imu status 2, chip 3, valid 1, pitch 0 deg
 [TEST] S4-U31 PASS  IMU snapshot honest and fresh: valid data only from a calibrated chip, else invalid codes + IMU fault
@@ -347,9 +349,9 @@ speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 [TEST] s5 plan SUMMARY 15 passed, 0 failed
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
-[TEST]   scan: 17 rangings in 1.2 s, worst 172090 us
+[TEST]   scan: 17 rangings in 1.2 s, worst 172089 us
 [TEST] S5-U21 PASS  Obstacle Scan ranges every 60 ms (+ one 10 ms tick) while monitoring
-[TEST]   ultrasonic result 0, distance code 72 (5 mm steps)
+[TEST]   ultrasonic result 0, distance code 34 (5 mm steps)
 [TEST] S5-U22 PASS  ranging result and distance code agree; a silent sensor raises US_NO_RESPONSE
 [TEST] S5-U23 PASS  outside navigation: avoidance idle, servo centred, forward monitoring
 [TEST] subsystem5 target SUMMARY 3 passed, 0 failed
@@ -407,26 +409,16 @@ speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+---- Closed the serial port COM4 ----
+---- Opened the serial port COM4 ----
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
-us: obstacle seq 584 result 0 echo 0 edges 3 rise 2241 us pulse 207 us distance 36 mm (threshold 210 mm)
-us: clear seq 585 result 0 echo 0 edges 3 rise 2242 us pulse 2950 us distance 506 mm (threshold 210 mm)
-us: obstacle seq 586 result 0 echo 0 edges 3 rise 2242 us pulse 188 us distance 32 mm (threshold 210 mm)
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
-us: obstacle seq 589 result 0 echo 0 edges 3 rise 2241 us pulse 395 us distance 68 mm (threshold 210 mm)
-us: clear seq 591 result 1 echo 0 edges 3 rise 2241 us pulse 47513 us distance 8153 mm (threshold 210 mm)
-us: obstacle seq 593 result 0 echo 0 edges 3 rise 2243 us pulse 261 us distance 45 mm (threshold 210 mm)
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
-us: obstacle seq 595 result 0 echo 0 edges 3 rise 2241 us pulse 959 us distance 165 mm (threshold 210 mm)
-us: clear seq 596 result 1 echo 0 edges 3 rise 2243 us pulse 47518 us distance 8154 mm (threshold 210 mm)
-speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 26
-speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 26
-us: obstacle seq 610 result 0 echo 0 edges 3 rise 2241 us pulse 189 us distance 32 mm (threshold 210 mm)
-us: clear seq 612 result 0 echo 0 edges 3 rise 2241 us pulse 2110 us distance 362 mm (threshold 210 mm)
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
@@ -445,178 +437,20 @@ speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
-ir: L1 C1 R1 | err 0 state 3 steer 0
-ir: L1 C0 R1 | err 0 state 3 steer 0
-speed: L tgt 0 meas 63 duty 0 edges 51 | R tgt 0 meas 47 duty 0 edges 37 | irq/s 204
-ir: L1 C0 R0 | err 0 state 3 steer 0
-ir: L1 C1 R0 | err 0 state 3 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 65 | R tgt 0 meas 0 duty 0 edges 51 | irq/s 84
-line: IR calibrated, black level = 1
-ir: L1 C1 R1 | err 0 state 0 steer 0
-speed: L tgt 0 meas 38 duty 0 edges 91 | R tgt 0 meas 17 duty 0 edges 59 | irq/s 96
-ir: L1 C0 R1 | err -2 state 0 steer 0
-ir: L1 C0 R0 | err 0 state 0 steer 0
-ir: L1 C0 R0 | err 3 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 127 | R tgt 0 meas 0 duty 0 edges 93 | irq/s 168
-speed: L tgt 0 meas 0 duty 0 edges 127 | R tgt 0 meas 0 duty 0 edges 93 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 127 | R tgt 0 meas 0 duty 0 edges 93 | irq/s 28
-ir: L1 C1 R1 | err 0 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 127 | R tgt 0 meas 0 duty 0 edges 93 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 127 | R tgt 0 meas 0 duty 0 edges 93 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 127 | R tgt 0 meas 0 duty 0 edges 93 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 127 | R tgt 0 meas 0 duty 0 edges 93 | irq/s 28
-ir: L1 C1 R0 | err 0 state 0 steer 0
-ir: L1 C0 R0 | err 0 state 0 steer 0
-ir: L1 C0 R0 | err 3 state 0 steer 0
-ir: L1 C1 R0 | err 0 state 0 steer 0
-ir: L1 C1 R1 | err 0 state 0 steer 0
-ir: L1 C1 R0 | err 0 state 0 steer 0
-ir: L1 C0 R0 | err 0 state 0 steer 0
-ir: L1 C0 R0 | err 3 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 128 | R tgt 0 meas 2 duty 0 edges 94 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 128 | R tgt 0 meas 0 duty 0 edges 94 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 128 | R tgt 0 meas 4 duty 0 edges 100 | irq/s 40
-speed: L tgt 0 meas 0 duty 0 edges 128 | R tgt 0 meas 0 duty 0 edges 105 | irq/s 38
-speed: L tgt 0 meas 0 duty 0 edges 128 | R tgt 0 meas 3 duty 0 edges 107 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 128 | R tgt 0 meas 23 duty 0 edges 136 | irq/s 86
-speed: L tgt 0 meas 17 duty 0 edges 143 | R tgt 0 meas 21 duty 0 edges 174 | irq/s 134
-speed: L tgt 0 meas 16 duty 0 edges 167 | R tgt 0 meas 12 duty 0 edges 194 | irq/s 116
-speed: L tgt 0 meas 0 duty 0 edges 174 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 74
-speed: L tgt 0 meas 0 duty 0 edges 174 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 174 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 174 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 174 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 174 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 174 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 9 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 78
-speed: L tgt 0 meas 0 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-us: obstacle seq 969 result 0 echo 0 edges 3 rise 2241 us pulse 171 us distance 29 mm (threshold 210 mm)
-us: clear seq 970 result 0 echo 0 edges 3 rise 2243 us pulse 2123 us distance 364 mm (threshold 210 mm)
-speed: L tgt 0 meas 0 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 32
-us: obstacle seq 972 result 0 echo 0 edges 3 rise 2242 us pulse 188 us distance 32 mm (threshold 210 mm)
-us: clear seq 973 result 0 echo 0 edges 3 rise 2242 us pulse 2123 us distance 364 mm (threshold 210 mm)
-speed: L tgt 0 meas 0 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 197 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 198 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 30
-speed: L tgt 0 meas 0 duty 0 edges 198 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 198 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 198 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 198 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 198 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 198 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 198 | R tgt 0 meas 0 duty 0 edges 208 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 198 | R tgt 0 meas 14 duty 0 edges 215 | irq/s 42
-speed: L tgt 0 meas 0 duty 0 edges 198 | R tgt 0 meas 19 duty 0 edges 237 | irq/s 72
-speed: L tgt 0 meas 26 duty 0 edges 221 | R tgt 0 meas 35 duty 0 edges 283 | irq/s 170
-speed: L tgt 0 meas 15 duty 0 edges 266 | R tgt 0 meas 28 duty 0 edges 325 | irq/s 202
-speed: L tgt 0 meas 8 duty 0 edges 276 | R tgt 0 meas 0 duty 0 edges 330 | irq/s 58
-speed: L tgt 0 meas 20 duty 0 edges 302 | R tgt 0 meas 0 duty 0 edges 330 | irq/s 80
-speed: L tgt 0 meas 0 duty 0 edges 310 | R tgt 0 meas 3 duty 0 edges 332 | irq/s 48
-speed: L tgt 0 meas 0 duty 0 edges 310 | R tgt 0 meas 33 duty 0 edges 379 | irq/s 122
-speed: L tgt 0 meas 39 duty 0 edges 331 | R tgt 0 meas 25 duty 0 edges 422 | irq/s 156
-speed: L tgt 0 meas 1 duty 0 edges 380 | R tgt 0 meas 0 duty 0 edges 449 | irq/s 184
-speed: L tgt 0 meas 47 duty 0 edges 428 | R tgt 0 meas 41 duty 0 edges 483 | irq/s 192
-speed: L tgt 0 meas 3 duty 0 edges 474 | R tgt 0 meas 14 duty 0 edges 530 | irq/s 214
-speed: L tgt 0 meas 71 duty 0 edges 589 | R tgt 0 meas 45 duty 0 edges 592 | irq/s 382
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 66
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-us: obstacle seq 1221 result 0 echo 0 edges 3 rise 2242 us pulse 996 us distance 171 mm (threshold 210 mm)
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 32
-us: clear seq 1223 result 0 echo 0 edges 3 rise 2243 us pulse 2611 us distance 448 mm (threshold 210 mm)
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-us: obstacle seq 1234 result 0 echo 0 edges 3 rise 2241 us pulse 1071 us distance 184 mm (threshold 210 mm)
-us: clear seq 1235 result 0 echo 0 edges 3 rise 2243 us pulse 2610 us distance 448 mm (threshold 210 mm)
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-us: obstacle seq 1259 result 0 echo 0 edges 3 rise 2242 us pulse 939 us distance 161 mm (threshold 210 mm)
-us: clear seq 1260 result 0 echo 0 edges 3 rise 2242 us pulse 2611 us distance 448 mm (threshold 210 mm)
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-ir: L1 C0 R1 | err -2 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-ir: L1 C1 R1 | err 0 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-ir: L1 C0 R1 | err -2 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-ir: L1 C1 R1 | err 0 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-ir: L1 C0 R1 | err -2 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-ir: L1 C1 R1 | err 0 state 0 steer 0
-ir: L1 C1 R0 | err 0 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-ir: L1 C1 R1 | err 0 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-ir: L1 C1 R0 | err 0 state 0 steer 0
-ir: L1 C1 R1 | err 0 state 0 steer 0
-ir: L1 C0 R1 | err -2 state 0 steer 0
-ir: L1 C0 R0 | err 0 state 0 steer 0
-ir: L1 C0 R0 | err 3 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 32
-ir: L1 C1 R0 | err 0 state 0 steer 0
-us: obstacle seq 1474 result 0 echo 0 edges 3 rise 2241 us pulse 959 us distance 165 mm (threshold 210 mm)
-ir: L1 C0 R1 | err -2 state 0 steer 0
-us: clear seq 1475 result 0 echo 0 edges 3 rise 2241 us pulse 2588 us distance 444 mm (threshold 210 mm)
-ir: L1 C1 R1 | err 0 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-ir: L1 C0 R1 | err -2 state 0 steer 0
-ir: L1 C0 R0 | err 0 state 0 steer 0
-ir: L1 C1 R0 | err 0 state 0 steer 0
-ir: L1 C0 R0 | err 0 state 0 steer 0
-ir: L1 C0 R0 | err 3 state 0 steer 0
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 32
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
-speed: L tgt 0 meas 0 duty 0 edges 602 | R tgt 0 meas 0 duty 0 edges 598 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 32
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
+speed: L tgt 0 meas 0 duty 0 edges 0 | R tgt 0 meas 0 duty 0 edges 0 | irq/s 28
 ---- Closed the serial port COM4 ----
