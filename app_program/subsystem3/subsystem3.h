@@ -32,6 +32,7 @@
 #define S3_PRI_BARCODE		17
 #define S3_PERIOD_MS		20	/* Week 6: 20-50 ms; one fixed value */
 #define S3_CAL_SAMPLES		10	/* 200 ms of samples while still     */
+#define S3_CAL_DECISION_MS	1000U	/* succeed or report IR_CAL failure  */
 #define S3_BC_POLL_MS		20	/* completion check while capturing  */
 #define S3_BC_SPEED_FRAC	3U	/* 3/15 of cruise during barcode capture */
 #define S3_NAV_WAIT_MS		15000	/* longest barcode manoeuvre          */

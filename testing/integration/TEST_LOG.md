@@ -23,4 +23,40 @@ Add a new row for every run. Never edit or delete old rows.
 
 | Date | Test ID | Commit | Tester | Result | Log / evidence | Notes |
 |---|---|---|---|---|---|---|
+| 2025-11-18 | INT-15a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-15b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-16a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-16b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-16c | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-16d | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-16e | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-10a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-10b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-10c | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-10d | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-11a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-11b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-11c | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-12a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-12b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-13a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-13b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-13c | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-13d | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-13e | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-14a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-14b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-14c | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-14d | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-17a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-17b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-18a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-18b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-18c | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-19a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-19b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-20a | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-20b | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-20c | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | INT-20d | not recorded | Vanessa | PASS | `logs/2025-11-18_intergation_test.txt` |  |
 | YYYY-MM-DD | INT-01 | `abc1234` | | PASS / FAIL | `logs/YYYY-MM-DD_….txt` | |

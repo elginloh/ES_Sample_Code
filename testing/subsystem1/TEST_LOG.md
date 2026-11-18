@@ -30,6 +30,32 @@ Add a new row for every run. Never edit or delete old rows.
 
 | Date | Test ID | Commit | Tester | Result | Log / evidence | Notes |
 |---|---|---|---|---|---|---|
+| 2025-11-18 | S1-U01 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U02 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U03 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U04 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U05 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U06 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U07 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U08 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U09 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U10 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U11 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U12 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U13 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U14 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U15 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U16 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U17 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U18 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U19 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U20 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U21 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U22 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U23 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U24 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U25 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S1-U26 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
 | YYYY-MM-DD | S1-U01 | `abc1234` | | PASS / FAIL | `logs/YYYY-MM-DD_….txt` | |
 | 2026-10-30 | S1-U27 | `d81f8b9` | Claude (for Buddy 1) | PASS (7 checks, before the changes) | `logs/2026-10-30_before_d81f8b9_decoder_and_host_tests.txt` | baseline |
 | 2026-10-30 | S1-U27 | `d81f8b9` + uncommitted | Claude (for Buddy 1) | PASS (14 checks) | `logs/2026-10-30_after_decoder_and_host_tests.txt` | changes not committed yet |

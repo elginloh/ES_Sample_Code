@@ -78,7 +78,8 @@ LOCAL void calibrate_step(UB raw, UW epoch, UW *cal_epoch, UB *buf, UINT *n)
 		tm_printf((UB*)"line: IR ready from current surface, black level = %d\n",
 			  (INT)lf.black_level[IR_C]);
 	} else {
-		/* Retry each 200 ms if a sensor is flickering during startup. */
+		/* Retry each 200 ms; the bounded deadline below reports persistent
+		   flicker instead of leaving initialization undecided forever. */
 	}
 }
 
@@ -89,6 +90,8 @@ EXPORT void line_task(INT stacd, void *exinf)
 	UB		cal_buf[S3_CAL_SAMPLES];
 	UINT		cal_n = 0;
 	UW		cal_epoch = 0xFFU;
+	UW		cal_pending_epoch = 0xFFU;
+	UW		cal_start_ms = 0U;
 	BOOL		was_nav = FALSE;
 	BOOL		was_scan_limited = FALSE;
 	BOOL		was_executing = FALSE;
@@ -122,9 +125,25 @@ EXPORT void line_task(INT stacd, void *exinf)
 		motion_get_odometry(&odo, NULL);
 
 		if (mode == VM_INIT) {
-			calibrate_step(raw, vsw_epoch(vsw), &cal_epoch, cal_buf, &cal_n);
+			UW epoch = vsw_epoch(vsw);
+
+			if (cal_pending_epoch != epoch) {
+				cal_pending_epoch = epoch;
+				cal_start_ms = app_now_ms();
+				cal_n = 0U;
+			}
+			calibrate_step(raw, epoch, &cal_epoch, cal_buf, &cal_n);
+			if (cal_epoch != epoch
+			    && (UW)(app_now_ms() - cal_start_ms) >= S3_CAL_DECISION_MS
+			    && (sys_fault_get() & SYS_FLT_IR_CAL) == 0U) {
+				sys_fault_set(SYS_FLT_IR_CAL);
+				sys_post_event(SYS_EV_IR_CAL_FAIL);
+				tm_printf((UB*)"line: IR calibration failed after %d ms; Safe Stop requested\n",
+					  (INT)S3_CAL_DECISION_MS);
+			}
 		} else {
 			cal_n = 0;
+			cal_pending_epoch = 0xFFU;
 		}
 
 		nav = (mode == VM_NORMAL) ? TRUE : FALSE;

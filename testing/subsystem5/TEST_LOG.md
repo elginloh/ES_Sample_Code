@@ -59,4 +59,43 @@ Add a new row for every run. Never edit or delete old rows.
 
 | Date | Test ID | Commit | Tester | Result | Log / evidence | Notes |
 |---|---|---|---|---|---|---|
+| 2025-11-18 | S5-U01 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U02 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U02b | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U03 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U04 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U05 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U06 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U07 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U08 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U09 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U10 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U11 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U12 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U13 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U13b | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U13c | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U13d | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U13e | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U13f | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U13g | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U13h | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U14 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U15 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U15b | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U15c | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U16 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U16b | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U16c | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U17 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U17b | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U17d | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U17c | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U18a | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U18 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U19 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U20 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U21 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U22 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S5-U23 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
 | YYYY-MM-DD | S5-U01 | `abc1234` | | PASS / FAIL | `logs/YYYY-MM-DD_subsystem5_test.txt` | |

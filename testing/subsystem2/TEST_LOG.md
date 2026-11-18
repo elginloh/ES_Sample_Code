@@ -53,4 +53,56 @@ Add one row for every test result and every run. Never edit or delete old rows. 
 
 | Date | Test ID | Commit | Tester | Result | Log / evidence | Notes |
 |---|---|---|---|---|---|---|
+| 2025-11-18 | S2-U01 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U01b | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U02 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U03 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U04 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U05 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U06 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U07 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U08 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U09a | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U09 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U09b | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U09c | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U10 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U11 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U12 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U13 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U14 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U15 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U16 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U17 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U18 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U19 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U20 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U21 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U22 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U23 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U24 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U25 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U26 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U27 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U40 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` | Unit check; this ID also labels the Pico runtime check below. |
+| 2025-11-18 | S2-U28 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U29 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U30 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U31 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U32 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U33 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U34 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U35 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U36 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U37 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U38 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U39 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U40 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` | Pico runtime check; this ID also labels the unit obstacle-stop check. |
+| 2025-11-18 | S2-U41 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U42 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U43 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U44 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U45 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U46 | not recorded | Vanessa | PASS | `../integration/logs/2025-11-18_intergation_test.txt` |  |
+| 2025-11-18 | S2-U47 | not recorded | Vanessa | FAIL | `../integration/logs/2025-11-18_intergation_test.txt` | FAIL as captured; source assertion was corrected afterward, so rerun to verify. |
 | YYYY-MM-DD | S2-U01 | `abc1234` | | PASS / FAIL | `logs/YYYY-MM-DD_subsystem2_test.txt` | |
