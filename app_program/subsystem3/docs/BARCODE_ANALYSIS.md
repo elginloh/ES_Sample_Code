@@ -71,8 +71,9 @@ The current firmware uses these Buddy 3 mappings:
 |---|---|
 | A | Turn Right |
 | F | Turn Left |
-| Z | U-turn |
+| Z | Turn Left |
 | X | Straight |
+| U | U-turn |
 
 `nav_map.c` loads these defaults at barcode-task startup. Other valid Code 39
 characters are decoded and reported (telemetry fields 17–23, `EVT_BARCODE`)

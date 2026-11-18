@@ -1,0 +1,62 @@
+host reslts: 
+vanessa@vanessa:~/pico/es-project$ make -C app_program/subsystem2/host_test clean
+make: Entering directory '/home/vanessa/pico/es-project/app_program/subsystem2/host_test'
+rm -rf ./build
+make: Leaving directory '/home/vanessa/pico/es-project/app_program/subsystem2/host_test'
+vanessa@vanessa:~/pico/es-project$ make -C app_program/subsystem2/host_test SUITES=s2
+make: Entering directory '/home/vanessa/pico/es-project/app_program/subsystem2/host_test'
+cc -std=gnu11 -O1 -g -Wall -Wextra -Wno-unused-parameter -DHOST_TEST=1 -DAPP_TEST=0 -Ishim -o build/host_tests host_main.c ../../subsystem1/bitpack.c ../../subsystem1/mqtt_proto.c ../../subsystem1/comm_fsm.c ../../subsystem1/tlm_build.c ../../subsystem1/s1_unit_tests.c ../../subsystem1/s1_integration_tests.c ../../subsystem2/sys_state_logic.c ../../subsystem2/motion_cmd.c ../../subsystem2/pid.c ../../subsystem2/motion_ctrl.c ../../subsystem2/vehicle_fsm.c ../../subsystem2/s2_unit_tests.c ../../subsystem2/s2_integration_tests.c ../../subsystem3/code39.c ../../subsystem3/barcode_dec.c ../../subsystem3/nav_map.c ../../subsystem3/line_follow.c ../../subsystem3/s3_status.c ../../subsystem3/s3_unit_tests.c ../../subsystem4/imu_proc.c ../../subsystem4/hump.c ../../subsystem4/s4_status.c ../../subsystem4/s4_unit_tests.c ../../subsystem5/s5_msg.c ../../subsystem5/obstacle_profile.c ../../subsystem5/avoid_plan.c ../../subsystem5/s5_unit_tests.c
+./build/host_tests s2
+[TEST] S2-U01 PASS  command word round trip at field limits (arg -2048)
+[TEST] S2-U01b PASS  command word arg +2047
+[TEST] S2-U02 PASS  reserved bits, unknown type and source rules rejected
+[TEST] S2-U03 PASS  argument ranges enforced at the boundaries
+[TEST] S2-U04 PASS  result, steering (clamped -63) and speed-cap words
+[TEST] S2-U05 PASS  motion status 2-word pack/unpack at limits
+[TEST] s2 formats SUMMARY 6 passed, 0 failed
+[TEST] S2-U06 PASS  zero error: output = feed-forward
+[TEST] S2-U07 PASS  saturated output: integrator frozen (anti-windup)
+[TEST] s2 pid SUMMARY 2 passed, 0 failed
+[TEST] S2-U08 PASS  turn arc for 90 deg = pi*track/4 (102.1 mm at 130 mm track)
+[TEST] S2-U09a PASS  MOVE accepted in Obstacle Handling
+[TEST] S2-U09 PASS  MOVE 500 mm: DONE, within 25 mm, wheels within 15 mm
+[TEST] S2-U09b PASS  bounded AVOID reverse accepted only in Obstacle Handling
+[TEST] S2-U09c PASS  negative MOVE drives both wheels backward and completes
+[TEST] S2-U10 PASS  TURN +90: left forward, right backward, arc within 12 mm
+[TEST] S2-U11 PASS  queued TURN starts straight from creep speed (no full stop)
+[TEST] s2 execution SUMMARY 7 passed, 0 failed
+[TEST] S2-U12 PASS  AVOID command rejected outside Obstacle Handling
+[TEST] S2-U13 PASS  BARCODE command rejected in Obstacle Handling
+[TEST] S2-U14 PASS  command from an older mode epoch rejected as stale
+[TEST] S2-U15 PASS  nothing accepted in INIT or SAFE_STOP
+[TEST] S2-U16 PASS  bounded command queue: overflow rejected (QUEUE)
+[TEST] S2-U17 PASS  STOP bypass aborts the running command (ABORTED, nav finished)
+[TEST] S2-U18 PASS  stop(): PWM forced to zero in the very next period
+[TEST] s2 arbitration SUMMARY 7 passed, 0 failed
+[TEST] S2-U19 PASS  stall (duty, no ticks for 400 ms): FAULT result and MOTOR_STALL
+[TEST] S2-U20 PASS  FAULT -> IDLE only after 300 ms clear; motors off meanwhile
+[TEST] S2-U21 PASS  3rd consecutive stall raises MOTION_ESCALATED (bounded recovery)
+[TEST] S2-U22 PASS  one wheel without ticks while driven: motion FAULT raised
+[TEST] s2 faults SUMMARY 4 passed, 0 failed
+[TEST] S2-U23 PASS  positive steer turns right (left wheel faster)
+[TEST] S2-U24 PASS  stale steering: the car stops instead of driving blind
+[TEST] S2-U25 PASS  obstacle speed cap limits line-following speed (FR8)
+[TEST] S2-U26 PASS  steering ignored outside Normal Navigation
+[TEST] S2-U27 PASS  SAFE_STOP: zero motor output whatever the inputs
+[TEST] S2-U40 PASS  stop for an obstacle: wheels coast to rest, no reverse duty (no runaway backwards)
+[TEST] s2 steering SUMMARY 6 passed, 0 failed
+[TEST] S2-U28 PASS  INIT waits for both IR and IMU calibration
+[TEST] S2-U29 PASS  not armed (test image): stays in INIT
+[TEST] S2-U30 PASS  INIT -> NORMAL when calibrated and armed
+[TEST] S2-U31 PASS  barcode command -> NAVIGATION ACTION
+[TEST] S2-U32 PASS  obstacle during a barcode action -> OBSTACLE, new epoch
+[TEST] S2-U33 PASS  avoidance done + line found -> NORMAL
+[TEST] S2-U34 PASS  critical fault (collision) -> SAFE_STOP
+[TEST] S2-U35 PASS  SAFE_STOP holds; events cannot leave it
+[TEST] S2-U36 PASS  validated RESUME -> INIT with calibration required again
+[TEST] S2-U37 PASS  initialisation timeout -> SAFE_STOP with SYS_FLT_INIT
+[TEST] S2-U38 PASS  severity: network/line-lost/stall degraded; FR12 and escalation critical
+[TEST] S2-U39 PASS  condition faults clear themselves; event faults need CLEAR
+[TEST] s2 vehicle fsm SUMMARY 12 passed, 0 failed
+[TEST] HOST TOTAL: 0 failed check(s)
+make: Leaving directory '/home/vanessa/pico/es-project/app_program/subsystem2/host_test'
