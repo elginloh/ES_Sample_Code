@@ -98,8 +98,7 @@ LOCAL INT runtime_checks(void)
 	tm_printf((UB*)"[TEST]   RESUME with faults 0x%07x -> %s, mode %s\n", (INT)faults,
 		  (expect == MREJ_NONE) ? "accepted" : "refused (critical condition)",
 		  sys_mode_name(sys_mode()));
-	ok2 = ok2 && (expect != MREJ_NONE || sys_mode() == VM_SAFE_STOP)
-	      && (expect == MREJ_NONE ? sys_mode() == VM_INIT : TRUE)
+	ok2 = ok2 && sys_mode() == ((expect == MREJ_NONE) ? VM_INIT : VM_SAFE_STOP)
 	      && (sys_fault_get() & SYS_FLT_REMOTE_STOP) == 0U;
 	TEST_CHECK("S2-U47", ok2,
 		   "RESUME clears latched events; leaves SAFE_STOP only when no critical condition remains");
